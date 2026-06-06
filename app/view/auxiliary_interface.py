@@ -136,6 +136,7 @@ class AuxiliaryInterface(SeraphineInterface):
             cfg.autoBanChampionSup,
             cfg.pretentBan,
             cfg.autoBanDelay,
+            cfg.enableEmptyBan,
             self.bpGroup)
 
         self.__initWidget()
@@ -1488,7 +1489,8 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
                  botChampionsConfigItem: ConfigItem = None,
                  supChampionsConfigItem: ConfigItem = None,
                  friendlyConfigItem: ConfigItem = None,
-                 delayTimeConfigItem: ConfigItem = None, parent=None):
+                 delayTimeConfigItem: ConfigItem = None,
+                 emptyBanConfigItem: ConfigItem = None, parent=None):
         super().__init__(Icon.SQUARECROSS, title, content, parent)
 
         self.champions = {}
@@ -1503,6 +1505,7 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
 
         self.friendlyConfigItem = friendlyConfigItem
         self.delayTimeConfigItem = delayTimeConfigItem
+        self.emptyBanConfigItem = emptyBanConfigItem
 
         self.statusLabel = QLabel()
 
@@ -1547,6 +1550,10 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
             self.tr("Prevent banning champions picked by teammates:"))
         self.friendlySwitchButton = SwitchButton(
             indicatorPos=IndicatorPosition.RIGHT)
+        self.emptyBanLabel = QLabel(
+            self.tr("Empty ban (ban no champion):"))
+        self.emptyBanSwitchButton = SwitchButton(
+            indicatorPos=IndicatorPosition.RIGHT)
 
         self.resetButton = PushButton(self.tr("Reset"))
 
@@ -1584,6 +1591,8 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
             self.__onDelaySpinBoxValueChanged)
         self.friendlySwitchButton.checkedChanged.connect(
             self.__onFriendlySwitchButtonClicked)
+        self.emptyBanSwitchButton.checkedChanged.connect(
+            self.__onEmptyBanSwitchButtonClicked)
         self.resetButton.clicked.connect(self.__onResetButtonClicked)
 
         self.delaySpinBox.setMinimumWidth(250)
@@ -1595,6 +1604,7 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
         self.enableSwitchButton.setChecked(enabled)
         self.friendlySwitchButton.setEnabled(enabled)
         self.friendlySwitchButton.setChecked(friendlyEnabled)
+        self.emptyBanSwitchButton.setChecked(qconfig.get(self.emptyBanConfigItem))
         self.resetButton.setMinimumWidth(100)
 
         self.__updateStatusLabel()
@@ -1654,7 +1664,11 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
         self.buttonsCfgLayout.addWidget(
             self.friendlySwitchButton, 2, 1, Qt.AlignRight)
         self.buttonsCfgLayout.addWidget(
-            self.resetButton, 3, 1, Qt.AlignRight)
+            self.emptyBanLabel, 3, 0, Qt.AlignLeft)
+        self.buttonsCfgLayout.addWidget(
+            self.emptyBanSwitchButton, 3, 1, Qt.AlignRight)
+        self.buttonsCfgLayout.addWidget(
+            self.resetButton, 4, 1, Qt.AlignRight)
 
         self.viewLayout.setSpacing(0)
         self.viewLayout.setContentsMargins(0, 0, 0, 0)
@@ -1753,6 +1767,9 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
 
     def __onFriendlySwitchButtonClicked(self, checked):
         qconfig.set(self.friendlyConfigItem, checked)
+
+    def __onEmptyBanSwitchButtonClicked(self, checked):
+        qconfig.set(self.emptyBanConfigItem, checked)
 
     def __onResetButtonClicked(self):
         for ty in ['default', 'top', 'jug', 'mid', 'bot', 'sup']:

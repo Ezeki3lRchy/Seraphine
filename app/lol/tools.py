@@ -1705,8 +1705,9 @@ async def autoBan(data, selection: ChampionSelection):
     自动禁用英雄
     """
     isAutoBan = cfg.get(cfg.enableAutoBanChampion)
+    isEmptyBan = cfg.get(cfg.enableEmptyBan)
 
-    if not isAutoBan or selection.isChampionBanned:
+    if (not isAutoBan and not isEmptyBan) or selection.isChampionBanned:
         return
 
     localPlayerCellId = data['localPlayerCellId']
@@ -1715,6 +1716,14 @@ async def autoBan(data, selection: ChampionSelection):
             if (action["actorCellId"] == localPlayerCellId
                     and action['type'] == 'ban'
                     and action["isInProgress"]):
+
+                # 空ban：到自己的 ban 位时，延迟后直接空 ban（不 ban 任何英雄）
+                # 优先级高于按英雄自动 ban
+                if isEmptyBan:
+                    await asyncio.sleep(cfg.get(cfg.autoBanDelay))
+                    await connector.banChampion(action['id'], 0, True)
+                    selection.isChampionBanned = True
+                    return True
 
                 pos = next(
                     filter(lambda x: x['cellId'] == localPlayerCellId, data['myTeam']), None)
