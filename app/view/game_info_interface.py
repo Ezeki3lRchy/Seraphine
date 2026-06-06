@@ -384,6 +384,26 @@ class SummonerInfoView(ColorAnimationFrame):
         self.kdaValLabel.setAlignment(Qt.AlignCenter)
         self.kdaValLabel.setObjectName("kdaValLabel")
 
+        # 最近胜率 (基于界面已拉取的近期对局, 不额外请求 SGP)
+        wins = info.get('wins', 0)
+        losses = info.get('losses', 0)
+        totalGames = wins + losses
+        winRate = round(wins / totalGames * 100) if totalGames else 0
+        self.winRateLabel = QLabel(
+            f"{self.tr('WR')}: {winRate}% ({wins}-{losses})"
+            if totalGames else f"{self.tr('WR')}: --")
+        self.winRateLabel.setObjectName("winRateLabel")
+        self.winRateLabel.setAlignment(Qt.AlignCenter)
+        wpe = QPalette()
+        if totalGames:
+            if winRate >= 60:
+                wpe.setColor(QPalette.WindowText, QColor(240, 111, 0))
+            elif winRate >= 50:
+                wpe.setColor(QPalette.WindowText, QColor(0, 163, 80))
+            elif winRate < 45:
+                wpe.setColor(QPalette.WindowText, QColor(191, 36, 42))
+        self.winRateLabel.setPalette(wpe)
+
         self.rankSoloIcon = QLabel()
 
         if soloRank['tier'] not in ["Unranked", '未定级']:
@@ -469,6 +489,8 @@ class SummonerInfoView(ColorAnimationFrame):
         self.kdaHBoxLayout.addWidget(QSplitter())
         self.kdaHBoxLayout.addWidget(self.kdaLabel)
         self.kdaHBoxLayout.addWidget(self.kdaValLabel)
+        self.kdaHBoxLayout.addWidget(QSplitter())
+        self.kdaHBoxLayout.addWidget(self.winRateLabel)
         self.infoVBoxLayout.addLayout(self.kdaHBoxLayout)
         self.kdaHBoxLayout.addWidget(QSplitter())
         # self.infoVBoxLayout.addWidget(self.kdaValLabel)
