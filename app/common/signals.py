@@ -18,6 +18,7 @@ class SignalBus(QObject):
     currentSummonerProfileChanged = pyqtSignal(dict)
     gameStatusChanged = pyqtSignal(str)
     champSelectChanged = pyqtSignal(dict)
+    lobbyChanged = pyqtSignal(dict)
     getCmdlineError = pyqtSignal()
 
     # career_interface
