@@ -164,7 +164,7 @@ class Config(QConfig):
     proxyAddr = ConfigItem("General", "HttpProxy", "")
 
     opggRegion = ConfigItem("Functions", "OpggRegion", "kr",
-                            OptionsValidator(["kr", "global"]), restart=True)
+                            OptionsValidator(["kr", "na", "global"]), restart=True)
     opggTier = ConfigItem("Functions", "OpggTier", "emerald_plus", OptionsValidator([
         "ibsg", "gold_plus", "platinum_plus", "emerald_plus", "diamond_plus", "master", "master_plus", "grandmaster", "challenger"
     ]))
@@ -191,3 +191,12 @@ LOCAL_PATH = f"{os.getenv('APPDATA')}\\Seraphine"
 
 cfg = Config()
 qconfig.load(f"{LOCAL_PATH}\\config.json", cfg)
+
+
+def isChineseText() -> bool:
+    """是否应使用中文文案: 显式中文, 或 AUTO 且系统 locale 为中文。
+    显式英文 / AUTO+非中文系统 -> 英文。"""
+    lang = cfg.language.value
+    if lang == Language.AUTO:
+        return QLocale().language() == QLocale.Chinese
+    return lang == Language.CHINESE_SIMPLIFIED

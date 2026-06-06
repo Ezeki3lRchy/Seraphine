@@ -7,7 +7,7 @@ import asyncio
 from PyQt5.QtCore import QObject, QLocale
 
 from .exceptions import SummonerRankInfoNotFound
-from ..common.config import cfg, Language
+from ..common.config import cfg, Language, isChineseText
 from ..lol.connector import connector
 from ..common.signals import signalBus
 
@@ -70,14 +70,7 @@ def translateTier(orig: str, short=False) -> str:
 
     index = 1 if short else 0
 
-    # AUTO 跟随系统 locale; 只有显式中文 / AUTO+中文系统 才用中文段位名
-    lang = cfg.language.value
-    if lang == Language.AUTO:
-        useChinese = QLocale().language() == QLocale.Chinese
-    else:
-        useChinese = lang == Language.CHINESE_SIMPLIFIED
-
-    return maps[orig.capitalize()][index] if useChinese else orig.capitalize()
+    return maps[orig.capitalize()][index] if isChineseText() else orig.capitalize()
 
 
 def timeStampToStr(stamp):

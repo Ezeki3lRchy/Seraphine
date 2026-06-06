@@ -1042,7 +1042,8 @@ class GameTab(ColorAnimationFrame):
         self.gameId = game["gameId"]
         self.championIcon = RoundIcon(game["championIcon"], 32, 2, 2)
 
-        self.modeName = QLabel(game["name"].replace("排位赛 ", ""))
+        self.modeName = QLabel(
+            game["name"].replace("排位赛 ", "").replace("Ranked ", ""))
 
         self.kills = QLabel(str(game['kills']))
         self.slash1 = QLabel("/")
