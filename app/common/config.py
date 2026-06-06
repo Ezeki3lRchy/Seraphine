@@ -134,6 +134,8 @@ class Config(QConfig):
     autoBanDelay = RangeConfigItem(
         "Functions", "AutoBanDelay", 0, RangeValidator(0, 25))
     pretentBan = ConfigItem("Functions", "PrententBan", False, BoolValidator())
+    enableEmptyBan = ConfigItem(
+        "Functions", "EnableEmptyBan", False, BoolValidator())
 
     autoAcceptCeilSwap = ConfigItem(
         "Functions", "AutoAcceptCeilSwap", False, BoolValidator())
