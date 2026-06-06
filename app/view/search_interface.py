@@ -1,6 +1,7 @@
 import re
 import threading
 import time
+import traceback
 from asyncio import CancelledError, LifoQueue
 from collections import OrderedDict
 
@@ -1400,24 +1401,32 @@ class SearchInterface(SeraphineInterface):
         await self.updateGameDetailView(tab.gameId, self.puuid)
 
     async def updateGameDetailView(self, gameId, puuid):
-        # if cfg.get(cfg.showTierInGameInfo):
-        if True:
-            self.gamesView.gameDetailView.setLoadingPageEnabled(True)
+        self.gamesView.gameDetailView.setLoadingPageEnabled(True)
 
-        # NOTE self.detailViewLoadTask 用于标记详情正在加载, self.loadGame会为其让行 -- By Hpero4
-        self.detailViewLoadTask = asyncio.create_task(
-            connector.getGameDetailByGameId(gameId))
-        game = await self.detailViewLoadTask
+        try:
+            # NOTE self.detailViewLoadTask 用于标记详情正在加载, self.loadGame会为其让行 -- By Hpero4
+            self.detailViewLoadTask = asyncio.create_task(
+                connector.getGameDetailByGameId(gameId))
+            game = await self.detailViewLoadTask
 
-        # 加载GameDetail的过程中, 切换了搜索对象(self.puuid变更), 将后续任务pass -- By Hpero4
-        if puuid == self.puuid:
+            # 加载GameDetail的过程中, 切换了搜索对象(self.puuid变更), 将后续任务pass -- By Hpero4
+            if puuid != self.puuid:
+                return
+
             self.detailViewLoadTask = asyncio.create_task(
                 parseGameDetailData(puuid, game))
             game = await self.detailViewLoadTask
             self.gamesView.gameDetailView.updateGame(game)
-
-        # if cfg.get(cfg.showTierInGameInfo):
-        if True:
+        except CancelledError:
+            raise
+        except BaseException:
+            # 拉取/解析对局详情失败时, 之前没有任何异常处理 -> 详情面板静默空白 (见 issue #7).
+            # 现在记录 traceback, 并通过 updateGame(None) 复用已有的 "Get game infomation failed" 提示.
+            logger.error(
+                f"Failed to load game detail, gameId={gameId}: "
+                f"{traceback.format_exc()}", TAG)
+            self.gamesView.gameDetailView.updateGame(None)
+        finally:
             self.gamesView.gameDetailView.setLoadingPageEnabled(False)
 
     @asyncSlot(int)
