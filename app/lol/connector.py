@@ -880,13 +880,21 @@ class LolClientConnector(QObject):
 
         return await res.read()
 
-    # 完成当前 action（不选任何英雄直接完成）——用于空ban / 跳过 ban
+    # 空ban：选 "None"(championId=-1) 并完成 ban action
+    # 带诊断日志：记录 HTTP 状态码与响应体，便于确认正确机制（championId=0 与 /complete 均被拒）
     @retry()
-    async def completeAction(self, actionsId):
-        res = await self.__post(
-            f"/lol-champ-select/v1/session/actions/{actionsId}/complete")
-
-        return await res.read()
+    async def emptyBan(self, actionsId):
+        data = {
+            "championId": -1,
+            "type": "ban",
+            "completed": True,
+        }
+        res = await self.__patch(
+            f"/lol-champ-select/v1/session/actions/{actionsId}", data=data)
+        body = await res.read()
+        logger.info(
+            f"emptyBan actionId={actionsId} -> status={res.status}, body={body[:300]}", TAG)
+        return res.status
 
     # 获取皮肤轮盘
     @retry()
