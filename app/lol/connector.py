@@ -880,6 +880,14 @@ class LolClientConnector(QObject):
 
         return await res.read()
 
+    # 完成当前 action（不选任何英雄直接完成）——用于空ban / 跳过 ban
+    @retry()
+    async def completeAction(self, actionsId):
+        res = await self.__post(
+            f"/lol-champ-select/v1/session/actions/{actionsId}/complete")
+
+        return await res.read()
+
     # 获取皮肤轮盘
     @retry()
     async def getSkinCarousel(self):

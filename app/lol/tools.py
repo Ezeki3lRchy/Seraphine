@@ -1717,11 +1717,12 @@ async def autoBan(data, selection: ChampionSelection):
                     and action['type'] == 'ban'
                     and action["isInProgress"]):
 
-                # 空ban：到自己的 ban 位时，延迟后直接空 ban（不 ban 任何英雄）
+                # 空ban：到自己的 ban 位时，延迟后直接完成 ban action（不选任何英雄）
+                # 用 /complete 跳过 ban —— championId=0 的 PATCH 会被客户端拒绝
                 # 优先级高于按英雄自动 ban
                 if isEmptyBan:
                     await asyncio.sleep(cfg.get(cfg.autoBanDelay))
-                    await connector.banChampion(action['id'], 0, True)
+                    await connector.completeAction(action['id'])
                     selection.isChampionBanned = True
                     return True
 
