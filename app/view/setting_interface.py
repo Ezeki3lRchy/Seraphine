@@ -233,8 +233,9 @@ class SettingInterface(SeraphineInterface):
             self.tr('Help us improve Seraphine by providing feedback'),
             self.aboutGroup)
 
-        # 让它和上面的按钮宽度一样，看起来顺眼点
-        self.feedbackCard.button.setFixedWidth(100)
+        # 至少和上面的按钮一样宽；英文 "Provide feedback" 比 100px 长，
+        # 用最小宽度（而非固定宽度）让按钮自适应文字，避免被截断
+        self.feedbackCard.button.setMinimumWidth(100)
 
         self.aboutCard = HyperlinkCard(
             GITHUB_URL, self.tr("View GitHub"), Icon.INFO, self.tr('About'),
