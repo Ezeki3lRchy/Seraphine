@@ -404,6 +404,19 @@ class SummonerInfoView(ColorAnimationFrame):
                 wpe.setColor(QPalette.WindowText, QColor(191, 36, 42))
         self.winRateLabel.setPalette(wpe)
 
+        # 重开率 (仅在近期有重开局时显示, 否则标签为空不占眼)
+        remakes = info.get('remakes', 0)
+        allGames = info.get('totalGames', 0)
+        self.remakeLabel = QLabel()
+        self.remakeLabel.setObjectName("remakeLabel")
+        self.remakeLabel.setAlignment(Qt.AlignCenter)
+        if remakes > 0 and allGames > 0:
+            rr = round(remakes / allGames * 100)
+            self.remakeLabel.setText(f"{self.tr('Remake')}: {remakes} ({rr}%)")
+            rpe = QPalette()
+            rpe.setColor(QPalette.WindowText, QColor(191, 36, 42))
+            self.remakeLabel.setPalette(rpe)
+
         self.rankSoloIcon = QLabel()
 
         if soloRank['tier'] not in ["Unranked", '未定级']:
@@ -491,6 +504,7 @@ class SummonerInfoView(ColorAnimationFrame):
         self.kdaHBoxLayout.addWidget(self.kdaValLabel)
         self.kdaHBoxLayout.addWidget(QSplitter())
         self.kdaHBoxLayout.addWidget(self.winRateLabel)
+        self.kdaHBoxLayout.addWidget(self.remakeLabel)
         self.infoVBoxLayout.addLayout(self.kdaHBoxLayout)
         self.kdaHBoxLayout.addWidget(QSplitter())
         # self.infoVBoxLayout.addWidget(self.kdaValLabel)
