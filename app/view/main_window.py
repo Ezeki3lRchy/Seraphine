@@ -248,6 +248,9 @@ class MainWindow(FluentWindow):
         # From career_interface
         signalBus.careerGameBarClicked.connect(self.__onCareerGameClicked)
 
+        # From game_info_interface
+        signalBus.gameInfoBarClicked.connect(self.__onGameInfoBarClicked)
+
         # From search_interface and gameinfo_interface
         signalBus.toSearchInterface.connect(self.__switchToSearchInterface)
         signalBus.toCareerInterface.connect(self.__switchToCareerInterface)
@@ -1032,20 +1035,29 @@ class MainWindow(FluentWindow):
 
     @asyncSlot(str)
     async def __onCareerGameClicked(self, gameId):
-        name = self.careerInterface.getSummonerName()
+        await self.__openGameDetailInSearch(
+            self.careerInterface.getSummonerName(),
+            self.careerInterface.puuid, gameId)
+
+    @asyncSlot(str, str, str)
+    async def __onGameInfoBarClicked(self, puuid, name, gameId):
+        # 从对局信息界面点击某局卡片跳过来 (见 issue #11)
+        await self.__openGameDetailInSearch(name, puuid, gameId)
+
+    async def __openGameDetailInSearch(self, name, puuid, gameId):
         self.searchInterface.searchLineEdit.setText(name)
 
-        # 从生涯页跳过来默认将筛选条件设置为全部 -- By Hpero4
+        # 默认将筛选条件设置为全部 -- By Hpero4
         self.searchInterface.filterComboBox.setCurrentIndex(0)
 
         # 先加载完再切换, 避免加载过程中换搜索目标导致puuid出错 -- By Hpero4
-        await self.searchInterface.searchAndShowFirstPage(self.careerInterface.puuid)
+        await self.searchInterface.searchAndShowFirstPage(puuid)
         self.checkAndSwitchTo(self.searchInterface)
         self.searchInterface.loadingGameId = gameId
 
         # 先画框再加载对局 否则快速切换(如筛选或换人)会导致找不到widget -- By Hpero4
         self.searchInterface.waitingForDrawSelect(gameId)
-        await self.searchInterface.updateGameDetailView(gameId, self.careerInterface.puuid)
+        await self.searchInterface.updateGameDetailView(gameId, puuid)
 
     def showOpggWindow(self):
         self.opggWindow.show()
