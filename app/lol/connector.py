@@ -880,8 +880,8 @@ class LolClientConnector(QObject):
 
         return await res.read()
 
-    # 空ban：选 "None"(championId=-1) 并完成 ban action
-    # 带诊断日志：记录 HTTP 状态码与响应体，便于确认正确机制（championId=0 与 /complete 均被拒）
+    # 空ban：选 "None"(championId=-1) 完成 ban action
+    # 已验证：该 PATCH 返回 204，等价于客户端里选 "None" 后锁定，即不 ban 任何英雄
     @retry()
     async def emptyBan(self, actionsId):
         data = {
@@ -891,10 +891,8 @@ class LolClientConnector(QObject):
         }
         res = await self.__patch(
             f"/lol-champ-select/v1/session/actions/{actionsId}", data=data)
-        body = await res.read()
-        logger.info(
-            f"emptyBan actionId={actionsId} -> status={res.status}, body={body[:300]}", TAG)
-        return res.status
+
+        return await res.read()
 
     # 获取皮肤轮盘
     @retry()
