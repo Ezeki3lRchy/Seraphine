@@ -21,7 +21,7 @@ TAG = "Util"
 
 
 class Github:
-    def __init__(self, user="Zzaphkiel", repositories="Seraphine"):
+    def __init__(self, user="Ezeki3lRchy", repositories="Seraphine-releases"):
         self.githubApi = "http://api.github.com"
         self.giteeApi = "http://gitee.com/api"
 
