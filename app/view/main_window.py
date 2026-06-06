@@ -41,7 +41,7 @@ from app.lol.exceptions import (SummonerGamesNotFound, RetryMaximumAttempts,
                                 SummonerNotFound, SummonerNotInGame, SummonerRankInfoNotFound)
 from app.lol.listener import (LolProcessExistenceListener, StoppableThread)
 from app.lol.connector import connector
-from app.lol.tools import (parseAllyGameInfo, parseGameInfoByGameflowSession,
+from app.lol.tools import (parseAllyGameInfo, parseLobbyGameInfo, parseGameInfoByGameflowSession,
                            getAllyOrderByGameRole, getTeamColor, autoBan, autoPick,
                            autoComplete, autoSwap, autoTrade, ChampionSelection,
                            SERVERS_NAME, SERVERS_SUBSET, showOpggBuild, autoShow)
@@ -231,6 +231,15 @@ class MainWindow(FluentWindow):
             self.__onGameStatusChanged)
         signalBus.champSelectChanged.connect(
             self.__onChampSelectChanged)
+
+        # 组队大厅成员战绩: puuid 缓存 (只查新成员) + 防抖 (合并连续成员变动)
+        self._lobbyGameInfoCache = {}
+        self._lobbyRefreshTimer = QTimer(self)
+        self._lobbyRefreshTimer.setSingleShot(True)
+        self._lobbyRefreshTimer.setInterval(800)
+        self._lobbyRefreshTimer.timeout.connect(self.__doLobbyRefresh)
+        signalBus.lobbyChanged.connect(self.__onLobbyChanged)
+
         signalBus.lcuApiExceptionRaised.connect(
             self.__onShowLcuConnectError)
         signalBus.getCmdlineError.connect(
@@ -811,8 +820,9 @@ class MainWindow(FluentWindow):
             await self.__onGameEnd()
             await self.careerInterface.refresh()
 
-            if self.stackedWidget.currentWidget() is self.gameInfoInterface:
-                self.switchTo(self.careerInterface)
+            # 进入大厅: 重置缓存, 触发 (防抖) 刷新车队成员战绩
+            self._lobbyGameInfoCache = {}
+            self._lobbyRefreshTimer.start()
 
         elif status == 'ReadyCheck':
             title = self.tr("Ready check")
@@ -860,6 +870,43 @@ class MainWindow(FluentWindow):
                 await connector.reconnect()
 
         asyncio.create_task(reconnect())
+
+    def __onLobbyChanged(self, event):
+        # 大厅成员变动: 防抖触发刷新 (仅查询新成员)
+        self._lobbyRefreshTimer.start()
+
+    @asyncSlot()
+    async def __doLobbyRefresh(self):
+        if self.isGaming:
+            return
+
+        try:
+            lobby = await connector.getLobby()
+        except:
+            return
+
+        if not isinstance(lobby, dict):
+            return
+
+        members = lobby.get('members') or []
+
+        # 有几个显示几个 (含单人); 仅当完全无成员/不在大厅时切回生涯页
+        if not members:
+            if self.stackedWidget.currentWidget() is self.gameInfoInterface:
+                self.switchTo(self.careerInterface)
+            return
+
+        try:
+            currentSummonerId = self.currentSummoner['summonerId']
+        except (TypeError, KeyError):
+            return
+
+        info = await parseLobbyGameInfo(
+            lobby, currentSummonerId, useSGP=True,
+            cache=self._lobbyGameInfoCache)
+
+        self.gameInfoInterface.updateAllySummoners(info)
+        self.checkAndSwitchTo(self.gameInfoInterface)
 
     # 进入英雄选择界面时触发
     async def __onChampionSelectBegin(self):
