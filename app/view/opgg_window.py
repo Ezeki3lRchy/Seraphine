@@ -184,6 +184,8 @@ class OpggWindow(OpggWindowBase):
             self.tr("All regions"), icon="app/resource/images/global.svg", userData="global")
         self.regionComboBox.addItem(
             self.tr("Korea"), icon="app/resource/images/kr.svg", userData="kr")
+        self.regionComboBox.addItem(
+            self.tr("North America"), icon="app/resource/images/na.svg", userData="na")
 
         self.tierComboBox.addItem(
             self.tr("All"), icon="app/resource/images/UNRANKED.svg", userData="all")

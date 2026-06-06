@@ -14,7 +14,7 @@ import aiohttp
 import requests
 from PyQt5.QtCore import QObject
 
-from app.common.config import cfg, Language
+from app.common.config import cfg, Language, isChineseText
 from app.common.logger import logger
 from app.common.signals import signalBus
 from app.common.util import getPortTokenServerByPid, getTasklistPath, getLolClientPid
@@ -1312,21 +1312,21 @@ class JsonManager:
         }
 
         key = mapId if mapId in maps else -1
-        index = 1 if cfg.language.value == Language.ENGLISH else 0
+        index = 0 if isChineseText() else 1
 
         return maps[key][index]
 
     def getNameMapByQueueId(self, queueId):
         if queueId == 0:
             return {
-                "name": "Custom" if cfg.language.value == Language.ENGLISH else "自定义"
+                "name": "自定义" if isChineseText() else "Custom"
             }
 
         data = self.queues[queueId]
         mapId = data["mapId"]
         name = data["name"]
 
-        if cfg.language.value == Language.ENGLISH:
+        if not isChineseText():
             with open("app/resource/i18n/gamemodes.json", encoding="utf-8") as f:
                 translate = json.loads(f.read())
 
