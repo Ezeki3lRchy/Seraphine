@@ -283,6 +283,12 @@ class LolClientConnector(QObject):
         async def onSGPTokenChanged(event):
             self.sgpToken = event['data']['accessToken']
 
+        @self.listener.subscribe(event="OnJsonApiEvent_lol-lobby_v2_lobby",
+                                 uri='/lol-lobby/v2/lobby',
+                                 type=("Update",))
+        async def onLobbyChanged(event):
+            signalBus.lobbyChanged.emit(event)
+
         # @self.listener.subscribe(event='OnJsonApiEvent', type=())
         # async def onDebugListen(event):
         #     print(event)
@@ -758,6 +764,13 @@ class LolClientConnector(QObject):
         }
 
         res = await self.__put('/lol-regalia/v2/current-summoner/regalia', data=data)
+        return await res.json()
+
+    async def getLobby(self):
+        '''
+        获取当前组队大厅信息 (未在大厅时返回的 json 不含 members)
+        '''
+        res = await self.__get("/lol-lobby/v2/lobby")
         return await res.json()
 
     @retry()

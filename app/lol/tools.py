@@ -4,7 +4,7 @@ import ctypes
 from copy import deepcopy
 
 import asyncio
-from PyQt5.QtCore import QObject
+from PyQt5.QtCore import QObject, QLocale
 
 from .exceptions import SummonerRankInfoNotFound
 from ..common.config import cfg, Language
@@ -70,10 +70,14 @@ def translateTier(orig: str, short=False) -> str:
 
     index = 1 if short else 0
 
-    if cfg.language.value == Language.ENGLISH:
-        return orig.capitalize()
+    # AUTO 跟随系统 locale; 只有显式中文 / AUTO+中文系统 才用中文段位名
+    lang = cfg.language.value
+    if lang == Language.AUTO:
+        useChinese = QLocale().language() == QLocale.Chinese
     else:
-        return maps[orig.capitalize()][index]
+        useChinese = lang == Language.CHINESE_SIMPLIFIED
+
+    return maps[orig.capitalize()][index] if useChinese else orig.capitalize()
 
 
 def timeStampToStr(stamp):
@@ -844,6 +848,59 @@ async def parseAllyGameInfo(session, currentSummonerId, useSGP=False):
     return {'summoners': summoners, 'champions': champions, 'order': order, "isAram": session.get('benchEnabled', False)}
 
 
+async def parseLobbyGameInfo(lobby, currentSummonerId, useSGP=False, cache=None):
+    '''
+    解析组队大厅成员战绩, 复用选人阶段的 per-summoner 取数逻辑。
+
+    @param lobby: connector.getLobby() 的返回值
+    @param cache: {puuid: summoner_dict} 复用缓存, 只查询新加入的成员 (避免 SGP 刷爆)
+    @return: 与 @see: parseAllyGameInfo 一致的 {summoners, champions, order, isAram}
+    '''
+    if cache is None:
+        cache = {}
+
+    members = lobby.get('members') or []
+    queueId = (lobby.get('gameConfig') or {}).get('queueId', -1)
+    isRank = queueId in (420, 440)
+
+    # 国服优先 SGP, 否则走 LCU
+    fetch = getSummonerGamesInfoViaSGP if (
+        useSGP and connector.isInTencent()) else parseSummonerGameInfo
+
+    async def resolve(idx, member):
+        puuid = member.get('puuid')
+
+        # 已查询过的成员直接复用缓存, 仅更新楼层顺序 (只对新成员发起请求)
+        if puuid and cache.get(puuid):
+            summoner = dict(cache[puuid])
+            summoner['cellId'] = idx
+            return summoner
+
+        # 用大厅成员合成 champ-select 风格的 item, 复用现成 helper
+        item = {
+            'puuid': puuid,
+            'summonerId': member.get('summonerId'),
+            'championId': 0,
+            'cellId': idx,
+            'selectedPosition': None,
+        }
+        summoner = await fetch(item, isRank, currentSummonerId)
+        if summoner and puuid:
+            cache[puuid] = summoner
+        return summoner
+
+    tasks = [resolve(idx, m) for idx, m in enumerate(members)]
+    summoners = await asyncio.gather(*tasks)
+
+    summoners = [s for s in summoners if s]
+    summoners = sorted(summoners, key=lambda x: x["cellId"])
+
+    champions = {s['summonerId']: s['championId'] for s in summoners}
+    order = [s['summonerId'] for s in summoners]
+
+    return {'summoners': summoners, 'champions': champions, 'order': order, "isAram": queueId == 450}
+
+
 def parseSummonerOrder(team):
     summoners = [{
         'summonerId': s['summonerId'],
@@ -1047,7 +1104,7 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
                  for game in origGamesInfo["games"][:11]]
         gamesInfo = await asyncio.gather(*tasks)
 
-    _, kill, deaths, assists, _, _ = parseGames(gamesInfo)
+    _, kill, deaths, assists, wins, losses = parseGames(gamesInfo)
 
     teammatesInfo = [
         getTeammates(
@@ -1084,6 +1141,8 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
         "puuid": puuid,
         "summonerId": summonerId,
         "kda": [kill, deaths, assists],
+        "wins": wins,
+        "losses": losses,
         "cellId": item.get("cellId"),
         "selectedPosition": item.get("selectedPosition"),
         "fateFlag": fateFlag,
@@ -1143,7 +1202,7 @@ async def getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId):
                  for game in origGamesInfo["games"][:11]]
         gamesInfo = await asyncio.gather(*tasks)
 
-    _, kill, deaths, assists, _, _ = parseGames(gamesInfo)
+    _, kill, deaths, assists, wins, losses = parseGames(gamesInfo)
 
     teammatesInfo = [
         getTeammatesFromSGPGame(
@@ -1203,6 +1262,8 @@ async def getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId):
         "puuid": puuid,
         "summonerId": summoner['id'],
         "kda": [kill, deaths, assists],
+        "wins": wins,
+        "losses": losses,
         "cellId": item.get("cellId"),
         "selectedPosition": item.get("selectedPosition"),
         "fateFlag": fateFlag,
