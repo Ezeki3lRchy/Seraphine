@@ -647,6 +647,10 @@ class Games(QFrame):
 
         for game in games:
             tab = GameTab(game)
+            # 点击对局卡片 -> 跳到搜索界面打开该局详情 (之前从未接线, 见 issue #11)
+            tab.clicked.connect(
+                lambda gid=tab.gameId: signalBus.gameInfoBarClicked.emit(
+                    self.summonerPuuid, self.summonerName.text(), str(gid)))
             self.gamesLayout.addWidget(tab, stretch=1)
 
         if len(games) < 11:

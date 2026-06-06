@@ -24,6 +24,9 @@ class SignalBus(QObject):
     # career_interface
     careerGameBarClicked = pyqtSignal(str)
 
+    # game_info_interface: (puuid, name, gameId)
+    gameInfoBarClicked = pyqtSignal(str, str, str)
+
     # search_interface:
     gameTabClicked = pyqtSignal(QWidget)
 
