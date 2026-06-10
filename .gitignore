@@ -25,3 +25,6 @@ log
 # 忽略虚拟环境
 venv
 seraphine
+
+# 忽略 OMC 会话状态/计划/日志
+.omc/

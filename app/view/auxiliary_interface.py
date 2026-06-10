@@ -1770,6 +1770,7 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
 
     def __onEmptyBanSwitchButtonClicked(self, checked):
         qconfig.set(self.emptyBanConfigItem, checked)
+        self.__updateStatusLabel()
 
     def __onResetButtonClicked(self):
         for ty in ['default', 'top', 'jug', 'mid', 'bot', 'sup']:
@@ -1778,7 +1779,11 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
         self.delaySpinBox.setValue(0)
 
     def __updateStatusLabel(self):
-        checked = self.enableSwitchButton.isChecked()
+        # 空 ban 是独立功能：即便按英雄自动 ban 关闭，开启空 ban 时仍会在轮到自己时
+        # 跳过禁用。后端判定为 (not isAutoBan and not isEmptyBan) 才算关闭，
+        # 故状态标签也需同时考虑两个开关，避免“已开空 ban 却显示 Disabled”。
+        checked = (self.enableSwitchButton.isChecked()
+                   or self.emptyBanSwitchButton.isChecked())
 
         text = self.tr("Enabled") if checked else self.tr("Disabled")
         self.statusLabel.setText(text)
