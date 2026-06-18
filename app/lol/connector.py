@@ -12,12 +12,13 @@ from collections import deque
 
 import aiohttp
 import requests
-from PyQt5.QtCore import QObject
+from PySide6.QtCore import QObject
 
 from app.common.config import cfg, Language, isChineseText
 from app.common.logger import logger
 from app.common.signals import signalBus
-from app.common.util import getPortTokenServerByPid, getTasklistPath, getLolClientPid
+from app.common import platform
+from app.common.util import getPortTokenServerByPid, getPortTokenServer, getTasklistPath, getLolClientPid
 from app.lol.exceptions import *
 
 requests.packages.urllib3.disable_warnings()
@@ -240,7 +241,10 @@ class LolClientConnector(QObject):
         self.pid = pid
 
         try:
-            self.port, self.token, self.server = getPortTokenServerByPid(pid)
+            # macOS: lockfile-primary discovery (psutil-cmdline fallback inside);
+            # Windows/other: unchanged psutil(+wmic) cmdline behavior.
+            lolFolder = (cfg.get(cfg.lolFolder) or [None])[0]
+            self.port, self.token, self.server = getPortTokenServer(pid, lolFolder)
         except:
             signalBus.getCmdlineError.emit()
             return
@@ -1028,8 +1032,31 @@ class LolClientConnector(QObject):
                   f" {credentials['gameId']}"
                   f" {self.server}")
 
+        lolFolder = cfg.get(cfg.lolFolder)[0]
+
+        if not platform.IS_WINDOWS:
+            # macOS: 用绝对路径唤起 bundle 内的 Game 主程序 (无 .exe, 无 ../Game,
+            # 不做 os.chdir). 失败不向上抛出 (handler 仅捕获 SummonerNotFound/
+            # SummonerNotInGame) —— 改为记录日志 + 通过 signalBus 弹错误提示.
+            # 见 plan Stage-3 "Windows-binary launch paths".
+            try:
+                appPath = platform.mac_lol_app_path(lolFolder)
+                gameDir = platform.mac_game_dir_from_folder(appPath or lolFolder)
+                gameBinary = os.path.join(gameDir, "League of Legends")
+                if not os.path.exists(gameBinary):
+                    raise FileNotFoundError(gameBinary)
+                # params 作为单个 argv (与 Windows 行为一致); 不切换工作目录.
+                subprocess.Popen([gameBinary, f'{params}'])
+            except Exception as e:
+                logger.error(
+                    f"macOS spectateDirectly launch failed: {e}", TAG)
+                signalBus.lcuApiExceptionRaised.emit(
+                    "Spectate via CMD is unavailable on macOS, "
+                    "please use the LCU API mode", e)
+            return
+
         pwd = os.getcwd()
-        os.chdir(f"{cfg.get(cfg.lolFolder)[0]}/../Game")
+        os.chdir(f"{lolFolder}/../Game")
         subprocess.Popen(['League of Legends.exe', f'{params}'])
         os.chdir(pwd)
 

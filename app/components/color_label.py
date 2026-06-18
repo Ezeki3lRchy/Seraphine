@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QLabel
-from PyQt5.QtGui import QColor
+from PySide6.QtWidgets import QLabel
+from PySide6.QtGui import QColor
 from app.common.style_sheet import ColorChangeable
 from app.common.qfluentwidgets import isDarkTheme
 
@@ -10,7 +10,10 @@ class ColorLabel(QLabel, ColorChangeable):
     '''
 
     def __init__(self, text: str = None, type: str = None, parent=None):
-        QLabel.__init__(self, text=text, parent=parent)
+        # PySide6's QLabel binding rejects keyword args here (PyQt5 accepted
+        # text=/parent=). Pass both positionally; QLabel requires a str so coerce
+        # None -> "", and QLabel(str, None) is valid for a parentless label.
+        QLabel.__init__(self, text if text is not None else "", parent)
         ColorChangeable.__init__(self, type)
 
     def setColor(self, c1, c2, c3, c4):

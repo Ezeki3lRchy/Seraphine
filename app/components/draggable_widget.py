@@ -1,8 +1,8 @@
 from typing import List
 
-from PyQt5.QtCore import (QPoint, Qt, QRect, QPropertyAnimation, QEasingCurve)
-from PyQt5.QtGui import QMouseEvent
-from PyQt5.QtWidgets import (QVBoxLayout, QFrame)
+from PySide6.QtCore import (QPoint, Qt, QRect, QPropertyAnimation, QEasingCurve)
+from PySide6.QtGui import QMouseEvent
+from PySide6.QtWidgets import (QVBoxLayout, QFrame)
 
 
 from app.components.animation_frame import CardWidget
@@ -56,15 +56,15 @@ class ItemsDraggableWidget(QFrame):
         super().mousePressEvent(e)
 
         if e.button() != Qt.MouseButton.LeftButton or \
-                not self.vBoxLayout.geometry().contains(e.pos()):
+                not self.vBoxLayout.geometry().contains(e.position().toPoint()):
             return
 
-        self.dragPos = e.pos()
+        self.dragPos = e.position().toPoint()
 
     def mouseMoveEvent(self, e: QMouseEvent):
         super().mouseMoveEvent(e)
 
-        if not self.vBoxLayout.geometry().contains(e.pos()) or \
+        if not self.vBoxLayout.geometry().contains(e.position().toPoint()) or \
                 self.count() <= 1:
             return
 
@@ -74,8 +74,8 @@ class ItemsDraggableWidget(QFrame):
 
         item = self.tabItem(index)
 
-        dy = e.pos().y() - self.dragPos.y()
-        self.dragPos = e.pos()
+        dy = e.position().toPoint().y() - self.dragPos.y()
+        self.dragPos = e.position().toPoint()
 
         if index == 0 and dy < 0 and item.y() <= 0:
             return

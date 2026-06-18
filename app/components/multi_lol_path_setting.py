@@ -1,6 +1,6 @@
 
-from PyQt5.QtCore import (Qt, pyqtSignal, QSize)
-from PyQt5.QtWidgets import (QVBoxLayout, QHBoxLayout, QSpacerItem,
+from PySide6.QtCore import (Qt, Signal, QSize)
+from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QSpacerItem,
                              QLabel, QWidget, QSizePolicy, QFileDialog)
 from app.common.qfluentwidgets import (TransparentToolButton, FluentIcon, SearchLineEdit,
                                        FlowLayout, SmoothScrollArea, FlyoutViewBase,
@@ -13,8 +13,8 @@ from app.components.draggable_widget import DraggableItem, ItemsDraggableWidget
 
 
 class PathTabItem(DraggableItem):
-    closedRequested = pyqtSignal()
-    editRequestd = pyqtSignal()
+    closedRequested = Signal()
+    editRequestd = Signal()
 
     def __init__(self, path: str, parent=None):
         super().__init__(parent=parent)

@@ -2,12 +2,13 @@ from enum import Enum
 import os
 import sys
 
-from PyQt5.QtCore import QLocale, QSize
+from PySide6.QtCore import QLocale, QSize
 
 
 from .qfluentwidgets import (qconfig, QConfig, ConfigItem, FolderValidator, BoolValidator,
                              OptionsConfigItem, OptionsValidator, ConfigSerializer,
                              RangeConfigItem, RangeValidator, EnumSerializer, ColorConfigItem)
+from app.common import platform
 
 
 class Language(Enum):
@@ -185,14 +186,14 @@ class Config(QConfig):
 
 YEAR = 2023
 AUTHOR = "Ezeki3lRchy"
-VERSION = "1.1.8"
+VERSION = "1.2.1"
 BETA = None
 FEEDBACK_URL = "https://github.com/Ezeki3lRchy/Seraphine/issues?q=is%3Aissue"
 GITHUB_URL = "https://github.com/Ezeki3lRchy/Seraphine"
-LOCAL_PATH = f"{os.getenv('APPDATA')}\\Seraphine"
+LOCAL_PATH = platform.config_dir()
 
 cfg = Config()
-qconfig.load(f"{LOCAL_PATH}\\config.json", cfg)
+qconfig.load(os.path.join(LOCAL_PATH, "config.json"), cfg)
 
 
 def isChineseText() -> bool:

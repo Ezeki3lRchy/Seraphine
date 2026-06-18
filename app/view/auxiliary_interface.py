@@ -2,8 +2,8 @@ import os
 import stat
 import threading
 
-from PyQt5.QtCore import Qt, pyqtSignal, QEvent, QSize
-from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout,
+from PySide6.QtCore import Qt, Signal, QEvent, QSize
+from PySide6.QtWidgets import (QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout,
                              QFrame, QSpacerItem, QSizePolicy)
 from qasync import asyncSlot
 
@@ -378,7 +378,7 @@ class ProfileBackgroundCard(ExpandGroupSettingCard):
         msg.yesButton.setText(self.tr("Signed Version"))
         msg.cancelButton.setText(self.tr("Unsigned Version"))
 
-        msg.exec_()
+        msg.exec()
 
         InfoBar.success(title=self.tr("Apply"), content=self.tr("Successfully"),
                         orient=Qt.Vertical, isClosable=True,
@@ -1806,7 +1806,7 @@ class AutoBanChampionCard(ExpandGroupSettingCard):
 
 
 class ChampionsCard(QFrame):
-    clearRequested = pyqtSignal()
+    clearRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1839,11 +1839,9 @@ class ChampionsCard(QFrame):
             self.iconLayout.addWidget(icon, alignment=Qt.AlignVCenter)
 
     def clear(self):
-        for i in reversed(range(self.iconLayout.count())):
-            item = self.iconLayout.itemAt(i)
-            self.iconLayout.removeItem(item)
-
-            if item.widget():
+        while self.iconLayout.count():
+            item = self.iconLayout.takeAt(0)
+            if item is not None and item.widget():
                 item.widget().deleteLater()
 
     def enterEvent(self, a0: QEvent) -> None:

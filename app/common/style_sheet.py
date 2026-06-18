@@ -2,8 +2,8 @@ from enum import Enum
 from typing import Tuple
 import traceback
 
-from PyQt5.QtGui import QColor, QClipboard
-from PyQt5.QtCore import QObject
+from PySide6.QtGui import QColor, QClipboard
+from PySide6.QtCore import QTimer
 from app.common.qfluentwidgets import (StyleSheetBase, Theme, qconfig, isDarkTheme,
                                        themeColor)
 
@@ -36,7 +36,7 @@ class StyleSheet(StyleSheetBase, Enum):
         return f'app/resource/qss/{theme.value.lower()}/{self.value}.qss'
 
 
-class ColorChangeable(QObject):
+class ColorChangeable:
     '''
     继承该基类的实例，会响应 `signalBus.customColorChanged` 信号，若对应 `type`
     的颜色有更新，该实例会自动更新为相应新的颜色
@@ -57,7 +57,16 @@ class ColorChangeable(QObject):
         else:
             self.type = None
 
-        # 如果自己被析构了，就将自己 manager 中记录的自己的引用给删了
+        # 如果自己被析构了，就将自己 manager 中记录的自己的引用给删了。
+        # PySide6/shiboken: accessing a Qt signal (self.destroyed) from within
+        # the secondary-base __init__ of a multiply-inherited widget (e.g.
+        # ColorLabel(QLabel, ColorChangeable)) while the MI __init__ chain is
+        # still in flight raises "Signal source has been deleted". Defer the
+        # connect to the next event-loop tick, by which point the C++ wrapper is
+        # valid. PyQt5 tolerated the synchronous access; PySide6 does not.
+        QTimer.singleShot(0, self.__connectDestroyed)
+
+    def __connectDestroyed(self):
         self.destroyed.connect(lambda: colorManager.removeWidget(self))
 
     def getColors(self):
@@ -105,7 +114,11 @@ class __ColorManager():
         if not widget.type:
             return
 
-        self.items[widget.type]['widgets'].remove(widget)
+        # Guard: the destroyed-signal may fire for a widget that was never
+        # registered (or already removed); list.remove() would raise ValueError.
+        widgets = self.items[widget.type]['widgets']
+        if widget in widgets:
+            widgets.remove(widget)
 
     def __updateAllColor(self):
         for i in self.items.values():

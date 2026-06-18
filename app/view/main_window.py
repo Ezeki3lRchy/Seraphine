@@ -1,9 +1,9 @@
 import os
 import sys
+import subprocess
 import traceback
 import time
 import copy
-import win32api
 from pathlib import Path
 
 import pyperclip
@@ -11,9 +11,9 @@ import pyperclip
 import asyncio
 from aiohttp.client_exceptions import ClientConnectorError
 from qasync import asyncClose, asyncSlot
-from PyQt5.QtCore import Qt, pyqtSignal, QSize, QEvent, QTimer, QPoint
-from PyQt5.QtGui import QIcon, QImage
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon
+from PySide6.QtCore import Qt, Signal, QSize, QEvent, QTimer, QPoint, QRect
+from PySide6.QtGui import QIcon, QImage, QGuiApplication
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from app.common.qfluentwidgets import (NavigationItemPosition, InfoBar, InfoBarPosition, Action,
                                        FluentWindow, SplashScreen, MessageBox, SmoothScrollArea,
@@ -27,7 +27,9 @@ from app.view.game_info_interface import GameInfoInterface
 from app.view.auxiliary_interface import AuxiliaryInterface
 from app.view.opgg_window import OpggWindow
 from app.common.util import (github, getLolClientPid, getTasklistPath,
-                             getLolClientPidSlowly, getLoLPathByRegistry)
+                             getLolClientPidSlowly, getLoLPathByRegistry,
+                             getLoLPathByScan)
+from app.common import platform
 from app.components.avatar_widget import NavigationAvatarWidget
 from app.components.temp_system_tray_menu import TmpSystemTrayMenu
 from app.common.icons import Icon
@@ -55,11 +57,11 @@ TAG = "MainWindow"
 
 
 class MainWindow(FluentWindow):
-    mainWindowHide = pyqtSignal(bool)
-    showUpdateMessageBox = pyqtSignal(dict)
-    showNoticeMessageBox = pyqtSignal(str)
-    checkUpdateFailed = pyqtSignal()
-    fetchNoticeFailed = pyqtSignal()
+    mainWindowHide = Signal(bool)
+    showUpdateMessageBox = Signal(dict)
+    showNoticeMessageBox = Signal(str)
+    checkUpdateFailed = Signal()
+    fetchNoticeFailed = Signal()
 
     def __init__(self):
         super().__init__()
@@ -124,7 +126,9 @@ class MainWindow(FluentWindow):
             "\\", "/") or folder == ""
 
         if isEmptyList or isEmptyStr:
-            path = getLoLPathByRegistry()
+            # Windows: Tencent registry (CN). macOS: scan /Applications for the
+            # League of Legends.app bundle. Both return "" when not found.
+            path = getLoLPathByScan() if platform.IS_MACOS else getLoLPathByRegistry()
 
             if not path:
                 return
@@ -279,13 +283,24 @@ class MainWindow(FluentWindow):
             "QLabel {font: 13px 'Segoe UI', 'Microsoft YaHei';}")
         self.titleBar.hBoxLayout.insertSpacing(0, 10)
 
+        if platform.IS_MACOS:
+            # macOS: use native top-left traffic lights instead of the Fluent
+            # top-right min/max/close buttons. The frameless base
+            # (MacFramelessWindowBase) draws the real system buttons; we hide the
+            # Fluent custom button group and let the native ones show. Their
+            # position is set top-left via the systemTitleBarRect override below.
+            self.titleBar.minBtn.hide()
+            self.titleBar.maxBtn.hide()
+            self.titleBar.closeBtn.hide()
+            self.setSystemTitleBarButtonVisible(True)
+
         self.setMicaEffectEnabled(cfg.get(cfg.micaEnabled))
 
         self.splashScreen = SplashScreen(self.windowIcon(), self)
         self.splashScreen.setIconSize(QSize(106, 106))
         self.splashScreen.raise_()
 
-        desktop = QApplication.desktop().availableGeometry()
+        desktop = QGuiApplication.primaryScreen().availableGeometry()
         w, h = desktop.width(), desktop.height()
         self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
 
@@ -295,6 +310,20 @@ class MainWindow(FluentWindow):
 
         self.oldHook = sys.excepthook
         sys.excepthook = self.exceptHook
+
+    def systemTitleBarRect(self, size: QSize) -> QRect:
+        """ macOS-only: place the native traffic lights top-left.
+
+        The Fluent base returns ``QRect(size.width() - 75, ...)`` (top-right) for
+        the system button area. On macOS we override it to the top-left corner so
+        the native min/max/close buttons render where macOS users expect them.
+        Only invoked by MacFramelessWindowBase when the system buttons are visible
+        (macOS); the Windows path never calls this, so it is left unchanged there.
+        """
+        if platform.IS_MACOS:
+            return QRect(8, 0 if self.isFullScreen() else 8, 75, size.height())
+
+        return super().systemTitleBarRect(size)
 
     @asyncSlot(str, BaseException)
     async def __onShowLcuConnectError(self, api, obj):
@@ -444,7 +473,10 @@ class MainWindow(FluentWindow):
             lambda: showAndSwitch(self.settingInterface))
         quitAction.triggered.connect(quit)
 
-        self.trayMenu = TmpSystemTrayMenu(self)
+        # qfluentwidgets fork's RoundMenu.__init__ signature is (title="",
+        # parent=None); pass parent by keyword so the MainWindow isn't taken as
+        # the title (would TypeError in setTitle). Was positional in the old dep.
+        self.trayMenu = TmpSystemTrayMenu(parent=self)
 
         self.trayMenu.addAction(careerAction)
         self.trayMenu.addAction(searchAction)
@@ -668,6 +700,17 @@ class MainWindow(FluentWindow):
             self.__startLolClient()
 
     def __startLolClient(self):
+        if not platform.IS_WINDOWS:
+            # macOS: 没有 client.exe/LeagueClient.exe, 用 `open` 唤起 .app bundle.
+            appPath = platform.mac_lol_app_path(cfg.get(cfg.lolFolder)[0])
+            if appPath:
+                subprocess.Popen(['open', appPath])
+                self.__showStartLolSuccessInfo()
+            else:
+                # 仅当 .app 确实缺失时才报路径错误 (非空跑也不再误报).
+                self.__showLolClientPathErrorInfo()
+            return
+
         for clientName in ("client.exe", "LeagueClient.exe"):
             path = f'{cfg.get(cfg.lolFolder)[0]}/{clientName}'
             if os.path.exists(path):
@@ -1018,7 +1061,7 @@ class MainWindow(FluentWindow):
         if (dpi := self.devicePixelRatioF()) == 1.0:
             return
 
-        w, h = win32api.GetSystemMetrics(0), win32api.GetSystemMetrics(1)
+        w, h = platform.get_system_metrics(0), platform.get_system_metrics(1)
         size: QSize = self.size() * dpi
 
         if size.width() < w and size.height() < h:
