@@ -1,10 +1,10 @@
 from typing import List
 
-from PyQt5.QtWidgets import (QHBoxLayout, QWidget, QFrame, QVBoxLayout, QSpacerItem,
+from PySide6.QtWidgets import (QHBoxLayout, QWidget, QFrame, QVBoxLayout, QSpacerItem,
                              QSizePolicy, QLabel, QHBoxLayout, QWidget, QLabel, QFrame,
                              QVBoxLayout, QSpacerItem, QSizePolicy, QLayout, QGridLayout)
-from PyQt5.QtCore import Qt, pyqtSignal, QEasingCurve
-from PyQt5.QtGui import QPixmap, QColor, QCursor
+from PySide6.QtCore import Qt, Signal, QEasingCurve
+from PySide6.QtGui import QPixmap, QColor, QCursor
 from qasync import asyncSlot
 
 from app.lol.tools import ToolsTranslator
@@ -443,12 +443,10 @@ class ChampionSkillsWidget(BuildWidgetBase):
         self.hBoxLayout.addSpacing(2)
 
     def __clearLayout(self, layout: QLayout):
-        for i in reversed(range(layout.count())):
-            item = layout.itemAt(i)
-            layout.removeItem(item)
-
-            if widget := item.widget():
-                widget.deleteLater()
+        while layout.count():
+            item = layout.takeAt(0)
+            if item is not None and item.widget():
+                item.widget().deleteLater()
 
     def updateWidget(self, data):
         self.__clearLayout(self.mainSkillLayout)
@@ -595,12 +593,10 @@ class ChampionItemWidget(BuildWidgetBase):
         self.vBoxLayout.addLayout(self.coreItems)
 
     def __updateLayout(self, layout: QLayout, data: list):
-        for i in reversed(range(layout.count())):
-            item = layout.itemAt(i)
-            layout.removeItem(item)
-
-            if widget := item.widget():
-                widget.deleteLater()
+        while layout.count():
+            item = layout.takeAt(0)
+            if item is not None and item.widget():
+                item.widget().deleteLater()
 
         useSeparator = layout is self.coreItems
 
@@ -784,12 +780,10 @@ class ChampionCountersWidget(BuildWidgetBase):
         self.hBoxLayout.addLayout(self.weakAgainstLayout)
 
     def __updateLayout(self, layout: QLayout, data: list):
-        for i in reversed(range(layout.count())):
-            item = layout.itemAt(i)
-            layout.removeItem(item)
-
-            if widget := item.widget():
-                widget.deleteLater()
+        while layout.count():
+            item = layout.takeAt(0)
+            if item is not None and item.widget():
+                item.widget().deleteLater()
 
         for x in data:
             item = CounterChampionWidget(x)
@@ -1043,12 +1037,10 @@ class PerksWidget(QFrame):
 
     def __clearPerks(self, layouts: List[QLayout]):
         for layout in layouts:
-            for i in reversed(range(layout.count())):
-                item = layout.itemAt(i)
-                layout.removeItem(item)
-
-                if widget := item.widget():
-                    widget.deleteLater()
+            while layout.count():
+                item = layout.takeAt(0)
+                if item is not None and item.widget():
+                    item.widget().deleteLater()
 
     def clear(self):
         self.__clearPerks(self.primaryPerksSlots)
@@ -1160,12 +1152,10 @@ class ChampionAugmentsWidget(BuildWidgetBase):
 
     def __clearLayouts(self):
         for layout in self.augmentsLayouts:
-            for i in reversed(range(layout.count())):
-                item = layout.itemAt(i)
-                layout.removeItem(item)
-
-                if widget := item.widget():
-                    widget.deleteLater()
+            while layout.count():
+                item = layout.takeAt(0)
+                if item is not None and item.widget():
+                    item.widget().deleteLater()
 
     def updateWidget(self, data):
         if data == None:
@@ -1256,12 +1246,10 @@ class ChampionSynergiesWidget(BuildWidgetBase):
         self.vBoxLayout.setSpacing(8)
 
     def __clearLayout(self):
-        for i in reversed(range(self.vBoxLayout.count())):
-            item = self.vBoxLayout.itemAt(i)
-            self.vBoxLayout.removeItem(item)
-
-            if widget := item.widget():
-                widget.deleteLater()
+        while self.vBoxLayout.count():
+            item = self.vBoxLayout.takeAt(0)
+            if item is not None and item.widget():
+                item.widget().deleteLater()
 
     def updateWidget(self, data):
         if not data:

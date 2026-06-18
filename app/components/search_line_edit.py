@@ -1,14 +1,13 @@
-from PyQt5.QtCore import Qt, QEvent, QAbstractItemModel, pyqtSignal, QSize
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QCompleter, QAction, QWidget, QHBoxLayout, QListWidgetItem, QPushButton
-from PyQt5.uic.properties import QtCore, QtGui
+from PySide6.QtCore import Qt, QEvent, QAbstractItemModel, Signal, QSize
+from PySide6.QtGui import QColor, QAction
+from PySide6.QtWidgets import QCompleter, QWidget, QHBoxLayout, QListWidgetItem, QPushButton
 from ..common.qfluentwidgets import SearchLineEdit as QSearchLineEdit, PushButton, Icon, FluentIcon, TransparentToolButton, Theme, CompleterMenu, LineEditButton
 
 from app.common.config import cfg
 
 
 class MyItemWidget(QWidget):
-    clicked = pyqtSignal(str)
+    clicked = Signal(str)
 
     def __init__(self, text, parent=None):
         super().__init__(parent)

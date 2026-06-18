@@ -1,20 +1,18 @@
 import json
 import os
 import re
-import winreg
 from pathlib import Path
 
 import requests
 import base64
 import subprocess
 import psutil
-import win32api
-import win32gui
 
-from PyQt5.QtCore import QRectF
+from PySide6.QtCore import QRectF
 
 from app.common.config import cfg, VERSION
 from app.common.logger import logger
+from app.common import platform
 
 
 TAG = "Util"
@@ -97,25 +95,21 @@ def getLoLPathByRegistry() -> str:
     ** 只能获取到国服的路径, 外服不支持 **
 
     无法获取时返回空串
+
+    On non-Windows the registry shim returns "" (no Tencent registry key).
     """
-    mainKey = winreg.HKEY_CURRENT_USER
-    subKey = "SOFTWARE\Tencent\LOL"
-    valueName = "InstallPath"
+    return platform.get_lol_path_by_registry()
 
-    try:
-        with winreg.OpenKey(mainKey, subKey) as k:
-            installPath, _ = winreg.QueryValueEx(k, valueName)
-            path = str(Path(f"{installPath}\TCLS").absolute()
-                       ).replace("\\", "/")
-            return f"{path[:1].upper()}{path[1:]}"
-    except FileNotFoundError:
-        logger.warning("reg path or val does not exist.", TAG)
-    except WindowsError as e:
-        logger.warning(f"occurred while reading the registry: {e}", TAG)
-    except Exception as e:
-        logger.exception("unknown error reading registry", e, TAG)
 
-    return ""
+def getLoLPathByScan() -> str:
+    """macOS 安装路径扫描 (winreg 在 macOS 上不存在的替代方案).
+
+    Scans the standard macOS install locations for ``League of Legends.app``
+    and returns the bundle path, or "" if not found / not macOS. This is the
+    macOS counterpart to ``getLoLPathByRegistry`` and is wired into the
+    path-resolution fallback so macOS gets a sensible default ``lolFolder``.
+    """
+    return platform.get_lol_path_by_scan()
 
 
 def getTasklistPath():
@@ -242,12 +236,118 @@ def getPortTokenServerByPidViaWmic():
 def getPortTokenServerByPid(pid):
     '''
     通过进程 id 获得启动命令行参数中的 port、token 以及登录服务器
+
+    On Windows: psutil cmdline first, wmic as the admin-rights fallback (unchanged).
+    On macOS/other: psutil cmdline only — wmic does NOT exist there, so the
+    fallback is IS_WINDOWS-guarded and the psutil error is re-raised. The real
+    cross-platform fallback for discovery is the lockfile reader (see
+    getPortTokenServerByLockfile / getPortTokenServer).
     '''
 
     try:
         return getPortTokenServerByPidViaPsutil(pid)
     except:
-        return getPortTokenServerByPidViaWmic()
+        if platform.IS_WINDOWS:
+            return getPortTokenServerByPidViaWmic()
+        raise
+
+
+def parseLockfile(content: str):
+    """Parse a Riot LCU lockfile body ``name:pid:port:password:protocol``.
+
+    Returns ``(port, token, None)`` to match the ``(port, token, server)`` tuple
+    shape used elsewhere — the lockfile carries no ``rso_platform_id``, so server
+    is None (resolved later from the LCU API if needed).
+
+    Raises ``ValueError`` on a malformed body so callers can fall through to the
+    psutil-cmdline path.
+    """
+    parts = content.strip().split(":")
+    if len(parts) < 5:
+        raise ValueError(f"malformed lockfile: {content!r}")
+
+    # name:pid:port:password:protocol
+    _name, _pid, port, password, _protocol = parts[0], parts[1], parts[2], parts[3], parts[4]
+
+    if not port or not password:
+        raise ValueError(f"lockfile missing port/password: {content!r}")
+
+    return port, password, None
+
+
+def readMacLockfile(lolFolder=None):
+    """macOS: read & parse the LCU lockfile from the first readable candidate path.
+
+    Probes MULTIPLE candidate locations (cfg.lolFolder-derived,
+    /Applications + ~/Applications bundles, and Application Support variants —
+    see ``platform.mac_lockfile_candidates``). The first path that exists, is
+    readable, and parses wins.
+
+    Returns ``(port, token, None)`` on success. Raises ``FileNotFoundError`` if
+    no candidate is readable/parseable, so the caller falls back to the
+    cross-platform psutil-cmdline discovery path.
+    """
+    candidates = platform.mac_lockfile_candidates(lolFolder)
+
+    tried = []
+    for path in candidates:
+        tried.append(path)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return parseLockfile(content)
+        except (OSError, ValueError) as e:
+            logger.warning(f"lockfile candidate failed ({path}): {e}", TAG)
+            continue
+
+    raise FileNotFoundError(
+        f"no readable LCU lockfile among candidates: {tried}")
+
+
+def getPortTokenServer(pid, lolFolder=None):
+    """LCU discovery: lockfile-PRIMARY on macOS, psutil-cmdline as fallback.
+
+    Discovery order:
+      - macOS: try the lockfile reader first (lockfile-primary, per spec); if no
+        candidate is readable/parseable, fall back to the EXISTING cross-platform
+        psutil-cmdline path (``getPortTokenServerByPid`` → psutil). The lockfile
+        gives port+token but no server; if the psutil fallback resolves a server
+        it is preserved.
+      - Windows/other: keep the existing psutil(+wmic) cmdline behavior unchanged
+        (the lockfile path is macOS-only).
+
+    ``lolFolder`` is the configured ``cfg.lolFolder`` value (used to derive a
+    bundle-local lockfile candidate); pass ``cfg.get(cfg.lolFolder)[0]`` or None.
+    """
+    if platform.IS_MACOS:
+        try:
+            return readMacLockfile(lolFolder)
+        except (FileNotFoundError, OSError, ValueError) as e:
+            logger.warning(
+                f"lockfile discovery failed, falling back to psutil cmdline: {e}",
+                TAG)
+            return getPortTokenServerByPid(pid)
+
+    # Windows / other: unchanged psutil(+wmic) cmdline discovery.
+    return getPortTokenServerByPid(pid)
+
+
+def isLolGameProcessExistMac() -> bool:
+    """macOS in-game process check (psutil; matches the name WITHOUT ``.exe``).
+
+    The Windows in-game process is ``League of Legends.exe`` (matched by
+    ``isLolGameProcessExist`` via tasklist); on macOS it is ``League of Legends``
+    with no extension. Used by the macOS listener branch to drive the
+    ``lolClientEnded`` transition.
+    """
+    for process in psutil.process_iter():
+        try:
+            if process.name() == "League of Legends":
+                return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+    return False
 
 
 def getFileProperties(fname):
@@ -273,7 +373,7 @@ def getFileProperties(fname):
              'StringFileInfo': None, 'FileVersion': None}
 
     try:
-        fixedInfo = win32api.GetFileVersionInfo(fname, '\\')
+        fixedInfo = platform.get_file_version_info(fname, '\\')
         props['FixedFileInfo'] = fixedInfo
         props['FileVersion'] = "%d.%d.%d.%d" % (fixedInfo['FileVersionMS'] / 65536,
                                                 fixedInfo['FileVersionMS'] % 65536, fixedInfo['FileVersionLS'] / 65536,
@@ -281,7 +381,7 @@ def getFileProperties(fname):
 
         # \VarFileInfo\Translation returns list of available (language, codepage)
         # pairs that can be used to retreive string info. We are using only the first pair.
-        lang, codepage = win32api.GetFileVersionInfo(
+        lang, codepage = platform.get_file_version_info(
             fname, '\\VarFileInfo\\Translation')[0]
 
         # any other must be of the form \StringfileInfo\%04X%04X\parm_name, middle
@@ -291,7 +391,7 @@ def getFileProperties(fname):
         for propName in propNames:
             strInfoPath = u'\\StringFileInfo\\%04X%04X\\%s' % (
                 lang, codepage, propName)
-            strInfo[propName] = win32api.GetFileVersionInfo(fname, strInfoPath)
+            strInfo[propName] = platform.get_file_version_info(fname, strInfoPath)
 
         props['StringFileInfo'] = strInfo
     except:
@@ -300,7 +400,59 @@ def getFileProperties(fname):
         return props
 
 
+def getMacLolClientVersion():
+    """macOS: 解析真实客户端版本 (无 PE 版本信息可读).
+
+    优先从 .app bundle 内的 product.json 读取版本; 解析不到时 **抛出异常**
+    (不返回 sentinel) —— 调用方 (aram.py / champions.py 的 __needUpdate) 以
+    `except: return True` 包裹本调用做缓存失效判断, 抛出可还原 Windows 失败时
+    "强制更新" 的语义; 返回 sentinel 反而会导致每次启动重复下载或静默使用过期数据.
+    见 plan Stage-3 / R8.
+    """
+    lolFolder = cfg.get(cfg.lolFolder)[0]
+
+    # 候选 product.json 路径: 配置的 bundle, 以及默认安装位置.
+    candidates = []
+    gameDir = platform.mac_game_dir_from_folder(lolFolder)
+    if gameDir:
+        # <bundle>/Contents/LoL/Game/.. -> <bundle>/Contents/LoL
+        lolDir = os.path.dirname(gameDir)
+        candidates.append(os.path.join(lolDir, "product.json"))
+        candidates.append(os.path.join(gameDir, "product.json"))
+
+    scanned = platform.get_lol_path_by_scan()
+    if scanned:
+        scannedGameDir = platform.mac_game_dir_from_folder(scanned)
+        if scannedGameDir:
+            scannedLolDir = os.path.dirname(scannedGameDir)
+            candidates.append(os.path.join(scannedLolDir, "product.json"))
+
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.loads(f.read())
+        except (OSError, ValueError):
+            continue
+
+        # product.json 常见版本字段
+        ver = (data.get("version")
+               or data.get("product_version")
+               or data.get("patchline_version"))
+        if ver:
+            match = re.search(r"\d+\.\d+", str(ver))
+            if match:
+                return match.group(0)
+
+    raise FileNotFoundError(
+        f"no resolvable macOS LoL client version (tried product.json: {candidates})")
+
+
 def getLolClientVersion():
+    # macOS: 无法读取 .exe 的 PE 版本信息, 改为从 product.json 解析真实版本,
+    # 解析不到则抛出 (见 getMacLolClientVersion). 不返回 sentinel.
+    if platform.IS_MACOS:
+        return getMacLolClientVersion()
+
     gamePath = cfg.get(cfg.lolFolder)[0]
 
     assert gamePath  # 必须有, 否则就是调用逻辑有问题 -- By Hpero4
@@ -323,21 +475,18 @@ def getLolClientVersion():
 
 
 def getLolClientWindowPos() -> QRectF:
-    # 获取客户端窗口句柄
-    hwnd = win32gui.FindWindow("RCLIENT", "League of Legends")
-
-    # 如果没客户端，就直接 return 一个 None
-    if not hwnd:
+    # 获取客户端窗口位置 (left, top, right, bottom)
+    # macOS: 无可移植的窗口句柄, 直接返回 None, 让 OPGG 浮窗回退到屏幕右侧
+    # (__moveRightCenter) —— documented degradation #2 (spec:49).
+    if platform.IS_MACOS:
         return None
 
-    # 获取客户端窗口位置
-    # struct RECT {
-    #     LONG left;
-    #     LONG top;
-    #     LONG right;
-    #     LONG bottom;
-    # }
-    rect = win32gui.GetWindowRect(hwnd)
+    # 在非 Windows 上 shim 也返回 None (无可移植的窗口句柄), 上层回退到屏幕右侧
+    rect = platform.find_lol_client_window_rect()
+
+    # 如果没客户端，就直接 return 一个 None
+    if not rect:
+        return None
 
     # 窗口最小化的时候，比例不是 16:9，直接 return 一个 None
     if (rect[3] - rect[1]) / (rect[2] - rect[0]) != 0.5625:

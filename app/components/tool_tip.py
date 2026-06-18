@@ -1,9 +1,9 @@
 
-from PyQt5.QtCore import (
+from PySide6.QtCore import (
     Qt, QPoint, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve,
     QSize)
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import (QWidget, QHBoxLayout,
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (QWidget, QHBoxLayout,
                              QGraphicsDropShadowEffect)
 
 from app.common.qfluentwidgets import (isDarkTheme, TransparentToolButton,

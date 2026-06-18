@@ -1,9 +1,9 @@
 import sys
 
-from PyQt5.QtCore import (Qt, QRectF, QPoint, QPropertyAnimation, QParallelAnimationGroup,
+from PySide6.QtCore import (Qt, QRectF, QPoint, QPropertyAnimation, QParallelAnimationGroup,
                           QEasingCurve, QSize, QRect)
-from PyQt5.QtGui import QHideEvent, QPainter, QPainterPath, QPen, QFont, QPixmap, QColor
-from PyQt5.QtWidgets import (QWidget, QApplication, QMainWindow, QHBoxLayout,
+from PySide6.QtGui import QHideEvent, QPainter, QPainterPath, QPen, QFont, QPixmap, QColor
+from PySide6.QtWidgets import (QWidget, QApplication, QMainWindow, QHBoxLayout,
                              QLabel, QVBoxLayout, QGridLayout, QFrame, QGraphicsDropShadowEffect)
 
 from app.lol.aram import AramBuff
@@ -16,7 +16,12 @@ from app.common.style_sheet import StyleSheet
 
 class ProgressArc(ProgressRing):
     def __init__(self, parent=None, useAni=True, text="", fontSize=10):
-        self.text = text
+        # NOTE: do NOT store this as ``self.text`` — that shadows the inherited
+        # QProgressBar.text() virtual with a str. Under PySide6/shiboken, when
+        # Qt calls text() during initStyleOption (e.g. inside setStyleSheet
+        # polish), the override dispatch tries to call the str and segfaults.
+        # PyQt5 tolerated the shadowing; PySide6 does not. Use a distinct name.
+        self.arcText = text
         self.fontSize = fontSize
         self.drawVal = 0
         self.ringGap = 30
@@ -34,7 +39,11 @@ class ProgressArc(ProgressRing):
 
         # draw background
         bc = self.darkBackgroundColor if isDarkTheme() else self.lightBackgroundColor
-        pen = QPen(bc, cw, cap=Qt.RoundCap, join=Qt.RoundJoin)
+        # PySide6's QPen() rejects cap=/join= keyword args (PyQt5 accepted them);
+        # build positionally then set cap/join via setters.
+        pen = QPen(bc, cw)
+        pen.setCapStyle(Qt.RoundCap)
+        pen.setJoinStyle(Qt.RoundJoin)
         painter.setPen(pen)
         painter.drawArc(rc, (self.ringGap-90)*16, (360-2*self.ringGap)*16)
 
@@ -52,7 +61,7 @@ class ProgressArc(ProgressRing):
         text_rect = QRectF(0, self.height() * 0.88,
                            self.width(), self.height() * 0.12)
 
-        painter.drawText(text_rect, Qt.AlignCenter, f"{self.text}")
+        painter.drawText(text_rect, Qt.AlignCenter, f"{self.arcText}")
 
 
 class RoundLevelAvatar(QWidget):
@@ -69,7 +78,9 @@ class RoundLevelAvatar(QWidget):
         self.sep = .3 * diameter
         self.iconPath = icon
 
-        self.image = QPixmap(self.iconPath)
+        # PySide6's QPixmap rejects QPixmap(None); use an empty pixmap when no
+        # icon path is given (PyQt5 tolerated None as an empty pixmap).
+        self.image = QPixmap(self.iconPath) if self.iconPath is not None else QPixmap()
 
         self.setFixedSize(self.diameter, self.diameter)
 
@@ -125,7 +136,7 @@ class RoundLevelAvatar(QWidget):
 
     def updateIcon(self, icon: str, xpSinceLastLevel=None, xpUntilNextLevel=None, text=""):
         self.iconPath = icon
-        self.image = QPixmap(self.iconPath)
+        self.image = QPixmap(self.iconPath) if self.iconPath is not None else QPixmap()
 
         if xpSinceLastLevel is not None and xpUntilNextLevel is not None:
             self.xpSinceLastLevel = xpSinceLastLevel
@@ -134,7 +145,7 @@ class RoundLevelAvatar(QWidget):
             # self.setToolTip(f"Exp: {xpSinceLastLevel} / {xpUntilNextLevel}")
 
         if text:
-            self.progressRing.text = text
+            self.progressRing.arcText = text
 
         self.callUpdate = True
         self.repaint()

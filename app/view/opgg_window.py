@@ -1,11 +1,10 @@
 import sys
-import win32api
 import traceback
 
 from qasync import asyncSlot, asyncClose
-from PyQt5.QtGui import QColor, QPainter, QIcon, QShowEvent
-from PyQt5.QtCore import Qt, pyqtSignal, QSize, QRect, QEvent
-from PyQt5.QtWidgets import (QHBoxLayout, QStackedWidget, QWidget, QLabel,
+from PySide6.QtGui import QColor, QPainter, QIcon, QShowEvent, QGuiApplication
+from PySide6.QtCore import Qt, Signal, QSize, QRect, QEvent
+from PySide6.QtWidgets import (QHBoxLayout, QStackedWidget, QWidget, QLabel,
                              QFrame, QVBoxLayout, QSpacerItem, QSizePolicy,
                              QApplication)
 
@@ -19,6 +18,7 @@ from app.common.config import qconfig, cfg
 from app.common.style_sheet import StyleSheet
 from app.common.signals import signalBus
 from app.common.util import getLolClientWindowPos
+from app.common import platform
 from app.common.qfluentwidgets import (FramelessWindow, isDarkTheme, BackgroundAnimationWidget,
                                        FluentTitleBar,  ComboBox, BodyLabel, ToolTipFilter,
                                        ToolTipPosition, IndeterminateProgressRing, setTheme,
@@ -533,7 +533,7 @@ class OpggWindow(OpggWindowBase):
         rect = QRect(int(x / dpi), int(y / dpi), size.width(), size.height())
 
         # 如果超出右边界，则直接 return 了
-        screenWidth = win32api.GetSystemMetrics(0)
+        screenWidth = platform.get_system_metrics(0)
         if (rect.left() + size.width()) * dpi > screenWidth:
             self.__moveRightCenter()
             return super().showEvent(a0)
@@ -545,7 +545,7 @@ class OpggWindow(OpggWindowBase):
         """
         将窗口移动到屏幕最右侧的中心
         """
-        desktop = QApplication.desktop().availableGeometry()
+        desktop = QGuiApplication.primaryScreen().availableGeometry()
         w, h = desktop.width(), desktop.height()
         self.move(w - self.width(), h // 2 - self.height() // 2)
 
@@ -644,7 +644,7 @@ class HomeInterface(QFrame):
 
 
 class SearchLineEditFlyout(FlyoutViewBase):
-    textChanged = pyqtSignal(str)
+    textChanged = Signal(str)
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)

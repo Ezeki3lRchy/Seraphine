@@ -3,8 +3,8 @@ import os
 import threading
 
 import pyperclip
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QWidget, QVBoxLayout,
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (QHBoxLayout, QLabel, QWidget, QVBoxLayout,
                              QSpacerItem, QSizePolicy)
 
 from app.common.qfluentwidgets import (InfoBar, InfoBarPosition, PushButton, SmoothScrollArea,
@@ -17,6 +17,7 @@ from app.common.style_sheet import StyleSheet
 from app.common.icons import Icon
 from app.common.util import getTasklistPath, getLolClientPids, getLolClientPidsSlowly
 from app.common.signals import signalBus
+from app.common import platform
 from app.components.message_box import ChangeClientMessageBox
 
 
@@ -108,6 +109,17 @@ class StartInterface(SeraphineInterface):
 
     def __onPushButtonClicked(self):
         if self.loading:
+            if not platform.IS_WINDOWS:
+                # macOS: 用 `open` 唤起 .app bundle (没有 client.exe/LeagueClient.exe).
+                appPath = platform.mac_lol_app_path(
+                    self.pathComboBox.currentText())
+                if appPath:
+                    subprocess.Popen(['open', appPath])
+                    self.__showStartLolSuccessInfo()
+                else:
+                    self.__showLolClientPathErrorInfo()
+                return
+
             for clientName in ("client.exe", "LeagueClient.exe"):
                 path = f'{self.pathComboBox.currentText()}/{clientName}'
                 if os.path.exists(path):

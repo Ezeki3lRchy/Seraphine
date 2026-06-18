@@ -1,7 +1,7 @@
-from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import Qt, QRect
+from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QSpacerItem, QSizePolicy)
-from PyQt5.QtGui import QPixmap, QPen, QPainter, QColor
+from PySide6.QtGui import QPixmap, QPen, QPainter, QColor
 
 from app.common.qfluentwidgets import isDarkTheme, Theme
 from app.common.signals import signalBus

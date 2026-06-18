@@ -1,5 +1,5 @@
-from PyQt5.QtGui import QCursor
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtGui import QCursor
+from PySide6.QtWidgets import QApplication
 from ..common.qfluentwidgets import (SystemTrayMenu)
 
 

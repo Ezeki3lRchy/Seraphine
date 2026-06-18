@@ -3,12 +3,15 @@ import logging
 import json
 
 import asyncio
-from PyQt5.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 import aiohttp
 
 from app.common.logger import logger
 from app.common.signals import signalBus
-from app.common.util import getLolClientPids, isLolGameProcessExist, getTasklistPath
+from app.common.util import (getLolClientPids, getLolClientPidsSlowly,
+                             isLolGameProcessExist, isLolGameProcessExistMac,
+                             getTasklistPath)
+from app.common import platform
 
 TAG = "Listener"
 
@@ -21,6 +24,13 @@ class LolProcessExistenceListener(QThread):
         super().__init__(parent)
 
     def run(self):
+        # macOS 没有 tasklist.exe, 且进程名是 "League of Legends" (无 .exe);
+        # 走 psutil 的等价循环, 避免依赖 getTasklistPath() (其在 Mac 上恒为 None
+        # 会发出 tasklistNotFound 并直接 return, 导致发现逻辑永不启动)。
+        if not platform.IS_WINDOWS:
+            self.__runMac()
+            return
+
         path = getTasklistPath()
 
         if not path:
@@ -48,6 +58,29 @@ class LolProcessExistenceListener(QThread):
             # 如果没有任何客户端在运行，且上一次检查时有客户端在运行
             else:
                 if self.runningPid and not isLolGameProcessExist(path):
+                    self.runningPid = 0
+                    signalBus.lolClientEnded.emit()
+
+            self.msleep(1500)
+
+    def __runMac(self):
+        # 与 Windows 循环行为等价, 但用 psutil 替代 tasklist:
+        #  - getLolClientPidsSlowly() 匹配 LeagueClientUx (无 .exe) 做 started/changed;
+        #  - isLolGameProcessExistMac() 匹配 "League of Legends" (无 .exe) 做 ended。
+        while True:
+            pids = getLolClientPidsSlowly()
+
+            if len(pids) != 0:
+                if self.runningPid == 0:
+                    self.runningPid = pids[0]
+                    signalBus.lolClientStarted.emit(self.runningPid)
+
+                elif self.runningPid not in pids:
+                    self.runningPid = pids[0]
+                    signalBus.lolClientChanged.emit(self.runningPid)
+
+            else:
+                if self.runningPid and not isLolGameProcessExistMac():
                     self.runningPid = 0
                     signalBus.lolClientEnded.emit()
 

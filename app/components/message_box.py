@@ -6,10 +6,10 @@ import sys
 import webbrowser
 import py7zr
 
-from PyQt5.QtCore import Qt, pyqtSignal, QUrl
-from PyQt5.QtWidgets import (QPushButton, QVBoxLayout, QWidget, QLabel, QFileDialog,
+from PySide6.QtCore import Qt, Signal, QUrl
+from PySide6.QtWidgets import (QPushButton, QVBoxLayout, QWidget, QLabel, QFileDialog,
                              QHBoxLayout)
-from PyQt5.QtGui import QFont, QPixmap
+from PySide6.QtGui import QFont, QPixmap
 
 from app.common.qfluentwidgets import (MessageBoxBase, SmoothScrollArea,
                                        BodyLabel, TextEdit, TitleLabel,
@@ -20,11 +20,46 @@ from app.common.qfluentwidgets import (MessageBoxBase, SmoothScrollArea,
 from app.common.config import VERSION, cfg, LOCAL_PATH, BETA
 from app.common.util import getLolClientPidSlowly
 from app.common.signals import signalBus
-from app.common.update import runUpdater
+from app.common.update import runUpdater, runUpdaterMac
+from app.common import platform
 from app.lol.connector import connector
 from app.components.multi_champion_select import MultiChampionSelectWidget
 from app.components.multi_lol_path_setting import PathDraggableWidget
 from app.components.champion_icon_widget import RoundedLabel
+
+
+def _isPackaged():
+    """是否为打包发行版 (而非源码运行).
+
+    Windows: 旧逻辑不变, 以工作目录下是否存在 Seraphine.exe 判断.
+    macOS: 判断是否为 PyInstaller 冻结的 .app (sys.frozen 且可执行文件位于
+    .app/Contents/MacOS).
+    """
+    if platform.IS_MACOS:
+        return getattr(sys, 'frozen', False) and \
+            '.app/Contents/MacOS' in sys.executable
+
+    return os.path.exists("Seraphine.exe")
+
+
+def _selectAsset(assets):
+    """从 release 的 assets 列表中挑选当前平台对应的安装包.
+
+    macOS: 取文件名以 '.dmg' 结尾的资源; Windows: 取以 '.7z' 结尾的资源.
+    找不到匹配时回退到 assets[0] (保留旧行为).
+    """
+    suffix = '.dmg' if platform.IS_MACOS else '.7z'
+
+    for asset in assets:
+        if asset.get('name', '').endswith(suffix):
+            return asset
+
+    # macOS: never fall back to a non-.dmg asset (e.g. the Windows .7z) — it cannot
+    # be mounted/swapped. Return None so the caller can abort with a clear message.
+    if platform.IS_MACOS:
+        return None
+
+    return assets[0] if assets else None
 
 
 class UpdateMessageBox(MessageBoxBase):
@@ -77,8 +112,8 @@ class UpdateMessageBox(MessageBoxBase):
         self.myYesButton.clicked.connect(self.__onYesButtonClicked)
         self.myCancelButton.clicked.connect(self.__onCancelButtonClicked)
 
-        # 简单判断下打开方式
-        if not os.path.exists("Seraphine.exe"):
+        # 简单判断下打开方式 (Windows: Seraphine.exe; macOS: 冻结的 .app)
+        if not _isPackaged():
             self.infoLabel.setVisible(True)
             self.infoLabel.setText(
                 self.tr("Updating is only available on releases version"))
@@ -107,9 +142,15 @@ class UpdateMessageBox(MessageBoxBase):
         6. 重新运行自己
         '''
 
+        if platform.IS_MACOS:
+            await self.__onYesButtonClickedMac()
+            return
+
         # url = f"{github.proxyApi}/{self.info['assets'][0]['browser_download_url']}"
 
         # 把下载地址换成 Gitee 的
+        # 注意: 此 Gitee 重写指向旧仓库名 'Zzaphkiel/Seraphine' (已迁移到
+        # Ezeki3lRchy/Seraphine-releases), 已失效; 不在本轮 macOS 改动范围内, 故保持原样.
         url: str = self.info['assets'][0]['browser_download_url']
         url = url.replace("github", "gitee")
         url = url.replace("Zzaphkiel/Seraphine", "Zzaphkiel/seraphine")
@@ -160,11 +201,75 @@ class UpdateMessageBox(MessageBoxBase):
         signalBus.terminateListeners.emit()
         sys.exit()
 
+    async def __onYesButtonClickedMac(self):
+        '''macOS 更新流程: 下载 .dmg -> runUpdaterMac 覆盖安装 -> 退出自己.'''
+
+        # 直接用 GitHub 原始下载地址 (不做 Windows 的 Gitee 重写)
+        asset = _selectAsset(self.info['assets'])
+        if asset is None:
+            self.infoLabel.setVisible(True)
+            self.infoLabel.setText(
+                self.tr("No macOS build (.dmg) in this release"))
+            return
+        url: str = asset['browser_download_url']
+
+        self.myYesButton.setEnabled(False)
+        self.myCancelButton.setEnabled(False)
+        self.manuallyButton.setEnabled(False)
+
+        self.infoLabel.setVisible(True)
+        self.bar.setVisible(True)
+
+        dmgPath = f'{LOCAL_PATH}/Seraphine-update.dmg'
+        if os.path.exists(dmgPath):
+            os.remove(dmgPath)
+
+        async with aiohttp.ClientSession() as sess:
+            resp = await sess.get(url)
+            length = int(resp.headers['content-length'])
+            self.bar.setMaximum(length)
+            cur = 0
+
+            with open(dmgPath, 'wb') as f:
+                async for chunk in resp.content.iter_chunked(1024*1024):
+                    f.write(chunk)
+
+                    cur += len(chunk)
+                    self.bar.setValue(cur)
+                    self.infoLabel.setText(
+                        f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
+
+        self.infoLabel.setText("Waiting for restart...")
+
+        # 从 sys.executable 推出已安装的 .app bundle 路径 (取到 '.app' 为止)
+        executable = sys.executable
+        idx = executable.find('.app')
+        appPath = executable[:idx + len('.app')] if idx != -1 else executable
+
+        runUpdaterMac(dmgPath, appPath)
+
+        # 关掉 QThread 之后退出
+        signalBus.terminateListeners.emit()
+        sys.exit()
+
     def __onCancelButtonClicked(self):
         self.reject()
         self.rejected.emit()
 
     def __onManuallyButtonClicked(self):
+        if platform.IS_MACOS:
+            # macOS: 直接用 GitHub 原始下载地址 (不做 Gitee 重写); 无 .dmg 时退回
+            # 到 release 页面让用户自行查看.
+            asset = _selectAsset(self.info['assets'])
+            url = asset['browser_download_url'] if asset \
+                else self.info.get('html_url', '')
+            if url:
+                webbrowser.open(url)
+
+            self.reject()
+            self.rejected.emit()
+            return
+
         url: str = self.info['assets'][0]['browser_download_url']
         url = url.replace("github", "gitee")
         url = url.replace("Zzaphkiel/Seraphine", "Zzaphkiel/seraphine")
@@ -343,7 +448,7 @@ class ExceptionMessageBox(MessageBoxBase):
 
 
 class MultiChampionSelectMsgBox(MessageBoxBase):
-    completed = pyqtSignal(list)
+    completed = Signal(list)
 
     def __init__(self, champions: dict, selected: list, parent=None):
         super().__init__(parent)

@@ -1,10 +1,10 @@
 import asyncio
 from qasync import asyncSlot
 import pyperclip
-from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout, QSpacerItem,
+from PySide6.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout, QSpacerItem,
                              QSizePolicy, QTableWidgetItem, QHeaderView,
                              QWidget, QFrame, QStackedWidget)
-from PyQt5.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
 from ..common.qfluentwidgets import (TableWidget, PushButton, ComboBox,
                                      SmoothScrollArea, ToolTipFilter, setCustomStyleSheet,
                                      ToolTipPosition, ToolButton, IndeterminateProgressRing,
@@ -38,8 +38,8 @@ class TagLineLabel(QLabel):
 
 
 class CareerInterface(SeraphineInterface):
-    gameInfoBarClicked = pyqtSignal(str)
-    iconLevelExpChanged = pyqtSignal(dict)
+    gameInfoBarClicked = Signal(str)
+    iconLevelExpChanged = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -499,11 +499,9 @@ class CareerInterface(SeraphineInterface):
             asyncio.create_task(self.__updateRecentTeammates())
 
     def __updateGameInfo(self):
-        for i in reversed(range(self.gameInfoLayout.count())):
-            item = self.gameInfoLayout.itemAt(i)
-            self.gameInfoLayout.removeItem(item)
-
-            if item.widget():
+        while self.gameInfoLayout.count():
+            item = self.gameInfoLayout.takeAt(0)
+            if item is not None and item.widget():
                 item.widget().deleteLater()
 
         if 'gameCount' in self.games:
@@ -520,14 +518,9 @@ class CareerInterface(SeraphineInterface):
         self.gameInfoArea.delegate.vScrollBar.resetValue(0)
         self.gameInfoArea.verticalScrollBar().setSliderPosition(0)
 
-        items = list(range(self.gameInfoLayout.count()))
-        items.reverse()
-
-        for i in items:
-            item = self.gameInfoLayout.itemAt(i)
-            self.gameInfoLayout.removeItem(item)
-
-            if item.widget():
+        while self.gameInfoLayout.count():
+            item = self.gameInfoLayout.takeAt(0)
+            if item is not None and item.widget():
                 item.widget().deleteLater()
 
         if index == 1:
@@ -632,11 +625,9 @@ class TeammatesFlyOut(FlyoutViewBase):
         self.stackedWidget.setFixedWidth(490)
 
     def clear(self):
-        for i in reversed(range(self.infopageVBoxLayout.count())):
-            item = self.infopageVBoxLayout.itemAt(i)
-            self.infopageVBoxLayout.removeItem(item)
-
-            if item.widget():
+        while self.infopageVBoxLayout.count():
+            item = self.infopageVBoxLayout.takeAt(0)
+            if item is not None and item.widget():
                 item.widget().deleteLater()
 
     def updateSummoners(self, info):
@@ -657,7 +648,7 @@ class TeammatesFlyOut(FlyoutViewBase):
 
 
 class TeammateInfoBar(ColorAnimationFrame):
-    # closed = pyqtSignal()
+    # closed = Signal()
 
     def __init__(self, summoner, parent=None):
         super().__init__(type='default', parent=parent)
@@ -739,9 +730,7 @@ class ChampionsCard(QFrame):
             self.hBoxLayout.addWidget(icon, alignment=Qt.AlignCenter)
 
     def clear(self):
-        for i in reversed(range(self.hBoxLayout.count())):
-            item = self.hBoxLayout.itemAt(i)
-            self.hBoxLayout.removeItem(item)
-
-            if item.widget():
+        while self.hBoxLayout.count():
+            item = self.hBoxLayout.takeAt(0)
+            if item is not None and item.widget():
                 item.widget().deleteLater()

@@ -2,10 +2,10 @@
 import shutil
 
 from qasync import asyncSlot
-from PyQt5.QtCore import (Qt, pyqtSignal, QSize, QEasingCurve, QUrl)
-from PyQt5.QtWidgets import (
+from PySide6.QtCore import (Qt, Signal, QSize, QEasingCurve, QUrl)
+from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, QWidget, QFileDialog, QGraphicsOpacityEffect)
-from PyQt5.QtGui import QFont, QLinearGradient
+from PySide6.QtGui import QFont, QLinearGradient
 from app.common.qfluentwidgets import (TransparentToolButton, FluentIcon, SearchLineEdit,
                                        FlowLayout, SmoothScrollArea, FlyoutViewBase,
                                        PipsScrollButtonDisplayMode, HorizontalPipsPager,
@@ -22,7 +22,7 @@ from app.lol.champions import ChampionAlias
 
 
 class ChampionTabItem(DraggableItem):
-    closeRequested = pyqtSignal()
+    closeRequested = Signal()
 
     def __init__(self, icon, name, championId, parent=None):
         super().__init__(parent)
@@ -80,7 +80,7 @@ class ChampionDraggableWidget(ItemsDraggableWidget):
 
 
 class ChampionsSelectWidget(QWidget):
-    championClicked = pyqtSignal(int)
+    championClicked = Signal(int)
 
     def __init__(self, champions: dict, parent: QWidget = None):
         super().__init__(parent=parent)
@@ -201,7 +201,7 @@ class MultiChampionSelectWidget(QWidget):
 
 
 class ChampionSelectFlyout(FlyoutViewBase):
-    championSelected = pyqtSignal(int)
+    championSelected = Signal(int)
 
     def __init__(self, champions: dict, parent=None):
         super().__init__(parent)
@@ -214,7 +214,7 @@ class ChampionSelectFlyout(FlyoutViewBase):
 
 
 class SplashesSelectWidget(QWidget):
-    selectedChanged = pyqtSignal(int, str)
+    selectedChanged = Signal(int, str)
 
     def __init__(self, skinList, skinId, parent=None):
         super().__init__(parent)

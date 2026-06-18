@@ -5,9 +5,9 @@ from app.common.qfluentwidgets import (SettingCardGroup, SwitchSettingCard, Comb
                                        PushSettingCard, ExpandLayout, InfoBar,
                                        setTheme, setThemeColor, PrimaryPushSettingCard, HyperlinkCard,
                                        TeachingTip, TeachingTipTailPosition, TeachingTipView, PushButton)
-from PyQt5.QtCore import Qt, QUrl
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import QWidget, QLabel, QFileDialog
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import QWidget, QLabel, QFileDialog
 
 from app.common.icons import Icon
 from app.common.config import (cfg, YEAR, AUTHOR, VERSION, FEEDBACK_URL, GITHUB_URL, isWin11,
@@ -325,14 +325,15 @@ class SettingInterface(SeraphineInterface):
             lambda: QDesktopServices.openUrl(QUrl(FEEDBACK_URL)))
         self.deleteResourceCard.clicked.connect(self.__showFlyout)
         self.viewLogCard.clicked.connect(
-            lambda: os.system(f'explorer {os.getcwd()}\\log')
+            lambda: QDesktopServices.openUrl(
+                QUrl.fromLocalFile(os.path.join(os.getcwd(), 'log')))
         )
 
     def __onLolFolderCardClicked(self):
         current = cfg.get(cfg.lolFolder)
 
         msgBox = MultiPathSettingMsgBox(current, self.window())
-        msgBox.exec_()
+        msgBox.exec()
 
     def __showRestartToolTip(self):
         InfoBar.success(self.tr("Updated successfully"),

@@ -1,7 +1,7 @@
 import sys
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QApplication, QVBoxLayout
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QApplication, QVBoxLayout
 from ..common.qfluentwidgets import CheckBox
 from typing import List, Tuple
 
@@ -93,4 +93,4 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     w = ModeFilterWidget()
     w.show()
-    app.exec_()
+    app.exec()
