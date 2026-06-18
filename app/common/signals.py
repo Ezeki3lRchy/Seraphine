@@ -1,44 +1,44 @@
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QWidget
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QWidget
 
 
 class SignalBus(QObject):
     # listener:
-    tasklistNotFound = pyqtSignal()
+    tasklistNotFound = Signal()
 
-    lolClientStarted = pyqtSignal(int)
-    lolClientEnded = pyqtSignal()
-    lolClientChanged = pyqtSignal(int)
+    lolClientStarted = Signal(int)
+    lolClientEnded = Signal()
+    lolClientChanged = Signal(int)
 
-    terminateListeners = pyqtSignal()
+    terminateListeners = Signal()
 
     # connector:
-    lcuApiExceptionRaised = pyqtSignal(str, BaseException)
-    currentSummonerProfileChanged = pyqtSignal(dict)
-    gameStatusChanged = pyqtSignal(str)
-    champSelectChanged = pyqtSignal(dict)
-    lobbyChanged = pyqtSignal(dict)
-    getCmdlineError = pyqtSignal()
+    lcuApiExceptionRaised = Signal(str, BaseException)
+    currentSummonerProfileChanged = Signal(dict)
+    gameStatusChanged = Signal(str)
+    champSelectChanged = Signal(dict)
+    lobbyChanged = Signal(dict)
+    getCmdlineError = Signal()
 
     # career_interface
-    careerGameBarClicked = pyqtSignal(str)
+    careerGameBarClicked = Signal(str)
 
     # game_info_interface: (puuid, name, gameId)
-    gameInfoBarClicked = pyqtSignal(str, str, str)
+    gameInfoBarClicked = Signal(str, str, str)
 
     # search_interface:
-    gameTabClicked = pyqtSignal(QWidget)
+    gameTabClicked = Signal(QWidget)
 
     # jumps:
-    toCareerInterface = pyqtSignal(str)
-    toSearchInterface = pyqtSignal(str)
+    toCareerInterface = Signal(str)
+    toSearchInterface = Signal(str)
 
     # style:
-    customColorChanged = pyqtSignal(str)
+    customColorChanged = Signal(str)
 
     # OPGG:
-    toOpggBuildInterface = pyqtSignal(int, str, str)
+    toOpggBuildInterface = Signal(int, str, str)
 
 
 signalBus = SignalBus()

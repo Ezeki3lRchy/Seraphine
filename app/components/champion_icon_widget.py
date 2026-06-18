@@ -1,7 +1,7 @@
-from PyQt5.QtCore import QEvent, Qt, pyqtSignal, QRectF, QSize
-from PyQt5.QtGui import (QColor, QMouseEvent, QPainter, QPainterPath, QLinearGradient, QGradient,
+from PySide6.QtCore import QEvent, Qt, Signal, QRectF, QSize
+from PySide6.QtGui import (QColor, QMouseEvent, QPainter, QPainterPath, QLinearGradient, QGradient,
                          QPen, QPixmap, qGray, qAlpha, qRgba)
-from PyQt5.QtWidgets import QWidget, QFrame, QLabel, QGraphicsOpacityEffect
+from PySide6.QtWidgets import QWidget, QFrame, QLabel, QGraphicsOpacityEffect
 
 from app.common.qfluentwidgets import isDarkTheme
 
@@ -12,7 +12,9 @@ class RoundIcon(QFrame):
     def __init__(self, icon=None, diameter=None, overscaled=0,
                  borderWidth=1, drawBackground=False, enabled=True, parent=None) -> None:
         super().__init__(parent)
-        self.image = QPixmap(icon)
+        # PySide6's QPixmap rejects QPixmap(None); use an empty pixmap when no
+        # icon is given (PyQt5 tolerated None as an empty pixmap).
+        self.image = QPixmap(icon) if icon is not None else QPixmap()
 
         self.overscaled = overscaled
         self.borderWidth = borderWidth
@@ -68,7 +70,7 @@ class RoundIcon(QFrame):
 
     def setIcon(self, icon):
         self.havePic = True
-        self.image = QPixmap(icon)
+        self.image = QPixmap(icon) if icon is not None else QPixmap()
 
         self.repaint()
 
@@ -79,12 +81,12 @@ class RoundIcon(QFrame):
 
 
 class RoundIconButton(QFrame):
-    clicked = pyqtSignal(int)
+    clicked = Signal(int)
 
     def __init__(self, icon, diameter, overscaled, borderWidth, championName, championId, parent=None) -> None:
         super().__init__(parent)
 
-        self.image = QPixmap(icon)
+        self.image = QPixmap(icon) if icon is not None else QPixmap()
 
         self.borderWidth = borderWidth
         self.overscaled = overscaled
@@ -157,7 +159,7 @@ class RoundIconButton(QFrame):
 class TopRoundedLabel(QLabel):
     def __init__(self, imagePath=None, radius=4.0, parent=None):
         super().__init__(parent)
-        self.setPixmap(QPixmap(imagePath))
+        self.setPixmap(QPixmap(imagePath) if imagePath is not None else QPixmap())
 
         self.havePic = imagePath != None
         self.radius = radius
@@ -201,7 +203,7 @@ class TopRoundedLabel(QLabel):
     def setPicture(self, imagePath):
         self.havePic = True
 
-        self.setPixmap(QPixmap(imagePath))
+        self.setPixmap(QPixmap(imagePath) if imagePath is not None else QPixmap())
         self.repaint()
 
     def setRedius(self, radius):
@@ -217,7 +219,9 @@ class TopRoundedLabel(QLabel):
 class RoundedLabel(QLabel):
     def __init__(self, imagePath=None, radius=4.0, borderWidth=2, borderColor: QColor = None, drawBackground=False, parent=None):
         super().__init__(parent)
-        self.setPixmap(QPixmap(imagePath))
+        # PySide6's QPixmap rejects QPixmap(None); use an empty pixmap when no
+        # path is given (PyQt5 tolerated None as an empty pixmap).
+        self.setPixmap(QPixmap(imagePath) if imagePath is not None else QPixmap())
 
         self.havePic = imagePath != None
         self.radius = radius
@@ -261,7 +265,7 @@ class RoundedLabel(QLabel):
     def setPicture(self, imagePath):
         self.havePic = True
 
-        self.setPixmap(QPixmap(imagePath))
+        self.setPixmap(QPixmap(imagePath) if imagePath is not None else QPixmap())
         self.repaint()
 
     def setRedius(self, radius):

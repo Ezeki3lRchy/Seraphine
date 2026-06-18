@@ -5,9 +5,9 @@ from app.common.qfluentwidgets import (FluentIconBase, ExpandGroupSettingCard,
                                        ConfigItem, qconfig, PushButton, SpinBox,
                                        ColorDialog, LineEdit, SwitchButton,
                                        IndicatorPosition, setCustomStyleSheet, SwitchSettingCard, TransparentToolButton, FluentIcon, setThemeColor)
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QIcon, QColor
-from PyQt5.QtWidgets import (QWidget, QLabel, QHBoxLayout, QGridLayout, QFrame, QPushButton,
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QIcon, QColor
+from PySide6.QtWidgets import (QWidget, QLabel, QHBoxLayout, QGridLayout, QFrame, QPushButton,
                              QVBoxLayout)
 
 from app.common.icons import Icon

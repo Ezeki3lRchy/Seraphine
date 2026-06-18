@@ -1,10 +1,10 @@
-from PyQt5.QtWidgets import QLabel
-from PyQt5.QtCore import Qt, pyqtSignal
+from PySide6.QtWidgets import QLabel
+from PySide6.QtCore import Qt, Signal
 from ..common.qfluentwidgets import ToolTipPosition, ToolTipFilter
 
 
 class SummonerName(QLabel):
-    clicked = pyqtSignal(bool)
+    clicked = Signal(bool)
 
     def __init__(self, text, isPublic=True, color=None, tagLine=None, tips="", parent=None):
         super().__init__(parent)

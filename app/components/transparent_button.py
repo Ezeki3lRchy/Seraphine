@@ -1,8 +1,8 @@
 from typing import Union
 
-from PyQt5.QtCore import pyqtSignal, QSize, QRectF
-from PyQt5.QtWidgets import QPushButton, QWidget, QApplication
-from PyQt5.QtGui import QPainter, QIcon
+from PySide6.QtCore import Signal, QSize, QRectF
+from PySide6.QtWidgets import QPushButton, QWidget, QApplication
+from PySide6.QtGui import QPainter, QIcon
 
 
 from app.common.style_sheet import StyleSheet
@@ -11,7 +11,7 @@ from app.common.qfluentwidgets import (
 
 
 class TransparentToggleButton(ToolButton):
-    changed = pyqtSignal(int)
+    changed = Signal(int)
 
     def __init__(self, icon1, icon2, parent=None):
         super().__init__(parent=parent)

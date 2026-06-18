@@ -8,10 +8,10 @@ from collections import OrderedDict
 import pyperclip
 from qasync import asyncSlot
 import asyncio
-from PyQt5.QtWidgets import (QVBoxLayout, QHBoxLayout, QFrame,
+from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QFrame,
                              QSpacerItem, QSizePolicy, QLabel, QStackedWidget, QWidget)
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPixmap, QColor
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap, QColor
 
 from ..common.logger import logger
 from ..common.qfluentwidgets import (SmoothScrollArea, PushButton, ToolButton, InfoBar,
@@ -53,9 +53,9 @@ def asyncLockDecorator(lockName):
 
 
 class GamesTab(QFrame):
-    tabClicked = pyqtSignal(str)
-    gameDetailReady = pyqtSignal(dict)
-    loadFinish = pyqtSignal()
+    tabClicked = Signal(str)
+    gameDetailReady = Signal(dict)
+    loadFinish = Signal()
 
     def __init__(self, parnet=None):
         super().__init__(parnet)
@@ -225,7 +225,8 @@ class GamesTab(QFrame):
         self.maxPageNum = 0
         self.currentTabSelected = None
 
-        for i in reversed(range(len(self.stackWidget))):
+        # PySide6's QStackedWidget has no __len__ (PyQt5 did); use count().
+        for i in reversed(range(self.stackWidget.count())):
             if i == 0:
                 continue
 
@@ -288,11 +289,13 @@ class GameDetailView(QFrame):
         self.__initLayout()
 
     def clear(self):
-        for i in reversed(range(self.vBoxLayout.count())):
-            item = self.vBoxLayout.itemAt(i)
-            self.vBoxLayout.removeItem(item)
-
-            if item.widget():
+        # PySide6/shiboken6 deletes the C++ QWidgetItem when it is removed from
+        # the layout, so the old `itemAt(i)` + `removeItem(item)` + `item.widget()`
+        # pattern raised "Internal C++ object already deleted". `takeAt(0)` removes
+        # AND returns the item with ownership transferred to Python, so it stays valid.
+        while self.vBoxLayout.count():
+            item = self.vBoxLayout.takeAt(0)
+            if item is not None and item.widget():
                 item.widget().deleteLater()
 
         self.titleBar = GameTitleBar()
@@ -420,7 +423,8 @@ class GameDetailView(QFrame):
 
 class TeamView(QFrame, ColorChangeable):
     def __init__(self, parent=None):
-        QFrame.__init__(self, parent=parent)
+        # PySide6 rejects parent= keyword in this MI context; pass positionally.
+        QFrame.__init__(self, parent)
         ColorChangeable.__init__(self, type=None)
 
         self.vBoxLayout = QVBoxLayout(self)
@@ -674,11 +678,10 @@ class TeamView(QFrame, ColorChangeable):
         self.slash2.setText("/")
 
     def updateSummoners(self, summoners):
-        for i in reversed(range(self.summonersLayout.count())):
-            item = self.summonersLayout.itemAt(i)
-            self.summonersLayout.removeItem(item)
-            if (widget := item.widget()):
-                widget.deleteLater()
+        while self.summonersLayout.count():
+            item = self.summonersLayout.takeAt(0)
+            if item is not None and item.widget():
+                item.widget().deleteLater()
 
         for summoner in summoners:
             infoBar = SummonerInfoBar(summoner)
@@ -773,7 +776,7 @@ class SummonerInfoBar(QFrame):
         self.summonerName.setSizePolicy(
             QSizePolicy.Expanding, QSizePolicy.Minimum)
 
-        self.runeIcon.setPicture(QPixmap(summoner["runeIcon"]))
+        self.runeIcon.setPicture(QPixmap(summoner["runeIcon"]) if summoner.get("runeIcon") else QPixmap())
         self.runeIcon.setFixedSize(23, 23)
         self.spell1Icon.setFixedSize(18, 18)
         self.spell1Icon.setPicture(summoner["spell1Icon"])
@@ -879,7 +882,10 @@ class SummonerInfoBar(QFrame):
 
 class GameTitleBar(QFrame, ColorChangeable):
     def __init__(self, type: str = None, parent=None):
-        QFrame.__init__(self, parent=parent)
+        # PySide6's QFrame binding rejects parent= as a keyword in this
+        # multiple-inheritance context (QFrame, ColorChangeable); pass it
+        # positionally. PyQt5 accepted the keyword.
+        QFrame.__init__(self, parent)
         ColorChangeable.__init__(self, type)
 
         self.setFixedHeight(78)
@@ -1115,8 +1121,8 @@ class GameTab(ColorAnimationFrame):
 
 
 class SearchInterface(SeraphineInterface):
-    summonerPuuidGetted = pyqtSignal(str)
-    gamesNotFound = pyqtSignal()
+    summonerPuuidGetted = Signal(str)
+    gamesNotFound = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

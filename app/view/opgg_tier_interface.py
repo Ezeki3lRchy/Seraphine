@@ -1,9 +1,9 @@
 
-from PyQt5.QtWidgets import (QHBoxLayout, QWidget, QFrame, QVBoxLayout, QSpacerItem,
+from PySide6.QtWidgets import (QHBoxLayout, QWidget, QFrame, QVBoxLayout, QSpacerItem,
                              QSizePolicy, QLabel, QHBoxLayout, QWidget, QLabel, QFrame,
                              QVBoxLayout, QSpacerItem, QSizePolicy)
-from PyQt5.QtCore import Qt, pyqtSignal, QEasingCurve
-from PyQt5.QtGui import QPixmap
+from PySide6.QtCore import Qt, Signal, QEasingCurve
+from PySide6.QtGui import QPixmap
 from qasync import asyncSlot
 
 from app.components.animation_frame import ColorAnimationFrame
@@ -141,7 +141,7 @@ class TierListWidget(QFrame):
 
 
 class ListTitleBar(QFrame):
-    sortRequested = pyqtSignal(str)
+    sortRequested = Signal(str)
 
     def __init__(self, parent: QWidget = None):
         super().__init__(parent)

@@ -4,12 +4,13 @@ import ctypes
 from copy import deepcopy
 
 import asyncio
-from PyQt5.QtCore import QObject, QLocale
+from PySide6.QtCore import QObject, QLocale
 
 from .exceptions import SummonerRankInfoNotFound
 from ..common.config import cfg, Language, isChineseText
 from ..lol.connector import connector
 from ..common.signals import signalBus
+from ..common import platform
 
 
 SERVERS_NAME = {
@@ -1840,6 +1841,11 @@ async def rollAndSwapBack():
 
 
 async def fixLCUWindowViaExe():
+    # 仅 Windows 可用: 调用 fix_lcu_window.exe (ctypes.windll 在非 Windows 不存在).
+    # macOS 上作为 no-op 优雅降级 (documented degradation #1, spec:48). 调用方不消费返回值.
+    if not platform.IS_WINDOWS:
+        return
+
     zoom = await connector.getClientZoom()
 
     ctypes.windll.shell32.ShellExecuteW(

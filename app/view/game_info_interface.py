@@ -1,11 +1,11 @@
 import copy
 from typing import Dict
 
-from PyQt5.QtCore import pyqtSignal, Qt, QPropertyAnimation, QRect, QTimer
-from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QFrame, QVBoxLayout,
+from PySide6.QtCore import Signal, Qt, QPropertyAnimation, QRect, QTimer
+from PySide6.QtWidgets import (QHBoxLayout, QLabel, QFrame, QVBoxLayout,
                              QSpacerItem, QSizePolicy, QStackedWidget,
                              QGridLayout, QSplitter, QApplication, QWidget)
-from PyQt5.QtGui import QPixmap, QFont, QPainter, QColor, QPalette, QImage, QFontMetrics
+from PySide6.QtGui import QPixmap, QFont, QPainter, QColor, QPalette, QImage, QFontMetrics
 from qasync import asyncSlot
 
 from ..common.qfluentwidgets import (SmoothScrollArea, TransparentTogglePushButton,
@@ -166,7 +166,7 @@ class GameInfoInterface(SeraphineInterface):
 
 class SummonersView(QFrame):
     # true => 己方, false => 对方
-    currentTeamChanged = pyqtSignal(bool)
+    currentTeamChanged = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -268,9 +268,8 @@ class TeamSummoners(QFrame):
         if not all(map(lambda i: i in self.items, order)):
             return
 
-        for i in reversed(range(self.vBoxLayout.count())):
-            item = self.vBoxLayout.itemAt(i)
-            self.vBoxLayout.removeItem(item)
+        while self.vBoxLayout.count():
+            self.vBoxLayout.takeAt(0)
 
         for summonerId in order:
             view = self.items[summonerId]
@@ -315,12 +314,10 @@ class TeamSummoners(QFrame):
             view.updateTeamColor(color)
 
     def clear(self):
-        for i in reversed(range(self.vBoxLayout.count())):
-            item = self.vBoxLayout.itemAt(i)
-            self.vBoxLayout.removeItem(item)
-
-            if widget := item.widget():
-                widget.deleteLater()
+        while self.vBoxLayout.count():
+            item = self.vBoxLayout.takeAt(0)
+            if item is not None and item.widget():
+                item.widget().deleteLater()
 
         self.items = {}
 
@@ -425,8 +422,8 @@ class SummonerInfoView(ColorAnimationFrame):
             sacle, scroll, lp = 15, -2, '--'
 
         self.rankSoloIcon.setPixmap(
-            QPixmap(soloRank['icon']).scaled(sacle, sacle, Qt.KeepAspectRatio,
-                                             Qt.SmoothTransformation))
+            (QPixmap(soloRank['icon']) if soloRank.get('icon') else QPixmap()).scaled(
+                sacle, sacle, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         self.rankSoloIcon.setFixedSize(24, 24)
         self.rankSoloIcon.scroll(0, scroll)
         self.rankSoloIcon.setAlignment(Qt.AlignCenter)
@@ -445,8 +442,8 @@ class SummonerInfoView(ColorAnimationFrame):
                          -10) if flexRank['tier'] not in ["Unranked", '未定级'
                                                           ] else (15, 0)
         self.rankFlexIcon.setPixmap(
-            QPixmap(flexRank['icon']).scaled(sacle, sacle, Qt.KeepAspectRatio,
-                                             Qt.SmoothTransformation))
+            (QPixmap(flexRank['icon']) if flexRank.get('icon') else QPixmap()).scaled(
+                sacle, sacle, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         self.rankFlexIcon.setFixedSize(24, 24)
         self.rankFlexIcon.scroll(0, scroll)
         self.rankFlexIcon.setAlignment(Qt.AlignCenter)
@@ -549,9 +546,8 @@ class SummonersGamesView(QFrame):
         if not all(map(lambda i: i in self.items, order)):
             return
 
-        for i in reversed(range(self.hBoxLayout.count())):
-            item = self.hBoxLayout.itemAt(i)
-            self.hBoxLayout.removeItem(item)
+        while self.hBoxLayout.count():
+            self.hBoxLayout.takeAt(0)
 
         for i, summonerId in enumerate(order):
             view = self.items[summonerId]
@@ -594,11 +590,9 @@ class SummonersGamesView(QFrame):
             self.hBoxLayout.addSpacing(spacing * (5 - len(summoners)))
 
     def clear(self):
-        for i in reversed(range(self.hBoxLayout.count())):
-            item = self.hBoxLayout.itemAt(i)
-            self.hBoxLayout.removeItem(item)
-
-            if item.widget():
+        while self.hBoxLayout.count():
+            item = self.hBoxLayout.takeAt(0)
+            if item is not None and item.widget():
                 item.widget().deleteLater()
 
         self.items = {}

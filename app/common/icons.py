@@ -1,7 +1,7 @@
 from enum import Enum
 
 from .qfluentwidgets import getIconColor, Theme, FluentIconBase
-from PyQt5.QtGui import QIcon
+from PySide6.QtGui import QIcon
 
 
 class Icon(FluentIconBase, Enum):
