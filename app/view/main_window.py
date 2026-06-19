@@ -281,7 +281,6 @@ class MainWindow(FluentWindow):
 
         self.titleBar.titleLabel.setStyleSheet(
             "QLabel {font: 13px 'Segoe UI', 'Microsoft YaHei';}")
-        self.titleBar.hBoxLayout.insertSpacing(0, 10)
 
         if platform.IS_MACOS:
             # macOS: use native top-left traffic lights instead of the Fluent
@@ -293,6 +292,13 @@ class MainWindow(FluentWindow):
             self.titleBar.maxBtn.hide()
             self.titleBar.closeBtn.hide()
             self.setSystemTitleBarButtonVisible(True)
+
+            # Inset the icon/title so they clear the native traffic lights, which
+            # occupy x in [8, 83] (systemTitleBarRect origin 8 + width 75). Without
+            # this the logo and title would render on top of the buttons.
+            self.titleBar.hBoxLayout.insertSpacing(0, 92)
+        else:
+            self.titleBar.hBoxLayout.insertSpacing(0, 10)
 
         self.setMicaEffectEnabled(cfg.get(cfg.micaEnabled))
 
