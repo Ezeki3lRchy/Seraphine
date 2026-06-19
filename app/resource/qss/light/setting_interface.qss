@@ -12,6 +12,7 @@ QScrollArea {
 QLabel#settingLabel {
     font: 33px 'Microsoft YaHei';
     background-color: transparent;
+    color: black;
 }
 
 /* SettingInterface,

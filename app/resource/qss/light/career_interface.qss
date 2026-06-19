@@ -1,8 +1,10 @@
 QLabel {
+    color: black;
     font: 14px 'Segoe UI', 'Microsoft YaHei';
 }
 
 QLabel#name {
+    color: black;
     font: bold 32px 'Microsoft YaHei', 'Segoe UI';
 }
 

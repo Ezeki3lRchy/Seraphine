@@ -1,3 +1,10 @@
+/* Light-theme default text color. On macOS the native palette follows the
+   system appearance, so uncolored labels render white (invisible) in Dark
+   Mode. Pin black for raw labels; subclass/ID rules below override as needed. */
+QLabel {
+    color: black;
+}
+
 QLabel#titleLabel {
     font: 33px 'Microsoft YaHei', 'Segoe UI';
     color: black;
