@@ -42,7 +42,7 @@ class Github:
     def checkUpdate(self):
         """
         检查版本更新
-        @return: 有更新 -> info, 无更新 -> None
+        @return: 有更新 -> info, 无更新 / 当前平台无对应安装包 -> None
         """
         info = self.getReleasesInfo()
 
@@ -50,6 +50,13 @@ class Github:
         info["forbidden"] = ver_info.get("forbidden", False)
 
         if info.get("tag_name")[1:] != VERSION:
+            # 跳过当前平台没有对应安装包的发布: 例如 Windows 客户端不应被仅含
+            # macOS .dmg 的版本提示更新 (反之亦然), 否则会下载到错误平台的安装包.
+            if selectReleaseAsset(info.get("assets", [])) is None:
+                logger.info(
+                    f"latest release {info.get('tag_name')} has no install "
+                    f"asset for this platform; skipping update", TAG)
+                return None
             return info
         return None
 
@@ -86,6 +93,25 @@ class Github:
 
 
 github = Github()
+
+
+def platformAssetSuffix() -> str:
+    """当前平台安装包的文件名后缀: macOS -> '.dmg', 其余 (Windows) -> '.7z'."""
+    return '.dmg' if platform.IS_MACOS else '.7z'
+
+
+def selectReleaseAsset(assets):
+    """从 release 的 assets 列表中挑选当前平台对应的安装包.
+
+    macOS 取以 '.dmg' 结尾的资源, Windows 取以 '.7z' 结尾的资源. 找不到匹配时
+    返回 None (而非盲取 assets[0]), 以便调用方跳过该版本, 避免把错误平台的安装包
+    (例如把 macOS 的 .dmg 当成 Windows 的 .7z) 下载下来.
+    """
+    suffix = platformAssetSuffix()
+    for asset in assets or []:
+        if asset.get('name', '').endswith(suffix):
+            return asset
+    return None
 
 
 def getLoLPathByRegistry() -> str:

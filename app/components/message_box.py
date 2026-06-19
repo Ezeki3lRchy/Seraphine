@@ -18,7 +18,7 @@ from app.common.qfluentwidgets import (MessageBoxBase, SmoothScrollArea,
                                        FlyoutViewBase, PushButton)
 
 from app.common.config import VERSION, cfg, LOCAL_PATH, BETA
-from app.common.util import getLolClientPidSlowly
+from app.common.util import getLolClientPidSlowly, selectReleaseAsset
 from app.common.signals import signalBus
 from app.common.update import runUpdater, runUpdaterMac
 from app.common import platform
@@ -40,26 +40,6 @@ def _isPackaged():
             '.app/Contents/MacOS' in sys.executable
 
     return os.path.exists("Seraphine.exe")
-
-
-def _selectAsset(assets):
-    """从 release 的 assets 列表中挑选当前平台对应的安装包.
-
-    macOS: 取文件名以 '.dmg' 结尾的资源; Windows: 取以 '.7z' 结尾的资源.
-    找不到匹配时回退到 assets[0] (保留旧行为).
-    """
-    suffix = '.dmg' if platform.IS_MACOS else '.7z'
-
-    for asset in assets:
-        if asset.get('name', '').endswith(suffix):
-            return asset
-
-    # macOS: never fall back to a non-.dmg asset (e.g. the Windows .7z) — it cannot
-    # be mounted/swapped. Return None so the caller can abort with a clear message.
-    if platform.IS_MACOS:
-        return None
-
-    return assets[0] if assets else None
 
 
 class UpdateMessageBox(MessageBoxBase):
@@ -146,14 +126,17 @@ class UpdateMessageBox(MessageBoxBase):
             await self.__onYesButtonClickedMac()
             return
 
-        # url = f"{github.proxyApi}/{self.info['assets'][0]['browser_download_url']}"
-
-        # 把下载地址换成 Gitee 的
-        # 注意: 此 Gitee 重写指向旧仓库名 'Zzaphkiel/Seraphine' (已迁移到
-        # Ezeki3lRchy/Seraphine-releases), 已失效; 不在本轮 macOS 改动范围内, 故保持原样.
-        url: str = self.info['assets'][0]['browser_download_url']
-        url = url.replace("github", "gitee")
-        url = url.replace("Zzaphkiel/Seraphine", "Zzaphkiel/seraphine")
+        # Windows: 选取本次发布中的 .7z 安装包 (而非盲取 assets[0]); 仅含 macOS
+        # .dmg 的版本会返回 None, 此时给出提示并中止 — 否则会把 .dmg 当成 .7z
+        # 解压而失败. 直接使用 GitHub 原始下载地址 (旧的 Gitee 重写指向已迁移失效
+        # 的上游仓库, 已移除).
+        asset = selectReleaseAsset(self.info['assets'])
+        if asset is None:
+            self.infoLabel.setVisible(True)
+            self.infoLabel.setText(
+                self.tr("No Windows build (.7z) in this release"))
+            return
+        url: str = asset['browser_download_url']
 
         self.myYesButton.setEnabled(False)
         self.myCancelButton.setEnabled(False)
@@ -205,7 +188,7 @@ class UpdateMessageBox(MessageBoxBase):
         '''macOS 更新流程: 下载 .dmg -> runUpdaterMac 覆盖安装 -> 退出自己.'''
 
         # 直接用 GitHub 原始下载地址 (不做 Windows 的 Gitee 重写)
-        asset = _selectAsset(self.info['assets'])
+        asset = selectReleaseAsset(self.info['assets'])
         if asset is None:
             self.infoLabel.setVisible(True)
             self.infoLabel.setText(
@@ -260,7 +243,7 @@ class UpdateMessageBox(MessageBoxBase):
         if platform.IS_MACOS:
             # macOS: 直接用 GitHub 原始下载地址 (不做 Gitee 重写); 无 .dmg 时退回
             # 到 release 页面让用户自行查看.
-            asset = _selectAsset(self.info['assets'])
+            asset = selectReleaseAsset(self.info['assets'])
             url = asset['browser_download_url'] if asset \
                 else self.info.get('html_url', '')
             if url:
@@ -270,11 +253,13 @@ class UpdateMessageBox(MessageBoxBase):
             self.rejected.emit()
             return
 
-        url: str = self.info['assets'][0]['browser_download_url']
-        url = url.replace("github", "gitee")
-        url = url.replace("Zzaphkiel/Seraphine", "Zzaphkiel/seraphine")
-
-        webbrowser.open(url)
+        # Windows: 选取本次发布中的 .7z 安装包; 没有时退回到 release 页面让用户
+        # 自行查看 (与 macOS 分支一致, 直接使用 GitHub 地址, 不再做 Gitee 重写).
+        asset = selectReleaseAsset(self.info['assets'])
+        url = asset['browser_download_url'] if asset \
+            else self.info.get('html_url', '')
+        if url:
+            webbrowser.open(url)
 
         self.reject()
         self.rejected.emit()
