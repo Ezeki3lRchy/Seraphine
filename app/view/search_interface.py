@@ -59,7 +59,14 @@ class GamesTab(QFrame):
 
     def __init__(self, parnet=None):
         super().__init__(parnet)
-        self.setFixedWidth(160)
+        # Holds the 153px-wide GameTab cards. Bumped from 160 together with
+        # GameTab's width so the KDA row has room (see GameTab.__initWidget for
+        # the cross-platform font-metrics rationale). The layout margins are
+        # pinned explicitly in __initLayout because Qt's *default* layout margin
+        # differs by platform (~20px on macOS vs ~9 on Windows); the larger macOS
+        # margin shrank the inner width below the card width and clipped the
+        # card's right edge.
+        self.setFixedWidth(174)
         self.vBoxLayout = QVBoxLayout(self)
 
         self.stackWidget = QStackedWidget()
@@ -103,6 +110,10 @@ class GamesTab(QFrame):
         self.nextButton.setEnabled(False)
 
     def __initLayout(self):
+        # Pin margins so the card fit is identical on macOS and Windows (Qt's
+        # per-platform default would otherwise clip the card on macOS).
+        self.vBoxLayout.setContentsMargins(10, 10, 10, 10)
+
         defaultWidget = QWidget()
         layout = QVBoxLayout(defaultWidget)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1038,7 +1049,12 @@ class GameTab(ColorAnimationFrame):
         super().__init__(type=type, parent=parent)
 
         self.setFixedHeight(54)
-        self.setFixedWidth(141)
+        # Widened from 141: the KDA labels below size to their content (no longer
+        # fixed at 12px), so the card needs room for the widest realistic row
+        # (all three numbers two digits). macOS renders the substituted SF Pro
+        # font wider than Windows' Segoe UI, which is why the old fixed widths
+        # clipped two-digit KDAs there.
+        self.setFixedWidth(153)
 
         self.setProperty("selected", False)
 
@@ -1091,11 +1107,15 @@ class GameTab(ColorAnimationFrame):
 
         self.time.setObjectName("time")
 
-        self.kills.setFixedWidth(12)
+        # Minimum (not fixed) width: 12px holds a single digit, but a two-digit
+        # KDA needs ~13-15px in the macOS SF Pro fallback and was being clipped.
+        # An expanding spacer in __initLayout absorbs the slack, so single-digit
+        # numbers still render at ~12px and the row only grows when it must.
+        self.kills.setMinimumWidth(12)
         self.slash1.setFixedWidth(6)
-        self.deaths.setFixedWidth(12)
+        self.deaths.setMinimumWidth(12)
         self.slash2.setFixedWidth(6)
-        self.assists.setFixedWidth(12)
+        self.assists.setMinimumWidth(12)
 
     def __initLayout(self):
         self.infoLayout.setContentsMargins(0, 0, 0, 0)
