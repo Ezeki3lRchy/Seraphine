@@ -3,6 +3,13 @@ SearchInterface {
     background-color: transparent;
 }
 
+/* Light-theme default text color. On macOS the native palette follows the
+   system appearance, so uncolored labels render white (invisible) in Dark
+   Mode. Pin black for raw labels; subclass/ID rules below override as needed. */
+QLabel {
+    color: black;
+}
+
 GamesView {
     border: 1px solid rgba(0, 0, 0, 0.095);
     border-radius: 6px;
