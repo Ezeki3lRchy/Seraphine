@@ -728,11 +728,17 @@ class GameTab(ColorAnimationFrame):
 
         self.time.setObjectName("time")
 
-        self.kills.setFixedWidth(12)
+        # Minimum (not fixed) width: 12px holds a single digit, but a two-digit
+        # KDA needs ~13-15px in the macOS SF Pro fallback and was being clipped.
+        # The card and its column have no fixed width here (the games grid
+        # stretches to fill the window), and the trailing expanding spacer in
+        # __initLayout absorbs the slack, so single-digit numbers still render at
+        # ~12px and the row only grows when it must.
+        self.kills.setMinimumWidth(12)
         self.slash1.setFixedWidth(6)
-        self.deaths.setFixedWidth(12)
+        self.deaths.setMinimumWidth(12)
         self.slash2.setFixedWidth(6)
-        self.assists.setFixedWidth(12)
+        self.assists.setMinimumWidth(12)
 
         self.kills.setAlignment(Qt.AlignCenter)
         self.slash1.setAlignment(Qt.AlignCenter)
