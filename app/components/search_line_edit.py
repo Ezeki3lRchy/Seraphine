@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt, QEvent, QAbstractItemModel, Signal, QSize
 from PySide6.QtGui import QColor, QAction
 from PySide6.QtWidgets import QCompleter, QWidget, QHBoxLayout, QListWidgetItem, QPushButton
-from ..common.qfluentwidgets import SearchLineEdit as QSearchLineEdit, PushButton, Icon, FluentIcon, TransparentToolButton, Theme, CompleterMenu, LineEditButton
+from ..common.qfluentwidgets import SearchLineEdit as QSearchLineEdit, PushButton, Icon, FluentIcon, TransparentToolButton, Theme, CompleterMenu, LineEditButton, RoundMenu, MenuAnimationType
 
 from app.common.config import cfg
 
@@ -20,6 +20,17 @@ class MyItemWidget(QWidget):
 
 
 class MyCompleterMenu(CompleterMenu):
+
+    def exec(self, pos, ani=True, aniType=MenuAnimationType.DROP_DOWN):
+        # PySide6/Shiboken re-exposes the C++ QMenu.exec slot as an instance-level
+        # method on every subclass that does NOT define `exec` itself, shadowing the
+        # Python `exec` that CompleterMenu inherits from RoundMenu. CompleterMenu.popup()
+        # calls self.exec(pos, aniType=...), which then lands on QMenu.exec (no aniType
+        # kwarg) and raises "AttributeError: QMenu.exec(): unsupported keyword 'aniType'"
+        # — crashing on every search-box focus on PySide6. Defining exec here binds this
+        # Python method on the subclass, restoring the animated RoundMenu.exec. PyQt5 (the
+        # pre-migration fork) used exec_ and did not shadow, so this is PySide6-specific.
+        return RoundMenu.exec(self, pos, ani, aniType)
 
     def __onDelBtnClicked(self, action):
         historyList = cfg.get(cfg.searchHistory).split(",")

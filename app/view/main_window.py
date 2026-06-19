@@ -62,6 +62,8 @@ class MainWindow(FluentWindow):
     showNoticeMessageBox = Signal(str)
     checkUpdateFailed = Signal()
     fetchNoticeFailed = Signal()
+    # Routes exceptHook's dialog to the GUI thread (see exceptHook / __onShowExceptionMessageBox).
+    showExceptionMessageBox = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -270,6 +272,7 @@ class MainWindow(FluentWindow):
         self.showNoticeMessageBox.connect(self.__onShowNoticeMessageBox)
         self.checkUpdateFailed.connect(self.__onCheckUpdateFailed)
         self.fetchNoticeFailed.connect(self.__onFetchNoticeFailed)
+        self.showExceptionMessageBox.connect(self.__onShowExceptionMessageBox)
         self.stackedWidget.currentChanged.connect(
             self.__onCurrentStackedChanged)
         self.mainWindowHide.connect(self.__onWindowHide)
@@ -1137,13 +1140,24 @@ class MainWindow(FluentWindow):
             await connector.playAgain()
 
     def exceptHook(self, ty, value, tb):
-        tracebackFormat = traceback.format_exception(ty, value, tb)
-        title = self.tr('Exception occurred 😥')
-        content = "".join(tracebackFormat)
+        content = "".join(traceback.format_exception(ty, value, tb))
 
         if ty in [ConnectionRefusedError, ClientConnectorError]:
             return
 
+        # Let the default hook print to stderr (thread-safe).
+        self.oldHook(ty, value, tb)
+
+        # sys.excepthook may fire on a worker thread — most often the
+        # LolProcessExistenceListener QThread. Building ExceptionMessageBox (a
+        # top-level window) off the GUI thread makes AppKit raise an NSException and
+        # SIGABRT the whole process on macOS ("Seraphine quit unexpectedly"), turning
+        # a loggable error into a hard crash. Route the dialog + shutdown to the main
+        # thread: this signal is delivered directly when we're already on the GUI
+        # thread, and as a queued (main-thread) call when emitted from a worker thread.
+        self.showExceptionMessageBox.emit(content)
+
+    def __onShowExceptionMessageBox(self, content):
         logger.error(f"Exception occurred:\n{content}", "Crash")
 
         for call in connector.callStack:
@@ -1155,6 +1169,7 @@ class MainWindow(FluentWindow):
         logger.error(str(self.auxiliaryFuncInterface), "Crash")
         logger.error(str(self.settingInterface), "Crash")
 
+        title = self.tr('Exception occurred 😥')
         content = f"Seraphine ver.{BETA or VERSION}\n{'-'*5}\n{content}"
 
         w = ExceptionMessageBox(title, content, self.window())
@@ -1162,7 +1177,6 @@ class MainWindow(FluentWindow):
         if w.exec():
             pyperclip.copy(content)
 
-        self.oldHook(ty, value, tb)
         signalBus.terminateListeners.emit()
         logger.error("Abnormal exit", "Crash")
         sys.exit()
