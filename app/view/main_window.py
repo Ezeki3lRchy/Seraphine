@@ -297,6 +297,12 @@ class MainWindow(FluentWindow):
             # occupy x in [8, 83] (systemTitleBarRect origin 8 + width 75). Without
             # this the logo and title would render on top of the buttons.
             self.titleBar.hBoxLayout.insertSpacing(0, 92)
+
+            # The navigation rail's return/menu buttons sit at the very top of the
+            # panel (y~5), so the back button collides with the traffic lights too.
+            # Push the nav top-section below the title bar (48px) so it clears them.
+            self.navigationInterface.panel.vBoxLayout.setContentsMargins(
+                0, self.titleBar.height(), 0, 5)
         else:
             self.titleBar.hBoxLayout.insertSpacing(0, 10)
 
