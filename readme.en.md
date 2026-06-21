@@ -138,15 +138,22 @@ We suspect the client can't handle certain HTTP requests (it shatters at a touch
 ## Building it yourself 📂
 
 ### Windows (`.7z`)
-In your virtual environment install PyInstaller (**pin 5.x**) and make sure `7z` is on PATH:
-```shell
-pip install pyinstaller==5.13
-```
-Run [`make.ps1`](make.ps1), passing the output directory with `-dest` (defaults to the current directory `.`):
+> ⚠️ The old `make.ps1` (bare `pyinstaller` + PyQt5 flat layout + pinned PyInstaller 5.13) is the **pre-migration** script and **cannot** package the current PySide6 source — don't use it. The path below is the Windows counterpart of the macOS `.spec`.
+
+PySide6 6.9.3 needs **PyInstaller 6.x** (no longer the old 5.13.2). Create a PySide6 virtual environment (Python 3.9+, the repo uses 3.12):
 ```powershell
-.\make -dest .
+python -m venv .build-venv-win
+.build-venv-win\Scripts\activate
+pip install -r requirements.txt
+pip install pyinstaller==6.21
 ```
-You'll get `Seraphine.7z` in the target folder.
+Build with [`Seraphine.win.spec`](Seraphine.win.spec) (the counterpart of macOS [`Seraphine.spec`](Seraphine.spec): EXE with `logo.ico`, keeps the Windows-only `fix_lcu_window.exe`, bundles `app/resource` as datas):
+```powershell
+pyinstaller --noconfirm Seraphine.win.spec
+```
+The output is in `dist\Seraphine\`. PyInstaller 6.x produces an `_internal\` layout (`Seraphine.exe` at the root, the rest under `_internal\`) — that's fine: `main.py` does `os.chdir` to `_MEIPASS` (= `_internal`) at startup and the resources are bundled there, so the relative paths resolve.
+
+Finally, generate a root-level `filelist.txt` and use `py7zr` to pack `dist\Seraphine\*` with **files at the archive root** (no nested top folder) into `Seraphine.7z`, satisfying the **v1.1.9 in-place updater** contract (it deletes old files per the old `filelist.txt`, then moves the new root-level files in). This step is automated by [`release_win.ps1`](release_win.ps1) below.
 
 ### macOS (`.dmg`)
 In your virtual environment install PyInstaller, then run [`make_mac.sh`](make_mac.sh):
@@ -162,6 +169,17 @@ The script uses [`Seraphine.spec`](Seraphine.spec) to build `Seraphine.app` and 
 ./release_mac.sh 1.2.3 --notes-file NOTES.md --push
 ```
 Use `--dry-run` to preview every step without changing anything.
+
+### One-command Windows release (maintainers)
+[`release_win.ps1`](release_win.ps1) is the Windows counterpart of `release_mac.sh`: bump `VERSION` → build with `Seraphine.win.spec` → verify the frozen build's `--version` → generate `filelist.txt` and pack `Seraphine.7z` with `py7zr` → publish to `Ezeki3lRchy/Seraphine-releases` using your local `gh` login:
+```powershell
+.\release_win.ps1 1.2.3 -NotesFile NOTES.md -Push
+```
+The two platforms use a **decoupled release** model: a **single Release** per version tag carries both `Seraphine.7z` (Windows) and `Seraphine.dmg` (macOS); the updater only reads `/releases/latest` and picks the asset matching the OS. So:
+- if the version's Release already exists (e.g. macOS shipped it first), the script `gh release upload --clobber`s the `.7z` onto the existing Release and **skips** the `VERSION` bump (`config.py` already holds the target version);
+- otherwise it creates the version's Release.
+
+Never use a separate `-win`-style tag — it would steal "latest" and break the other platform's updater. Use `-DryRun` to preview every step.
 
 ## Riot disclaimer 📢
 Seraphine is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
