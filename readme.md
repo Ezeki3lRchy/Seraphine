@@ -138,15 +138,22 @@ python main.py
 ## 自己打包可执行文件 📂
 
 ### Windows（`.7z`）
-在虚拟环境下安装 PyInstaller（**固定 5.x**）并确认环境支持 `7z` 命令：
-```shell
-pip install pyinstaller==5.13
-```
-执行 [`make.ps1`](make.ps1)，用 `-dest` 指定输出目录（默认为当前目录 `.`）：
+> ⚠️ 旧的 `make.ps1`（裸 `pyinstaller` + PyQt5 扁平布局 + 固定 PyInstaller 5.13）是 **迁移前** 的脚本，**无法** 打包当前 PySide6 源码——请勿使用。下面是与 macOS `.spec` 对应的 Windows 路径。
+
+PySide6 6.9.3 需要 **PyInstaller 6.x**（不再是过去的 5.13.2）。建一个 PySide6 虚拟环境（Python 3.9+，仓库使用 3.12）：
 ```powershell
-.\make -dest .
+python -m venv .build-venv-win
+.build-venv-win\Scripts\activate
+pip install -r requirements.txt
+pip install pyinstaller==6.21
 ```
-结束后在目标文件夹获得 `Seraphine.7z`。
+用 [`Seraphine.win.spec`](Seraphine.win.spec) 打包（它对应 macOS 的 [`Seraphine.spec`](Seraphine.spec)：带 `logo.ico` 的 EXE、保留 Windows 专用的 `fix_lcu_window.exe`、把 `app/resource` 作为 datas 打入）：
+```powershell
+pyinstaller --noconfirm Seraphine.win.spec
+```
+产物在 `dist\Seraphine\`。PyInstaller 6.x 会生成 `_internal\` 布局（`Seraphine.exe` 在根，其余依赖在 `_internal\` 下）——这没问题：`main.py` 启动时 `os.chdir` 到 `_MEIPASS`（即 `_internal`），资源也打在那里，相对路径正常解析。
+
+最后生成根级 `filelist.txt` 并用 `py7zr` 把 `dist\Seraphine\*` 以 **文件位于压缩包根目录**（不嵌套顶层文件夹）的方式打成 `Seraphine.7z`，以满足 **v1.1.9 在装更新器** 的契约（它按旧 `filelist.txt` 删除旧文件、再就地放入新的根级文件）。这一步由下方的 [`release_win.ps1`](release_win.ps1) 自动完成。
 
 ### macOS（`.dmg`）
 在虚拟环境下安装 PyInstaller，然后运行 [`make_mac.sh`](make_mac.sh)：
@@ -162,6 +169,17 @@ pip install pyinstaller
 ./release_mac.sh 1.2.3 --notes-file NOTES.md --push
 ```
 `--dry-run` 可在不实际改动的情况下预览每一步。
+
+### 一键发布 Windows 版本（维护者）
+[`release_win.ps1`](release_win.ps1) 是 `release_mac.sh` 的 Windows 对应版：升 `VERSION` → 用 `Seraphine.win.spec` 打包 → 校验冻结产物 `--version` → 生成 `filelist.txt` 并用 `py7zr` 打 `Seraphine.7z` → 用本地 `gh` 登录发布到 `Ezeki3lRchy/Seraphine-releases`：
+```powershell
+.\release_win.ps1 1.2.3 -NotesFile NOTES.md -Push
+```
+两平台采用 **解耦发布**：同一个版本 tag 的 **一个 Release** 同时挂 `Seraphine.7z`（Windows）与 `Seraphine.dmg`（macOS），更新器只读 `/releases/latest` 并按系统挑选对应资产。因此：
+- 若该版本 Release 已存在（例如 macOS 先发了），脚本会 `gh release upload --clobber` 把 `.7z` **追加** 到既有 Release，并 **跳过** `VERSION` 升级（此时 `config.py` 里已是目标版本）；
+- 若尚不存在，则新建该版本 Release。
+
+切勿另起 `-win` 之类的独立 tag——那会抢走 “latest”，破坏另一平台的更新。`-DryRun` 可预览每一步。
 
 ## Riot 声明 📢
 Seraphine is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
