@@ -1,9 +1,11 @@
 <p align='center'>
-  <img src="https://github.com/Zzaphkiel/Seraphine/assets/60383222/78c14456-8f8e-4137-a6bc-20896c382c1a">
+  <!-- 头图暂用上游 Seraphine logo 横幅（已下载进本仓库，非热链）；建议后续替换为 macOS 实机截图，拍摄清单见 docs/screenshots/README.md。 -->
+  <img src="docs/screenshots/hero.png" alt="Seraphine" width="720">
 </p>
 
 <p align='center'>
-  基于 LCU API 实现的英雄联盟战绩查询与辅助工具 · <b>Windows / macOS 双平台</b>
+  <b>成熟 · 完整 · 原生 —— 属于 Mac 玩家的英雄联盟助手</b><br>
+  战绩查询 · 选英雄自动化 · 自动查 10 人生涯 · OP.GG 一键符文出装 · ARAM Buff —— Windows 上有的，macOS 上一样有
 </p>
 
 <div align="center">
@@ -21,11 +23,15 @@
 
 > 本仓库是 [Zzaphkiel/Seraphine](https://github.com/Zzaphkiel/Seraphine) 的 **跨平台分支**：在保留原版全部功能的基础上，将界面从 PyQt5 迁移到 **PySide6**，新增了 **原生 macOS 支持**（`.app` / `.dmg` 打包、平台感知的自更新）。Windows 行为与上游保持一致。
 
-## 这个分支有什么不同 🆕
-- **原生 macOS 支持**：所有 Windows 专有逻辑（win32 / winreg / 窗口句柄）被收敛进 [`app/common/platform.py`](app/common/platform.py) 的跨平台垫片，macOS 上以 Qt / `open` / 包内路径等原生方式实现，Windows 路径逐字保留。
-- **PySide6 迁移**：界面框架由 PyQt5 切换为 PySide6 + [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets)。
-- **平台感知的自更新**：内置更新器从同一个发布仓库读取版本，并只下载与当前系统匹配的安装包（macOS 取 `.dmg`，Windows 取 `.7z`），不会把另一个平台的包推给你。
-- **一键 macOS 发布脚本**：[`release_mac.sh`](release_mac.sh) 完成「升版本 → 打 `.dmg` → 校验 → 发布到 GitHub Release」全流程。
+## 亮点速览 ✨
+- 🎮 **选英雄全自动**：找到对局自动接受，进入 BP 自动选 / 禁英雄，自动接受换英雄请求。
+- 📊 **自动查 10 人战绩**：进入英雄选择自动查队友，进入游戏自动查对手，同大区召唤师战绩随手查。
+- 🧠 **OP.GG 一键符文出装**：自动显示英雄排行、出装与加点，一键写入符文；大乱斗自动显示英雄 Buff。
+- 🍏 **原生 macOS / Apple Silicon**：`.dmg` 拖入即用，应用内一键「更新并重启」，全程无需任何 Windows 环境。
+
+<p align='center'>
+  <a href="https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest"><b>⬇️ 下载 macOS / Windows 安装包</b></a>
+</p>
 
 ## 快速上手 🤗
 
@@ -111,6 +117,13 @@ python main.py
     - 一键卸下头像框 ✅
 
 > 部分依赖 Windows 原生窗口句柄的能力（如修复结算界面缩成一块、OPGG 悬浮窗贴靠客户端窗口）在 macOS 上会优雅降级——这些会在后续打磨阶段逐步补齐。
+
+## 这个分支做了哪些改动 🔧
+> 给关心实现、或来自上游的读者。
+- **原生 macOS 支持**：所有 Windows 专有逻辑（win32 / winreg / 窗口句柄）被收敛进 [`app/common/platform.py`](app/common/platform.py) 的跨平台垫片，macOS 上以 Qt / `open` / 包内路径等原生方式实现，Windows 路径逐字保留。
+- **PySide6 迁移**：界面框架由 PyQt5 切换为 PySide6 + [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets)。
+- **平台感知的自更新**：内置更新器从同一个发布仓库读取版本，并只下载与当前系统匹配的安装包（macOS 取 `.dmg`，Windows 取 `.7z`），不会把另一个平台的包推给你。
+- **一键 macOS 发布脚本**：[`release_mac.sh`](release_mac.sh) 完成「升版本 → 打 `.dmg` → 校验 → 发布到 GitHub Release」全流程。
 
 ## 常见问题 FAQ 🧐
 

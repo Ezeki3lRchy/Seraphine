@@ -1,9 +1,11 @@
 <p align='center'>
-  <img src="https://github.com/Zzaphkiel/Seraphine/assets/60383222/78c14456-8f8e-4137-a6bc-20896c382c1a">
+  <!-- Hero is the upstream Seraphine wordmark, vendored into this repo (not hotlinked). Consider replacing it with a real macOS screenshot later — shot list in docs/screenshots/README.md. -->
+  <img src="docs/screenshots/hero.png" alt="Seraphine" width="720">
 </p>
 
 <p align='center'>
-  A League of Legends match-history & assistant tool built on the LCU API · <b>Windows / macOS</b>
+  <b>Mature · Complete · Native — the League of Legends assistant for Mac players</b><br>
+  Match history · champ-select automation · auto-scout all 10 players · one-click OP.GG runes &amp; builds · ARAM buffs — everything you get on Windows, now on macOS
 </p>
 
 <div align="center">
@@ -21,11 +23,15 @@
 
 > This repository is a **cross-platform fork** of [Zzaphkiel/Seraphine](https://github.com/Zzaphkiel/Seraphine): it keeps all of the original features, migrates the UI from PyQt5 to **PySide6**, and adds **native macOS support** (`.app` / `.dmg` packaging and a platform-aware self-updater). Windows behavior matches upstream.
 
-## What's different in this fork 🆕
-- **Native macOS support**: every Windows-only path (win32 / winreg / window handles) is funneled through a cross-platform shim in [`app/common/platform.py`](app/common/platform.py); on macOS it is implemented natively (Qt, `open`, app-bundle paths), while the Windows path is preserved byte-for-byte.
-- **PySide6 migration**: the UI framework moved from PyQt5 to PySide6 + [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets).
-- **Platform-aware self-update**: the built-in updater reads from a single release repository and downloads only the installer that matches your OS (`.dmg` on macOS, `.7z` on Windows) — it never pushes the other platform's package to you.
-- **One-command macOS release**: [`release_mac.sh`](release_mac.sh) handles the whole flow — bump version → build the `.dmg` → verify → publish a GitHub Release.
+## Highlights ✨
+- 🎮 **Champ select on autopilot**: auto-accept matches, auto-pick and auto-ban in champ select, auto-accept champion-swap requests.
+- 📊 **Auto-scout all 10 players**: teammates the moment you enter champ select, opponents once the game starts, plus on-demand lookups for any same-server summoner.
+- 🧠 **One-click OP.GG runes &amp; builds**: auto-show tier lists, builds and skill order, apply runes in one click; ARAM champion buffs shown automatically.
+- 🍏 **Native macOS / Apple Silicon**: drag the `.dmg` and go, in-app **Update and Restart**, no Windows environment required.
+
+<p align='center'>
+  <a href="https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest"><b>⬇️ Download for macOS / Windows</b></a>
+</p>
 
 ## Getting started 🤗
 
@@ -111,6 +117,13 @@ Delete the program folder, then remove the config directory for your platform:
     - Remove your avatar frame in one click ✅
 
 > A few capabilities that depend on native Windows window handles (fixing the shrunken end-screen, docking the OPGG overlay to the client window) gracefully degrade on macOS — these will be filled in over later polishing stages.
+
+## What this fork changes 🔧
+> For readers who care about the internals, or who come from upstream.
+- **Native macOS support**: every Windows-only path (win32 / winreg / window handles) is funneled through a cross-platform shim in [`app/common/platform.py`](app/common/platform.py); on macOS it is implemented natively (Qt, `open`, app-bundle paths), while the Windows path is preserved byte-for-byte.
+- **PySide6 migration**: the UI framework moved from PyQt5 to PySide6 + [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets).
+- **Platform-aware self-update**: the built-in updater reads from a single release repository and downloads only the installer that matches your OS (`.dmg` on macOS, `.7z` on Windows) — it never pushes the other platform's package to you.
+- **One-command macOS release**: [`release_mac.sh`](release_mac.sh) handles the whole flow — bump version → build the `.dmg` → verify → publish a GitHub Release.
 
 ## FAQ 🧐
 
