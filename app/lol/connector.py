@@ -211,6 +211,11 @@ class LolClientConnector(QObject):
 
     def __init__(self):
         super().__init__()
+        self.__reset()
+
+    def __reset(self):
+        # 重置连接器状态. 注意: 这里不能调用 super().__init__(),
+        # 否则 PySide6 会抛出 "initialize QObject twice" 异常 (close() 会复用本方法).
         self.maxRefCnt = cfg.get(cfg.apiConcurrencyNumber)
 
         self.semaphore = None
@@ -224,6 +229,7 @@ class LolClientConnector(QObject):
 
         self.manager = None
         self.perksStyleCache = None
+        self.listener = None
 
         self.dqLock = threading.Lock()
         self.callStack = deque(maxlen=10)
@@ -300,18 +306,28 @@ class LolClientConnector(QObject):
         await self.listener.start()
 
     async def close(self):
+        # 即使某个资源关闭失败, 也必须保证 __reset() 执行, 否则连接器会卡在
+        # 半初始化状态, 导致下一次 start() 异常.
         try:
-            await self.listener.close()
-        except:
-            pass
+            if self.listener:
+                try:
+                    await self.listener.close()
+                except Exception:
+                    pass
 
-        if self.lcuSess:
-            await self.lcuSess.close()
+            if self.lcuSess:
+                try:
+                    await self.lcuSess.close()
+                except Exception:
+                    pass
 
-        if self.sgpSess:
-            await self.sgpSess.close()
-
-        self.__init__()
+            if self.sgpSess:
+                try:
+                    await self.sgpSess.close()
+                except Exception:
+                    pass
+        finally:
+            self.__reset()
 
     async def __initSessions(self):
         self.lcuSess = aiohttp.ClientSession(
