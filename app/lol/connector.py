@@ -96,7 +96,9 @@ def retry(count=5, retry_sep=0):
                     #   若 task 恰好跑到被 retry 装饰的函数中, 会被 retry 中的 BaseException 捕获并吞掉, 从而无事发生
                     raise
                 except BaseException as e:
-                    time.sleep(retry_sep)
+                    # await (not blocking time.sleep): this runs on the shared
+                    # qasync loop+UI thread, so a blocking sleep freezes the GUI.
+                    await asyncio.sleep(retry_sep)
                     exce = e
 
                     # SummonerNotFound 再重试会报 429 (限流)
@@ -316,7 +318,13 @@ class LolClientConnector(QObject):
     async def __initSessions(self):
         self.lcuSess = aiohttp.ClientSession(
             base_url=f'https://127.0.0.1:{self.port}',
-            auth=aiohttp.BasicAuth('riot', self.token)
+            auth=aiohttp.BasicAuth('riot', self.token),
+            # Cap concurrent connections to the local LCU. The team-scout fan-out
+            # (up to ~10 players x ~11 games x ~11 icons in flight at once)
+            # otherwise floods loopback TLS with a thundering herd that makes the
+            # single qasync loop thrash scheduling hundreds of callbacks on
+            # Windows. Per-request ssl=False still overrides the connector's TLS.
+            connector=aiohttp.TCPConnector(limit=8),
         )
 
         if not self.server:
@@ -421,7 +429,7 @@ class LolClientConnector(QObject):
             # 有部分请求可能会 ConnectionError, 直接忽略重试
             except aiohttp.ClientConnectorError:
                 retries += 1
-                time.sleep(.5)
+                await asyncio.sleep(.5)
                 continue
 
             if type(result) is list:
@@ -429,7 +437,7 @@ class LolClientConnector(QObject):
 
             # 如果有才判定, 有部分相应成功时没有 httpStatus
             elif result.get("httpStatus") and result.get("httpStatus") != 200:
-                time.sleep(.5)
+                await asyncio.sleep(.5)
                 retries += 1
             else:
                 return result
