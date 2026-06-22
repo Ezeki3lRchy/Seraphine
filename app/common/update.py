@@ -84,6 +84,14 @@ MNT=$(mktemp -d /tmp/seraphine-update.XXXXXX)
 # 只读挂载 dmg
 hdiutil attach "{dmg_path}" -nobrowse -readonly -mountpoint "$MNT"
 
+# 先确认挂载的 dmg 里确实有新的 Seraphine.app, 再删除旧的;
+# 否则校验/挂载失败时 rm -rf 会把已安装版本删掉, 把应用变砖.
+if [ ! -d "$MNT/Seraphine.app" ]; then
+    echo "updater: Seraphine.app not found in mounted dmg, aborting"
+    hdiutil detach "$MNT" 2>/dev/null
+    exit 1
+fi
+
 # 用新版本覆盖已安装的 app bundle
 rm -rf "{app_path}"
 ditto "$MNT/Seraphine.app" "{app_path}"

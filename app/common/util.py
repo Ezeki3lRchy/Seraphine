@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -20,8 +21,8 @@ TAG = "Util"
 
 class Github:
     def __init__(self, user="Ezeki3lRchy", repositories="Seraphine-releases"):
-        self.githubApi = "http://api.github.com"
-        self.giteeApi = "http://gitee.com/api"
+        self.githubApi = "https://api.github.com"
+        self.giteeApi = "https://gitee.com/api"
 
         self.proxyApi = 'https://ghproxy.net'
 
@@ -112,6 +113,46 @@ def selectReleaseAsset(assets):
         if asset.get('name', '').endswith(suffix):
             return asset
     return None
+
+
+def _sha256OfFile(path, chunkSize=1024 * 1024) -> str:
+    """流式计算文件的 SHA-256 (十六进制小写). 分块读取, 避免把整个安装包读进内存."""
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for block in iter(lambda: f.read(chunkSize), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def verifyAssetDigest(path, asset):
+    """校验下载的安装包是否与 GitHub release API 公布的 SHA-256 一致.
+
+    GitHub 会在 release 资源里附带 ``asset['digest'] == 'sha256:<hex>'``, 通过
+    HTTPS 取到该字段后, 本函数计算下载文件的 SHA-256 并与之比对, 拦截 CDN / 传输
+    环节被篡改的二进制 (在解压 / 安装之前调用).
+
+    @return: (ok: bool, detail: str)
+      - digest 不存在: 无法校验, 记日志后放行 (digest 缺失是 GitHub API 变化,
+        不是攻击信号; 若因此一刀切拒绝所有更新代价更大). 但 digest *不匹配* 一定
+        硬失败.
+      - 注意: 这道校验防的是 "存到 GitHub 之后" 的篡改, 防不了被攻陷的发布账号
+        (那需要代码签名).
+    """
+    digest = (asset or {}).get('digest') or ''
+    if not digest.lower().startswith('sha256:'):
+        logger.warning(
+            "release asset has no sha256 digest; skipping integrity check", TAG)
+        return True, 'no-digest'
+
+    expected = digest.split(':', 1)[1].strip().lower()
+    actual = _sha256OfFile(path).lower()
+    if actual != expected:
+        logger.error(
+            f"asset digest mismatch: expected {expected}, got {actual}", TAG)
+        return False, f'sha256 mismatch (expected {expected[:12]}…, got {actual[:12]}…)'
+
+    logger.info("asset sha256 verified ok", TAG)
+    return True, 'ok'
 
 
 def getLoLPathByRegistry() -> str:
