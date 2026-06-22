@@ -1,5 +1,6 @@
 from qasync import asyncSlot
 import aiohttp
+import asyncio
 import os
 import shutil
 import sys
@@ -18,7 +19,7 @@ from app.common.qfluentwidgets import (MessageBoxBase, SmoothScrollArea,
                                        FlyoutViewBase, PushButton)
 
 from app.common.config import VERSION, cfg, LOCAL_PATH, BETA
-from app.common.util import getLolClientPidSlowly, selectReleaseAsset
+from app.common.util import getLolClientPidSlowly, selectReleaseAsset, verifyAssetDigest
 from app.common.signals import signalBus
 from app.common.update import runUpdater, runUpdaterMac
 from app.common import platform
@@ -168,6 +169,20 @@ class UpdateMessageBox(MessageBoxBase):
                     self.infoLabel.setText(
                         f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
 
+        # 解压前校验 SHA-256 (在 executor 里算哈希, 避免读 ~160MB 文件阻塞 UI 线程)
+        self.infoLabel.setText(self.tr("Verifying download..."))
+        ok, detail = await asyncio.get_running_loop().run_in_executor(
+            None, verifyAssetDigest, zipPath, asset)
+        if not ok:
+            os.remove(zipPath)
+            self.infoLabel.setText(
+                self.tr("Update verification failed, aborting: ") + detail)
+            self.myYesButton.setEnabled(True)
+            self.myCancelButton.setEnabled(not self.info["forbidden"])
+            self.manuallyButton.setEnabled(True)
+            self.bar.setVisible(False)
+            return
+
         self.infoLabel.setText(
             self.tr("Downloading finished, decompressing..."))
 
@@ -221,6 +236,20 @@ class UpdateMessageBox(MessageBoxBase):
                     self.bar.setValue(cur)
                     self.infoLabel.setText(
                         f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
+
+        # 安装前校验 SHA-256 (在 executor 里算哈希, 避免读 ~220MB dmg 阻塞 UI 线程)
+        self.infoLabel.setText(self.tr("Verifying download..."))
+        ok, detail = await asyncio.get_running_loop().run_in_executor(
+            None, verifyAssetDigest, dmgPath, asset)
+        if not ok:
+            os.remove(dmgPath)
+            self.infoLabel.setText(
+                self.tr("Update verification failed, aborting: ") + detail)
+            self.myYesButton.setEnabled(True)
+            self.myCancelButton.setEnabled(not self.info["forbidden"])
+            self.manuallyButton.setEnabled(True)
+            self.bar.setVisible(False)
+            return
 
         self.infoLabel.setText("Waiting for restart...")
 

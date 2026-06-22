@@ -1,6 +1,5 @@
 import os
 import stat
-import threading
 
 from PySide6.QtCore import Qt, Signal, QEvent, QSize
 from PySide6.QtWidgets import (QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -1078,8 +1077,15 @@ class DodgeCard(SettingCard):
         self.hBoxLayout.addWidget(self.pushButton)
         self.hBoxLayout.addSpacing(16)
 
-        self.pushButton.clicked.connect(lambda: threading.Thread(
-            target=lambda: connector.dodge()).start())
+        self.pushButton.clicked.connect(self.__onDodgeButtonClicked)
+
+    @asyncSlot()
+    async def __onDodgeButtonClicked(self):
+        # connector.dodge is a coroutine. The old code started it in a bare
+        # threading.Thread that has no event loop, so the coroutine was created
+        # and immediately dropped — the dodge request never fired (silently
+        # broken feature). Await it on the qasync loop instead.
+        await connector.dodge()
 
 
 class LockConfigCard(SettingCard):
