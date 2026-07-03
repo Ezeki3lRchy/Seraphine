@@ -388,10 +388,13 @@ async def parseGameDetailData(puuid, game):
                 assists = stats['assists']
                 gold = stats['goldEarned']
 
-                teams[tid]['kills'] += kills
-                teams[tid]['deaths'] += deaths
-                teams[tid]['assists'] += assists
-                teams[tid]['gold'] += gold
+                # 斗魂竞技场(1700) tid = subteamPlacement*100; 远端给出 0 或 >8 的
+                # 异常 placement 时 tid 落在 teams(100..800) 之外, 跳过聚合避免 KeyError
+                if tid in teams:
+                    teams[tid]['kills'] += kills
+                    teams[tid]['deaths'] += deaths
+                    teams[tid]['assists'] += assists
+                    teams[tid]['gold'] += gold
 
                 runeIcon = await connector.getRuneIcon(stats['perk0'])
 
@@ -465,7 +468,9 @@ async def parseGameDetailData(puuid, game):
                     'subteamPlacement': subteamPlacement,
                     'isPublic': isPublic
                 }
-                teams[tid]['summoners'].append(item)
+                # 同 teams[tid] 聚合守卫: 异常 placement 的 tid 不在 teams 内则跳过
+                if tid in teams:
+                    teams[tid]['summoners'].append(item)
 
                 break
 
@@ -632,13 +637,13 @@ def parseRankInfo(info):
             "tier": soloTier,
             "icon": soloIcon,
             "division": soloDivision,
-            "lp": soloRankInfo["leaguePoints"],
+            "lp": soloRankInfo.get("leaguePoints", ""),
         },
         "flex": {
             "tier": flexTier,
             "icon": flexIcon,
             "division": flexDivision,
-            "lp": flexRankInfo["leaguePoints"],
+            "lp": flexRankInfo.get("leaguePoints", ""),
         },
     }
 
@@ -690,13 +695,13 @@ def parseRankInfoFromSGP(info):
             "tier": soloTier,
             "icon": soloIcon,
             "division": soloDivision,
-            "lp": soloRankInfo["leaguePoints"],
+            "lp": soloRankInfo.get("leaguePoints", ""),
         },
         "flex": {
             "tier": flexTier,
             "icon": flexIcon,
             "division": flexDivision,
-            "lp": flexRankInfo["leaguePoints"],
+            "lp": flexRankInfo.get("leaguePoints", ""),
         },
     }
 
@@ -1171,6 +1176,11 @@ async def getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId):
 
     rankInfo = parseRankInfoFromSGP(origRankInfo)
 
+    # 默认取 summoner 自身的名字 / tagLine; 若下方能从最近一局解析到更准确的再覆盖.
+    # 也保证 except 分支(SGP 拉取失败)有已定义的 summonerName/tagLine, 避免 NameError
+    summonerName = summoner.get("gameName")
+    tagLine = summoner.get("tagLine")
+
     try:
         origGamesInfo = await connector.getSummonerGamesByPuuidViaSGP(puuid, 0, 14)
 
@@ -1189,10 +1199,17 @@ async def getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId):
 
                 begIdx = endIdx + 1
     except:
+        # SGP 拉取失败: 绑定空 origGamesInfo, 否则下方 teammatesInfo 的
+        # origGamesInfo['games'][:1] 会 UnboundLocalError
+        origGamesInfo = {"games": []}
         gamesInfo = []
     else:
-        summonerName, tagLine = getNameTagLineFromGame(
-            origGamesInfo['games'][0], puuid)
+        # 空战绩(新号 / 被过滤为空)时 games[0] 会 IndexError; getNameTagLineFromGame
+        # 也可能返回 None. 两种情况都保留上面的默认名字, 不覆盖
+        games = origGamesInfo['games']
+        nameTag = getNameTagLineFromGame(games[0], puuid) if games else None
+        if nameTag:
+            summonerName, tagLine = nameTag
 
         tasks = [parseGamesDataFromSGP(game, puuid)
                  for game in origGamesInfo["games"][:11]]

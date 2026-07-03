@@ -112,9 +112,15 @@ class AramBuff:
         return AramBuff.data != None
 
     @classmethod
-    @lru_cache(maxsize=None)
     def getInfoByChampionId(cls, championId):
+        # 数据未就绪时返回 None 但**不缓存** —— 否则 lru_cache 会把这个 None 永久记住,
+        # 之后数据加载完成仍一直返回 None (需重启才恢复)
         if not AramBuff.isAvailable():
             return None
 
-        return AramBuff.data['champions'].get(str(championId))
+        return cls._getInfoByChampionIdCached(str(championId))
+
+    @classmethod
+    @lru_cache(maxsize=None)
+    def _getInfoByChampionIdCached(cls, championId):
+        return AramBuff.data['champions'].get(championId)

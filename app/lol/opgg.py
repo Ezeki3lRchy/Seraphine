@@ -82,7 +82,7 @@ class Opgg:
         return []
 
     async def __get(self, url, params=None):
-        res = await self.session.get(url, params=params, ssl=False, proxy=None)
+        res = await self.session.get(url, params=params, proxy=None)
         return await res.json()
 
 

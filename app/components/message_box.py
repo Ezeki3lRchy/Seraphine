@@ -156,7 +156,8 @@ class UpdateMessageBox(MessageBoxBase):
 
         async with aiohttp.ClientSession() as sess:
             resp = await sess.get(url)
-            length = int(resp.headers['content-length'])
+            # content-length 可能缺失(分块传输)或为 0; 缺失时进度条走忙碌态并避免除零
+            length = int(resp.headers.get('content-length') or 0)
             self.bar.setMaximum(length)
             cur = 0
 
@@ -166,8 +167,11 @@ class UpdateMessageBox(MessageBoxBase):
 
                     cur += len(chunk)
                     self.bar.setValue(cur)
-                    self.infoLabel.setText(
-                        f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
+                    if length:
+                        self.infoLabel.setText(
+                            f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
+                    else:
+                        self.infoLabel.setText(f"{cur / (1024*1024):.2f} MB")
 
         # 解压前校验 SHA-256 (在 executor 里算哈希, 避免读 ~160MB 文件阻塞 UI 线程)
         self.infoLabel.setText(self.tr("Verifying download..."))
@@ -224,7 +228,8 @@ class UpdateMessageBox(MessageBoxBase):
 
         async with aiohttp.ClientSession() as sess:
             resp = await sess.get(url)
-            length = int(resp.headers['content-length'])
+            # content-length 可能缺失(分块传输)或为 0; 缺失时进度条走忙碌态并避免除零
+            length = int(resp.headers.get('content-length') or 0)
             self.bar.setMaximum(length)
             cur = 0
 
@@ -234,8 +239,11 @@ class UpdateMessageBox(MessageBoxBase):
 
                     cur += len(chunk)
                     self.bar.setValue(cur)
-                    self.infoLabel.setText(
-                        f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
+                    if length:
+                        self.infoLabel.setText(
+                            f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
+                    else:
+                        self.infoLabel.setText(f"{cur / (1024*1024):.2f} MB")
 
         # 安装前校验 SHA-256 (在 executor 里算哈希, 避免读 ~220MB dmg 阻塞 UI 线程)
         self.infoLabel.setText(self.tr("Verifying download..."))
