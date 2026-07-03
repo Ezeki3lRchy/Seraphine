@@ -28,7 +28,7 @@ class ChampionAlias:
 
         try:
             async with aiohttp.ClientSession() as session:
-                res = await session.get(self.URL, proxy=None, ssl=False)
+                res = await session.get(self.URL, proxy=None)
 
                 # 不知道为什么这样子不行：
                 # res = await res.json()
@@ -75,16 +75,22 @@ class ChampionAlias:
         return ChampionAlias.getDataVersion() != lolVersion
 
     @staticmethod
-    def computeDict(dic: dict, key, fun: callable):
-        dic[key] = fun(key, dic.get(key))
+    def computeDict(dic: dict, key, extra):
+        # 幂等地追加额外别名:
+        #  - id 不存在(缓存陈旧 / 远端缺该英雄)时跳过, 避免 None + str 抛 TypeError;
+        #  - 已包含该别名时不重复追加, 避免每次搜索都往共享缓存里累加, 别名无限膨胀
+        if dic.get(key) is None:
+            return
+        if extra not in dic[key]:
+            dic[key] = dic[key] + extra
 
     @classmethod
     def getChampionsAlias(cls) -> dict:
         champions = ChampionAlias.data['champions']
-        cls.computeDict(champions, "901", lambda x, y: y + ",小火龙")# 斯莫德
-        cls.computeDict(champions, "950", lambda x, y: y + ",狗")# 纳亚菲利
-        cls.computeDict(champions, "902", lambda x, y: y + ",丁真")# 米利欧
-        cls.computeDict(champions, "897", lambda x, y: y + ",黑龙,n-word")# 奎桑提
+        cls.computeDict(champions, "901", ",小火龙")  # 斯莫德
+        cls.computeDict(champions, "950", ",狗")  # 纳亚菲利
+        cls.computeDict(champions, "902", ",丁真")  # 米利欧
+        cls.computeDict(champions, "897", ",黑龙,n-word")  # 奎桑提
         return champions
 
     @classmethod
