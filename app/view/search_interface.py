@@ -1466,7 +1466,10 @@ class SearchInterface(SeraphineInterface):
 
         self.gamesView.setLoadingPageEnable(True)
 
+        # 若后台加载已结束仍不足 10 局, 说明该队列本就少于 10 局, 必须退出避免死循环
         while len(self.gamesView.gamesTab.queueIdMap.get(tabs.queueId, [])) < 10:
+            if self.gameLoadingTask is None or self.gameLoadingTask.done():
+                break
             await asyncio.sleep(.2)
 
         enable = tabs.queueIdMap.get(tabs.queueId) is not None

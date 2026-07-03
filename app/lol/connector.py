@@ -146,6 +146,10 @@ class LcuWebSocket():
 
         self.events = []
         self.subscribes = []
+        self._callbackTasks = set()
+        self.session = None
+        self.ws = None
+        self.task = None
 
     def subscribe(self, event: str, uri: str = '', type: tuple = ('Update', 'Create', 'Delete')):
         def wrapper(func):
@@ -166,35 +170,61 @@ class LcuWebSocket():
                     data.get('uri') == s['uri'] and data.get('eventType') in s['type']):
                 logger.info(s['uri'], TAG)
                 logger.debug(data, TAG)
-                asyncio.create_task(s['callable'](data))
+                # 保存 task 引用并捕获回调异常: 否则单个回调报错会被静默丢弃,
+                # 且无引用的 task 可能被 GC 提前回收
+                task = asyncio.create_task(self.__runCallback(s['callable'], data))
+                self._callbackTasks.add(task)
+                task.add_done_callback(self._callbackTasks.discard)
                 # return
 
+    async def __runCallback(self, callback, data):
+        try:
+            await callback(data)
+        except Exception as e:
+            logger.exception("LCU event callback failed", e, TAG)
+
     async def runWs(self):
-        self.session = aiohttp.ClientSession(
-            auth=aiohttp.BasicAuth('riot', self.token),
-            headers={
-                'Content-type': 'application/json',
-                'Accept': 'application/json'
-            }
-        )
-        address = f'wss://127.0.0.1:{self.port}/'
-        self.ws = await self.session.ws_connect(address, ssl=False)
+        # runWs 由 start() 以 create_task 发射, 若不在此捕获异常, ws_connect 失败等
+        # 错误会被静默丢弃, 监听器无声死亡
+        try:
+            self.session = aiohttp.ClientSession(
+                auth=aiohttp.BasicAuth('riot', self.token),
+                headers={
+                    'Content-type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            )
+            address = f'wss://127.0.0.1:{self.port}/'
+            self.ws = await self.session.ws_connect(address, ssl=False)
 
-        # see: https://hextechdocs.dev/getting-started-with-the-lcu-websocket/
-        for event in self.events:
-            await self.ws.send_json([5, event])
+            # see: https://hextechdocs.dev/getting-started-with-the-lcu-websocket/
+            for event in self.events:
+                await self.ws.send_json([5, event])
 
-        while True:
-            msg = await self.ws.receive()
+            while True:
+                msg = await self.ws.receive()
 
-            if msg.type == aiohttp.WSMsgType.TEXT and msg.data != '':
-                data = json.loads(msg.data)[2]
-                self.matchUri(data)
-            elif msg.type == aiohttp.WSMsgType.CLOSED:
-                logger.info("WebSocket closed", TAG)
-                break
-
-        await self.session.close()
+                if msg.type == aiohttp.WSMsgType.TEXT and msg.data != '':
+                    # 畸形帧不应打断监听: 解析失败或结构不符时跳过该帧
+                    try:
+                        payload = json.loads(msg.data)
+                    except (ValueError, TypeError):
+                        continue
+                    if isinstance(payload, list) and len(payload) >= 3:
+                        self.matchUri(payload[2])
+                elif msg.type in (aiohttp.WSMsgType.CLOSED,
+                                  aiohttp.WSMsgType.CLOSING):
+                    logger.info("WebSocket closed", TAG)
+                    break
+                elif msg.type == aiohttp.WSMsgType.ERROR:
+                    logger.warning(
+                        "WebSocket error frame, stopping listener", TAG)
+                    break
+        except Exception as e:
+            logger.exception("LCU websocket listener crashed", e, TAG)
+        finally:
+            if self.session:
+                await self.session.close()
 
     async def start(self):
         if "OnJsonApiEvent" in self.events:
@@ -205,8 +235,10 @@ class LcuWebSocket():
         self.task = asyncio.create_task(self.runWs())
 
     async def close(self):
-        self.task.cancel()
-        await self.session.close()
+        if self.task:
+            self.task.cancel()
+        if self.session:
+            await self.session.close()
 
 
 class LolClientConnector(QObject):
@@ -436,7 +468,8 @@ class LolClientConnector(QObject):
                 return result
 
             # 如果有才判定, 有部分相应成功时没有 httpStatus
-            elif result.get("httpStatus") and result.get("httpStatus") != 200:
+            # 标量 / 非 dict 响应体没有 .get, 归入 else 直接返回, 避免 AttributeError
+            elif isinstance(result, dict) and result.get("httpStatus") and result.get("httpStatus") != 200:
                 await asyncio.sleep(.5)
                 retries += 1
             else:
@@ -1034,6 +1067,17 @@ class LolClientConnector(QObject):
             raise SummonerNotInGame()
 
         credentials = info['playerCredentials']
+
+        # 观战参数被拼进单个进程 argv; 远程 SGP 凭据若含空白字符会注入额外命令行
+        # token, 这里校验各字段非空且不含空白
+        for _k in ('observerServerIp', 'observerServerPort',
+                   'observerEncryptionKey', 'gameId'):
+            _v = str(credentials.get(_k, ''))
+            if not _v or any(c.isspace() for c in _v):
+                logger.error(
+                    f"invalid spectator credential {_k}: {_v!r}", TAG)
+                raise SummonerNotInGame()
+
         params = (f"spectator {credentials['observerServerIp']}"
                   f":{credentials['observerServerPort']}"
                   f" {credentials['observerEncryptionKey']}"
@@ -1241,7 +1285,7 @@ class LolClientConnector(QObject):
             "Authorization": f"Bearer {self.sgpToken}"
         }
 
-        return await self.sgpSess.get(path, params=params, ssl=False, headers=headers)
+        return await self.sgpSess.get(path, params=params, headers=headers)
 
     def getLoginSummonerByPid(self, pid):
         port, token, _ = getPortTokenServerByPid(pid)
