@@ -18,7 +18,8 @@ from app.common.config import cfg, Language, isChineseText
 from app.common.logger import logger
 from app.common.signals import signalBus
 from app.common import platform
-from app.common.util import getPortTokenServerByPid, getPortTokenServer, getTasklistPath, getLolClientPid
+from app.common.util import (getPortTokenServerByPid, getPortTokenServer, getTasklistPath, getLolClientPid,
+                             getRiotClientPortToken)
 from app.lol.exceptions import *
 
 requests.packages.urllib3.disable_warnings()
@@ -261,6 +262,12 @@ class LolClientConnector(QObject):
         self.server = None
         self.inTencent = False
 
+        # Riot Client (RiotClientServices) 本地接口, 仅用于 reveal-hidden;
+        # 发现失败时三者保持 None, 功能静默关闭
+        self.rcPort = None
+        self.rcToken = None
+        self.rcSess = None
+
         self.manager = None
         self.perksStyleCache = None
         self.listener = None
@@ -360,6 +367,12 @@ class LolClientConnector(QObject):
                     await self.sgpSess.close()
                 except Exception:
                     pass
+
+            if self.rcSess:
+                try:
+                    await self.rcSess.close()
+                except Exception:
+                    pass
         finally:
             self.__reset()
 
@@ -374,6 +387,22 @@ class LolClientConnector(QObject):
             # Windows. Per-request ssl=False still overrides the connector's TLS.
             connector=aiohttp.TCPConnector(limit=8),
         )
+
+        # Riot Client (RiotClientServices) 本地接口: 第二个会话, 只用于读取选人
+        # 聊天房参与者 (reveal-hidden). 端口/令牌来自 LeagueClientUx 命令行或
+        # Riot Client lockfile; 发现绝不抛出, 失败则 rcSess 保持 None, 功能静默关闭.
+        self.rcPort, self.rcToken = getRiotClientPortToken(
+            getattr(self, 'pid', None))
+
+        if self.rcPort and self.rcToken:
+            self.rcSess = aiohttp.ClientSession(
+                base_url=f'https://127.0.0.1:{self.rcPort}',
+                auth=aiohttp.BasicAuth('riot', self.rcToken),
+                connector=aiohttp.TCPConnector(limit=2),
+            )
+        else:
+            logger.error(
+                "reveal-hidden: riot client port/token not found, feature disabled", TAG)
 
         if not self.server:
             return
@@ -879,6 +908,47 @@ class LolClientConnector(QObject):
     async def getChampSelectSession(self):
         res = await self.__get("/lol-champ-select/v1/session")
         return await res.json()
+
+    async def getChampSelectChatParticipants(self):
+        '''
+        Riot Client 本地接口 (非 LCU): 当前选人聊天房的全部参与者, 包括被 Riot 标为
+        HIDDEN 的队友 (字段 puuid / game_name / game_tag / cid ...). 仅供 reveal-hidden.
+
+        rcSess 为 None、非 200、任何异常都返回 [] —— 调用方把空列表当作
+        "什么都揭示不了", 绝不影响原有选人流程. 故意不走 @retry:
+        失败要静默, 不弹 lcuApiExceptionRaised.
+        '''
+        if self.rcSess is None:
+            return []
+
+        try:
+            # 首选按聊天房过滤的接口; 非 200 再退到 reveal 实际使用的全量接口并按 cid 过滤
+            res = await self.rcSess.get(
+                '/chat/v5/participants/champ-select', ssl=False)
+
+            if res.status != 200:
+                logger.error(
+                    f"reveal-hidden: /chat/v5/participants/champ-select -> {res.status}, "
+                    f"falling back to /chat/v5/participants", TAG)
+                res = await self.rcSess.get('/chat/v5/participants', ssl=False)
+
+                if res.status != 200:
+                    logger.error(
+                        f"reveal-hidden: /chat/v5/participants -> {res.status}", TAG)
+                    return []
+
+            data = await res.json(content_type=None)
+        except Exception as e:
+            logger.error(
+                f"reveal-hidden: chat participants request failed: {e!r}", TAG)
+            return []
+
+        participants = data.get('participants') if isinstance(data, dict) else None
+        if not isinstance(participants, list):
+            return []
+
+        return [p for p in participants
+                if isinstance(p, dict) and 'champ-select' in str(p.get('cid', 'champ-select'))]
 
     # 同意交换英雄
     @retry()
