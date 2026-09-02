@@ -560,3 +560,124 @@ def getLolClientWindowPos() -> QRectF:
         return None
 
     return QRectF(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1])
+
+
+# --------------------------------------------------------------------------
+# Riot Client (RiotClientServices) local API discovery — reveal hidden teammates.
+#
+# This is a SEPARATE local server from the LCU: the League client process is
+# started with ``--riotclient-app-port=`` / ``--riotclient-auth-token=`` pointing
+# at it, and the Riot Client also writes its own lockfile
+# (``Riot Client:pid:port:password:https``) under its Config directory.
+# Everything below only ADDS functions; the LCU discovery helpers above are
+# untouched (see platform.py GOLDEN RULE).
+# --------------------------------------------------------------------------
+
+RIOT_CLIENT_PORT_ARG = "--riotclient-app-port="
+RIOT_CLIENT_TOKEN_ARG = "--riotclient-auth-token="
+
+
+def parseRiotClientArgs(cmdline):
+    """Pure helper: pull the Riot Client port/token out of a LeagueClientUx argv.
+
+    ``cmdline`` is the list returned by ``psutil.Process(pid).cmdline()`` (any
+    order; a stray surrounding quote is tolerated). Returns ``(port, token)`` as
+    strings; either is ``None`` when its argument is absent/empty. Never raises
+    on ``None`` input or non-string entries.
+    """
+    port, token = None, None
+
+    for cmd in cmdline or []:
+        if not isinstance(cmd, str):
+            continue
+
+        p = cmd.find(RIOT_CLIENT_PORT_ARG)
+        if p != -1:
+            value = cmd[p + len(RIOT_CLIENT_PORT_ARG):].strip().strip('"')
+            port = value if value.isdigit() else None
+
+        p = cmd.find(RIOT_CLIENT_TOKEN_ARG)
+        if p != -1:
+            value = cmd[p + len(RIOT_CLIENT_TOKEN_ARG):].strip().strip('"')
+            token = value or None
+
+        if port and token:
+            break
+
+    return port, token
+
+
+def riotClientLockfileCandidates():
+    """Ordered candidate paths for the Riot Client's own lockfile.
+
+    macOS: ``~/Library/Application Support/Riot Games/Riot Client/Config/lockfile``
+    Windows: ``%LOCALAPPDATA%\\Riot Games\\Riot Client\\Config\\lockfile``
+    The file only exists while the Riot Client is running.
+    """
+    candidates = []
+
+    if platform.IS_WINDOWS:
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            candidates.append(os.path.join(
+                local, "Riot Games", "Riot Client", "Config", "lockfile"))
+    else:
+        candidates.append(os.path.expanduser(
+            "~/Library/Application Support/Riot Games/Riot Client/Config/lockfile"))
+
+    return candidates
+
+
+def readRiotClientLockfile(paths=None):
+    """``(port, token)`` from the first readable Riot Client lockfile, else
+    ``(None, None)``. Reuses ``parseLockfile`` (same ``name:pid:port:password:
+    protocol`` body as the LCU lockfile). Never raises.
+    """
+    if paths is None:
+        paths = riotClientLockfileCandidates()
+
+    for path in paths:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                port, token, _ = parseLockfile(f.read())
+            return port, token
+        except (OSError, ValueError) as e:
+            logger.warning(
+                f"riot client lockfile candidate failed ({path}): {e}", TAG)
+            continue
+
+    return None, None
+
+
+def getRiotClientPortToken(pid, lockfilePaths=None):
+    """Discover the Riot Client local API ``(port, token)``.
+
+    Order: LeagueClientUx cmdline via psutil (``pid``) → Riot Client lockfile
+    (``lockfilePaths`` overrides the default candidates; tests use it) → give up
+    with ``(None, None)``. This NEVER raises: the caller treats ``(None, None)``
+    as "feature silently disabled".
+    """
+    port, token = None, None
+
+    try:
+        if pid is not None:
+            port, token = parseRiotClientArgs(psutil.Process(pid).cmdline())
+    except Exception as e:
+        logger.warning(
+            f"riot client cmdline discovery failed (pid={pid}): {e}", TAG)
+        port, token = None, None
+
+    if port and token:
+        return port, token
+
+    try:
+        port, token = readRiotClientLockfile(lockfilePaths)
+    except Exception as e:
+        logger.warning(f"riot client lockfile discovery failed: {e}", TAG)
+        return None, None
+
+    if port and token:
+        return port, token
+
+    logger.warning("riot client port/token not found", TAG)
+    return None, None
