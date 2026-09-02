@@ -7,10 +7,14 @@ import asyncio
 from PySide6.QtCore import QObject, QLocale
 
 from .exceptions import SummonerRankInfoNotFound
+from .chat_reveal import mergeHiddenTeammates, revealStats, isHiddenSlot
 from ..common.config import cfg, Language, isChineseText
+from ..common.logger import logger
 from ..lol.connector import connector
 from ..common.signals import signalBus
 from ..common import platform
+
+TAG = "Tools"
 
 
 SERVERS_NAME = {
@@ -814,24 +818,76 @@ def parseGames(games, targetId=0):
     return hitGames, kills, deaths, assists, wins, losses
 
 
-async def parseAllyGameInfo(session, currentSummonerId, useSGP=False):
+async def revealHiddenAllies(myTeam, currentPuuid):
+    '''
+    排位选人里 Riot 把队友标成 HIDDEN (summonerId 0), 原逻辑直接放弃这些槽位.
+    这里用 Riot Client 聊天房名单 (connector.getChampSelectChatParticipants) 把
+    他们补回来, 合并规则见 chat_reveal.mergeHiddenTeammates. 任何失败都退回原 myTeam.
+    '''
+    try:
+        if not any(isHiddenSlot(item) for item in myTeam):
+            return myTeam
+
+        participants = await connector.getChampSelectChatParticipants()
+        merged = mergeHiddenTeammates(myTeam, participants, currentPuuid)
+
+        visible, revealed, synthesized, hiddenLeft = revealStats(merged)
+        logger.critical(
+            f"reveal-hidden: 可见 {visible}/揭示 {revealed}/合成 {synthesized}"
+            f" (仍隐藏 {hiddenLeft}, 名单 {len(participants)})", TAG)
+        return merged
+    except Exception as e:
+        logger.exception(
+            "reveal-hidden: merge failed, using original myTeam", e, TAG)
+        return myTeam
+
+
+async def fillRevealedSummonerIds(team):
+    '''
+    LCU 路径 (parseSummonerGameInfo) 按 summonerId 取数, 而揭示出来的槽位只有 puuid;
+    这里用 /lol-summoner/v2/summoners/puuid/{puuid} 补上 summonerId. 补不上就保持 0,
+    下游会像原来一样返回 None (该槽位不显示), 不影响其他人. 未揭示过的 team 是 no-op.
+    '''
+    async def fill(item):
+        try:
+            summoner = await connector.getSummonerByPuuid(item['puuid'])
+            item['summonerId'] = summoner.get('summonerId') or 0
+        except Exception as e:
+            logger.error(
+                f"reveal-hidden: summonerId lookup failed for {item.get('puuid')}: {e!r}", TAG)
+
+    tasks = [fill(item) for item in team
+             if item.get('revealed') and not item.get('summonerId')]
+    if tasks:
+        await asyncio.gather(*tasks)
+
+
+async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuuid=None):
     # 排位会有预选位
     isRank = bool(session["myTeam"][0]["assignedPosition"])
+
+    myTeam = session['myTeam']
+
+    # 排位里被 Riot 隐藏的队友: 用 Riot Client 聊天房名单补回 (开关关则跳过)
+    if cfg.get(cfg.revealHiddenTeammates):
+        myTeam = await revealHiddenAllies(myTeam, currentPuuid)
 
     if useSGP and connector.isInTencent():
         # 如果是国服就优先尝试 SGP
         try:
             tasks = [getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId)
-                     for item in session['myTeam']]
+                     for item in myTeam]
             summoners = await asyncio.gather(*tasks)
         except:
+            await fillRevealedSummonerIds(myTeam)
             tasks = [parseSummonerGameInfo(item, isRank, currentSummonerId)
-                     for item in session['myTeam']]
+                     for item in myTeam]
             summoners = await asyncio.gather(*tasks)
 
     else:
+        await fillRevealedSummonerIds(myTeam)
         tasks = [parseSummonerGameInfo(item, isRank, currentSummonerId)
-                 for item in session['myTeam']]
+                 for item in myTeam]
         summoners = await asyncio.gather(*tasks)
 
     summoners = [summoner for summoner in summoners if summoner]

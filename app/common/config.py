@@ -143,6 +143,11 @@ class Config(QConfig):
     autoAcceptChampTrade = ConfigItem(
         "Functions", "AutoAcceptChampTrade", False, BoolValidator())
 
+    # 排位选人: 用 Riot Client 聊天房名单补出被 Riot 标为 HIDDEN 的队友.
+    # 只进 config.json, 无设置界面 / 翻译.
+    revealHiddenTeammates = ConfigItem(
+        "Functions", "RevealHiddenTeammates", True, BoolValidator())
+
     lastNoticeSha = ConfigItem("Other", "LastNoticeSha", "")
 
     enableCloseToTray = ConfigItem(

@@ -981,7 +981,8 @@ class MainWindow(FluentWindow):
                 self.opggWindow.setStaysOnTopEnabled(True)
 
         currentSummonerId = self.currentSummoner['summonerId']
-        info = await parseAllyGameInfo(session, currentSummonerId, useSGP=True)
+        info = await parseAllyGameInfo(session, currentSummonerId, useSGP=True,
+                                       currentPuuid=self.currentSummoner.get('puuid'))
         self.gameInfoInterface.updateAllySummoners(info)
 
         self.checkAndSwitchTo(self.gameInfoInterface)
