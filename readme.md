@@ -194,6 +194,13 @@ pip install pyinstaller
 
 切勿另起 `-win` 之类的独立 tag——那会抢走 “latest”，破坏另一平台的更新。`-DryRun` 可预览每一步。
 
+手边没有 Windows 机器？GitHub Actions 工作流 `build-windows`（[`.github/workflows/build_windows.yml`](.github/workflows/build_windows.yml)，`workflow_dispatch` 手动触发）会在托管 runner 上执行同样的打包 / 校验步骤，且不发布任何东西。先升级并推送 `VERSION`，然后：
+```shell
+gh workflow run build_windows.yml -f version=X.Y.Z
+gh run download <run-id> -n Seraphine-win-X.Y.Z -D /tmp/win
+gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber
+```
+
 ## Riot 声明 📢
 Seraphine is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
 

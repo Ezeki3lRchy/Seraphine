@@ -16,6 +16,7 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 | `main.py` | Entry point: sets HiDPI, loads config + translators, launches `MainWindow` under a `qasync` event loop. `--version`/`-v` prints the version and exits |
 | `Seraphine.win.spec` | **Current** Windows PyInstaller spec (PySide6). Build: `pyinstaller --noconfirm Seraphine.win.spec`. Counterpart of macOS `Seraphine.spec` |
 | `release_win.ps1` | One-command Windows release: bump → build via spec → verify frozen `--version` → pack `.7z` (py7zr) → `gh release` to `Ezeki3lRchy/Seraphine-releases`. Mirrors `release_mac.sh` |
+| `.github/workflows/build_windows.yml` | `workflow_dispatch` Windows `.7z` build on a GitHub-hosted runner (build/pack/verify only, same steps as `release_win.ps1`, publishes nothing). Bump + push `VERSION` first, `gh workflow run build_windows.yml -f version=X.Y.Z`, download the artifact, `gh release upload vX.Y.Z Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber`. Lets a macOS maintainer ship both platforms (first used for v1.3.0) |
 | `make.ps1` | **STALE** — pre-migration PyQt5 packaging script (bare `pyinstaller`, flat layout, PyInstaller 5.13). Cannot build the PySide6 source; use `Seraphine.win.spec` instead |
 | `sync.py` | Helper script for syncing/updating resources or data |
 | `requirements.txt` | Pinned deps (PySide6 6.9.3 + PySide6-Fluent-Widgets, aiohttp 3.10.10, qasync, py7zr, pywin32 on win32, …) |

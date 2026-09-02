@@ -194,6 +194,13 @@ The two platforms use a **decoupled release** model: a **single Release** per ve
 
 Never use a separate `-win`-style tag — it would steal "latest" and break the other platform's updater. Use `-DryRun` to preview every step.
 
+No Windows machine at hand? The `build-windows` GitHub Actions workflow ([`.github/workflows/build_windows.yml`](.github/workflows/build_windows.yml), `workflow_dispatch`) runs the same build / pack / verify steps on a hosted runner and publishes nothing. Bump and push `VERSION` first, then:
+```shell
+gh workflow run build_windows.yml -f version=X.Y.Z
+gh run download <run-id> -n Seraphine-win-X.Y.Z -D /tmp/win
+gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber
+```
+
 ## Riot disclaimer 📢
 Seraphine is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
 
