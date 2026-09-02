@@ -1,0 +1,99 @@
+name: build-windows
+
+# Builds the Windows Seraphine.7z on a GitHub-hosted runner so a maintainer on
+# macOS can ship both platforms from one machine. Mirrors the build / pack /
+# verify steps of release_win.ps1 exactly (same spec, same filelist.txt
+# contract, same py7zr packing) but PUBLISHES NOTHING: download the artifact and
+# upload it onto the version's release yourself:
+#   gh run download <run-id> -n Seraphine-win-X.Y.Z -D /tmp/win
+#   gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber
+# Prerequisite: VERSION in app/common/config.py on the chosen ref already equals
+# the requested version (bump + push first, like release_win.ps1's decoupled mode).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version the frozen exe must report (X.Y.Z); must equal VERSION in app/common/config.py on this ref"
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      TARGET_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install requirements + PyInstaller 6.21
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller==6.21.0
+
+      - name: Check config.py VERSION matches the requested version
+        shell: pwsh
+        run: |
+          $m = Select-String -Path app\common\config.py -Pattern '^VERSION = "(.+)"'
+          if (-not $m) { throw "could not read VERSION from app/common/config.py" }
+          $v = $m.Matches[0].Groups[1].Value
+          if ($v -ne $env:TARGET_VERSION) { throw "config.py VERSION is '$v' but the requested version is '$env:TARGET_VERSION' -- bump and push first" }
+          Write-Host "VERSION $v OK"
+
+      - name: Build (pyinstaller --noconfirm Seraphine.win.spec)
+        run: pyinstaller --noconfirm Seraphine.win.spec
+
+      - name: Generate filelist.txt (Windows PowerShell 5.1, same encoding as release_win.ps1)
+        shell: powershell
+        run: |
+          $DistDir = "dist\Seraphine"
+          if (-not (Test-Path $DistDir)) { throw "build did not produce $DistDir" }
+          Remove-Item "$DistDir\filelist.txt" -ErrorAction SilentlyContinue
+          $base = (Resolve-Path $DistDir).Path + "\"
+          Get-ChildItem -Path "$DistDir\*" -File -Recurse |
+            Select-Object -ExpandProperty FullName |
+            ForEach-Object { $_.Replace($base, "") } |
+            Where-Object { $_ -ne "filelist.txt" } |
+            Out-File -FilePath "$DistDir\filelist.txt" -Encoding UTF8
+          Write-Host ("filelist.txt entries: " + (Get-Content "$DistDir\filelist.txt").Count)
+
+      - name: Pack Seraphine.7z (py7zr, files at the archive root)
+        shell: pwsh
+        run: |
+          @'
+          import os, sys, py7zr
+          dist = sys.argv[1]
+          out = sys.argv[2]
+          if os.path.exists(out):
+              os.remove(out)
+          with py7zr.SevenZipFile(out, "w") as z:
+              for root, dirs, files in os.walk(dist):
+                  for f in files:
+                      full = os.path.join(root, f)
+                      rel = os.path.relpath(full, dist)
+                      z.write(full, arcname=rel)
+          print("packed " + out)
+          '@ | Set-Content -Path pack.py -Encoding UTF8
+          python pack.py dist\Seraphine dist\Seraphine.7z
+          $sizeMB = "{0:N0} MB" -f ((Get-Item dist\Seraphine.7z).Length / 1MB)
+          Write-Host "Seraphine.7z: $sizeMB"
+
+      - name: Verify the frozen exe reports the requested version
+        shell: pwsh
+        run: |
+          $reported = (& dist\Seraphine\Seraphine.exe --version | Select-Object -Last 1).Trim()
+          if ($reported -ne $env:TARGET_VERSION) { throw "frozen exe reports '$reported', expected '$env:TARGET_VERSION'" }
+          Write-Host "frozen exe reports $reported OK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Seraphine-win-${{ inputs.version }}
+          path: dist/Seraphine.7z
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
