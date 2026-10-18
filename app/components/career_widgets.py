@@ -4,18 +4,17 @@
 """
 import time
 
-from PySide6.QtCore import Qt, QRectF, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QFont, QPixmap
+from PySide6.QtCore import Qt, QRectF, QRect, QEvent, Signal
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFont, QFontMetrics, QPixmap
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QVBoxLayout, QLabel, QWidget,
-                               QGridLayout, QSizePolicy)
+                               QSizePolicy, QToolTip)
 
-from app.common.qfluentwidgets import ToolTipFilter, ToolTipPosition, isDarkTheme
+from app.common.qfluentwidgets import isDarkTheme
 from app.common.signals import signalBus
+from app.common.style_sheet import colorManager
 from app.components.animation_frame import ColorAnimationFrame
-from app.components.champion_icon_widget import RoundIcon, RoundedLabel
-from app.components.color_label import DeathsLabel
-from app.components.game_infobar_widget import RoundIconWithLevel
-from app.components.match_widgets import (ItemIcon, TagPill, RankEmblem, gameTags)
+from app.components.champion_icon_widget import RoundIcon
+from app.components.match_widgets import RankEmblem, gameTags, itemTooltipHtml
 from app.lol.tools import summarizeGames
 
 WIN_COLOR = QColor(83, 131, 232)
@@ -340,13 +339,26 @@ class ChampionSummaryRow(QWidget):
 
 class CareerGameRow(ColorAnimationFrame):
     """
-    生涯页一局 (OP.GG 战绩行):
+    生涯页一局 (OP.GG 战绩行), 整行自绘:
 
         Ranked Solo/Duo  [英雄+等级][技能][符文]  14 / 4 / 8    P/Kill 63%   玩家1  玩家6
         3 minutes ago                             5.50:1 KDA   CS 232 (9.0)  ...    ...
         Victory          [物品 x 7]                            Gold 12.1k
         25m 53s          [Double kill] [MVP]
+
+    20 行 x 约 70 个子控件时滚动每帧要重绘两千个控件 (实测约 23ms / 帧);
+    现在每行一个控件, 内容画进缓存图. 物品详情 / 数据说明 / 点玩家名打开生涯靠命中测试.
     """
+
+    HEIGHT = 104
+    MARGIN = 14
+    INFO_W = 128
+    ICON = 58
+    SMALL = 24
+    KDA_W = 118
+    ITEM = 26
+    STATS_W = 118
+    CHIP_W = 104
 
     def __init__(self, game: dict, currentPuuid=None, parent=None):
         if game['remake']:
@@ -357,64 +369,42 @@ class CareerGameRow(ColorAnimationFrame):
             type = 'lose'
 
         super().__init__(type=type, parent=parent)
-        self.gameId = game['gameId']
         self.setProperty('pressed', False)
+        self.setFixedHeight(self.HEIGHT)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.setMouseTracking(True)
 
-        self.hBoxLayout = QHBoxLayout(self)
+        self.game = game
+        self.gameId = game['gameId']
+        self.resultType = type
+        self.currentPuuid = currentPuuid
 
-        # 左: 模式 / 多久前 / 结果 / 时长
-        self.infoLayout = QVBoxLayout()
-        self.modeLabel = labelWith(game['name'], "modeLabel")
-        self.modeLabel.setStyleSheet(
-            f"color: {(LOSS_COLOR if type == 'lose' else WIN_COLOR).name()};")
-        self.agoLabel = labelWith(timeAgo(game['timeStamp']), "secondaryLabel")
-        self.resultLabel = labelWith(
-            {'remake': self.tr("Remake"), 'win': self.tr("Victory"),
-             'lose': self.tr("Defeat")}[type], "resultLabel")
-        self.durationLabel = labelWith(durationText(game.get('durationSecs') or 0),
-                                       "secondaryLabel")
-        for w in (self.modeLabel, self.agoLabel, self.resultLabel, self.durationLabel):
-            w.setToolTip(game.get('time', ''))
-
-        # 英雄 / 技能 / 符文
-        self.championIcon = RoundIconWithLevel(game["championIcon"], game["champLevel"])
-        self.spellsLayout = QVBoxLayout()
-        self.spell1 = RoundedLabel(game["spell1Icon"], 3, 0)
-        self.spell2 = RoundedLabel(game["spell2Icon"], 3, 0)
-        self.rune = RoundedLabel(game["runeIcon"], 0, 0)
-        for w in (self.spell1, self.spell2, self.rune):
-            w.setFixedSize(24, 24)
-
-        # KDA
-        self.kdaLayout = QVBoxLayout()
-        self.kdaNumbersLayout = QHBoxLayout()
-        self.kills = labelWith(str(game['kills']), "kdaNumber")
-        self.deaths = DeathsLabel(str(game['deaths']))
-        self.deaths.setObjectName("kdaNumber")
-        self.assists = labelWith(str(game['assists']), "kdaNumber")
-        kda = (game['kills'] + game['assists']) / max(game['deaths'], 1)
-        self.kdaRatio = labelWith(f"{kda:.2f}:1 KDA", "secondaryLabel")
-
-        # 物品 + 标签
-        self.itemsLayout = QVBoxLayout()
-        self.itemIconsLayout = QHBoxLayout()
+        self.championPixmap = QPixmap(game["championIcon"])
+        self.spells = [QPixmap(game["spell1Icon"]), QPixmap(game["spell2Icon"])]
+        self.rune = QPixmap(game["runeIcon"]) if game.get("runeIcon") else QPixmap()
         itemIds = game.get('itemIds') or [0] * len(game['itemIcons'])
-        self.items = [ItemIcon(icon, itemId, 26)
+        self.items = [(QPixmap(icon), itemId)
                       for icon, itemId in zip(game['itemIcons'], itemIds)]
-        self.tagsLayout = QHBoxLayout()
-        self.tags = [TagPill(text, color, 12) for text, color in gameTags(game)]
+        self.tags = gameTags(game)
 
-        # 参团率 / 补刀 / 金币
-        self.statsLayout = QVBoxLayout()
+        teams = {}
+        for player in game.get('participants') or []:
+            teams.setdefault(player['teamId'], []).append(player)
+        self.teams = [team[:5] for team in list(teams.values())[:2]]
+        self.playerIcons = {id(p): QPixmap(p['championIcon'])
+                            for team in self.teams for p in team}
+
         kp = game.get('kp')
-        self.kpLabel = labelWith(f"P/Kill {round(kp * 100)}%" if kp is not None else "",
-                                 "kpLabel")
+        self.kpText = f"P/Kill {round(kp * 100)}%" if kp is not None else ""
         secs = game.get('durationSecs') or 0
         cs = game.get('cs', 0)
-        csText = f"CS {cs}" + (f" ({cs / (secs / 60):.1f})" if secs >= 60 else "")
-        self.csLabel = labelWith(csText, "secondaryLabel")
-        self.goldLabel = labelWith(
-            f"{self.tr('Gold')} {game.get('gold', 0):,}", "secondaryLabel")
+        self.csText = f"CS {cs}" + (f" ({cs / (secs / 60):.1f})" if secs >= 60 else "")
+        self.goldText = f"{self.tr('Gold')} {game.get('gold', 0):,}"
+        self.resultText = {'remake': self.tr("Remake"), 'win': self.tr("Victory"),
+                           'lose': self.tr("Defeat")}[type]
+        self.agoText = timeAgo(game['timeStamp'])
+        self.durationText = durationText(secs)
+
         tips = [f"{self.tr('Damage')}: {game.get('damage', 0):,}",
                 f"{self.tr('Vision')}: {game.get('visionScore', 0)}"]
         if game.get('scoreRank'):
@@ -422,142 +412,237 @@ class CareerGameRow(ColorAnimationFrame):
                         f"#{game['scoreRank']} / {game['scorePlayers']}")
             tips.append(self.tr(
                 "MVP: best score on the winning team, SVP: best on the losing team"))
-        for w in (self.kpLabel, self.csLabel, self.goldLabel):
-            w.setToolTip("\n".join(tips))
-            w.installEventFilter(ToolTipFilter(w, 300, ToolTipPosition.TOP))
+        self.statsTip = "\n".join(tips)
 
-        # 本局 10 名玩家
-        self.playersLayout = QGridLayout()
-        self.players = self.__playerWidgets(game.get('participants') or [], currentPuuid)
+        # 命中区域, 绘制时按当前宽度算出
+        self.itemRects = []
+        self.playerRects = []
+        self.statsRect = QRect()
+        self.infoRect = QRect()
 
-        self.__initLayout()
+        self._cache = None
+        self._cacheKey = None
 
         self.clicked.connect(
             lambda: signalBus.careerGameBarClicked.emit(str(self.gameId)))
 
-    def __playerWidgets(self, participants, currentPuuid):
-        teams = {}
-        for p in participants:
-            teams.setdefault(p['teamId'], []).append(p)
+    # ---------------- 命中测试 ----------------
 
-        widgets = []
-        for column, team in enumerate(list(teams.values())[:2]):
-            for row, p in enumerate(team[:5]):
-                widgets.append((PlayerChip(p, p.get('puuid') == currentPuuid), row, column))
+    def __playerAt(self, pos):
+        for rect, player in self.playerRects:
+            if rect.contains(pos):
+                return player
+        return None
 
-        return widgets
+    def event(self, e):
+        if e.type() == QEvent.ToolTip:
+            pos = e.pos()
+            for rect, itemId in self.itemRects:
+                if rect.contains(pos):
+                    html = itemTooltipHtml(itemId)
+                    if html:
+                        QToolTip.showText(e.globalPos(), html, self, rect)
+                        return True
+            for rect, player in self.playerRects:
+                if rect.contains(pos):
+                    QToolTip.showText(e.globalPos(), player['name'] or "?", self, rect)
+                    return True
+            if self.statsRect.contains(pos):
+                QToolTip.showText(e.globalPos(), self.statsTip, self, self.statsRect)
+                return True
+            if self.infoRect.contains(pos):
+                QToolTip.showText(e.globalPos(), self.game.get('time', ''), self, self.infoRect)
+                return True
+            QToolTip.hideText()
+            e.ignore()
+            return True
 
-    def __initLayout(self):
-        self.infoLayout.setSpacing(1)
-        self.infoLayout.addWidget(self.modeLabel)
-        self.infoLayout.addWidget(self.agoLabel)
-        self.infoLayout.addSpacing(6)
-        self.infoLayout.addWidget(self.resultLabel)
-        self.infoLayout.addWidget(self.durationLabel)
-        self.infoLayout.addStretch()
-        infoWidget = QWidget()
-        infoWidget.setLayout(self.infoLayout)
-        infoWidget.setFixedWidth(128)
-        self.infoLayout.setContentsMargins(0, 0, 0, 0)
+        return super().event(e)
 
-        self.spellsLayout.setContentsMargins(0, 0, 0, 0)
-        self.spellsLayout.setSpacing(2)
-        self.spellsLayout.addWidget(self.spell1)
-        self.spellsLayout.addWidget(self.spell2)
-        self.runeLayout = QVBoxLayout()
-        self.runeLayout.setContentsMargins(0, 0, 0, 0)
-        self.runeLayout.addWidget(self.rune)
-        self.runeLayout.addStretch()
-
-        self.kdaNumbersLayout.setSpacing(4)
-        self.kdaNumbersLayout.addWidget(self.kills)
-        self.kdaNumbersLayout.addWidget(labelWith("/", "kdaSlash"))
-        self.kdaNumbersLayout.addWidget(self.deaths)
-        self.kdaNumbersLayout.addWidget(labelWith("/", "kdaSlash"))
-        self.kdaNumbersLayout.addWidget(self.assists)
-        self.kdaNumbersLayout.addStretch()
-        self.kdaLayout.setSpacing(2)
-        self.kdaLayout.addStretch()
-        self.kdaLayout.addLayout(self.kdaNumbersLayout)
-        self.kdaLayout.addWidget(self.kdaRatio)
-        self.kdaLayout.addStretch()
-        kdaWidget = QWidget()
-        kdaWidget.setLayout(self.kdaLayout)
-        kdaWidget.setFixedWidth(118)
-        self.kdaLayout.setContentsMargins(0, 0, 0, 0)
-
-        self.itemIconsLayout.setSpacing(2)
-        for item in self.items:
-            self.itemIconsLayout.addWidget(item)
-        self.itemIconsLayout.addStretch()
-        self.tagsLayout.setSpacing(4)
-        for tag in self.tags:
-            self.tagsLayout.addWidget(tag)
-        self.tagsLayout.addStretch()
-        self.itemsLayout.setSpacing(6)
-        self.itemsLayout.addStretch()
-        self.itemsLayout.addLayout(self.itemIconsLayout)
-        self.itemsLayout.addLayout(self.tagsLayout)
-        self.itemsLayout.addStretch()
-
-        self.statsLayout.setSpacing(1)
-        self.statsLayout.addStretch()
-        for w in (self.kpLabel, self.csLabel, self.goldLabel):
-            self.statsLayout.addWidget(w)
-        self.statsLayout.addStretch()
-        statsWidget = QWidget()
-        statsWidget.setLayout(self.statsLayout)
-        statsWidget.setFixedWidth(118)
-        self.statsLayout.setContentsMargins(0, 0, 0, 0)
-
-        self.playersLayout.setContentsMargins(0, 0, 0, 0)
-        self.playersLayout.setHorizontalSpacing(8)
-        self.playersLayout.setVerticalSpacing(0)
-        for widget, row, column in self.players:
-            self.playersLayout.addWidget(widget, row, column)
-
-        self.hBoxLayout.setContentsMargins(14, 8, 14, 8)
-        self.hBoxLayout.setSpacing(10)
-        self.hBoxLayout.addWidget(infoWidget)
-        self.hBoxLayout.addWidget(self.championIcon)
-        self.hBoxLayout.addLayout(self.spellsLayout)
-        self.hBoxLayout.addLayout(self.runeLayout)
-        self.hBoxLayout.addWidget(kdaWidget)
-        self.hBoxLayout.addLayout(self.itemsLayout, stretch=1)
-        self.hBoxLayout.addWidget(statsWidget)
-        if self.players:
-            self.hBoxLayout.addLayout(self.playersLayout)
-
-
-class PlayerChip(QWidget):
-    """战绩行右侧的玩家: 英雄头像 + 名字, 点击打开其生涯"""
-
-    def __init__(self, player, isSelf=False, parent=None):
-        super().__init__(parent)
-        self.puuid = player.get('puuid')
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
-
-        icon = RoundedLabel(player['championIcon'], 2, 0)
-        icon.setFixedSize(16, 16)
-
-        name = player['name'] or "?"
-        label = labelWith(name if len(name) <= 11 else name[:10] + "…",
-                          "selfPlayerLabel" if isSelf else "playerLabel")
-        label.setToolTip(name)
-
-        layout.addWidget(icon)
-        layout.addWidget(label)
-        layout.addStretch()
-        self.setFixedWidth(104)
-
-        if self.puuid and not isSelf:
-            self.setCursor(Qt.PointingHandCursor)
+    def mouseMoveEvent(self, e):
+        player = self.__playerAt(e.position().toPoint())
+        clickable = player and player.get('puuid') and player.get('puuid') != self.currentPuuid
+        self.setCursor(Qt.PointingHandCursor if clickable else Qt.ArrowCursor)
+        super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e):
-        if self.puuid:
-            signalBus.toCareerInterface.emit(self.puuid)
+        # 点玩家名打开其生涯, 不触发整行的点击 (打开对局详情)
+        player = self.__playerAt(e.position().toPoint())
+        if player and player.get('puuid'):
+            self.setProperty('pressed', False)
+            signalBus.toCareerInterface.emit(player['puuid'])
             e.accept()
             return
+
         super().mouseReleaseEvent(e)
+
+    # ---------------- 绘制 ----------------
+
+    def paintEvent(self, e):
+        super().paintEvent(e)  # 背景 (胜 / 负 / 重开, 悬浮动画)
+
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.__content())
+        painter.end()
+
+    @staticmethod
+    def __font(size, bold=False):
+        font = QFont(['Segoe UI', 'Microsoft YaHei'])
+        font.setPixelSize(size)
+        font.setBold(bold)
+        return font
+
+    @staticmethod
+    def __roundedPixmap(p, pixmap, rect, radius):
+        if pixmap.isNull():
+            return
+        p.save()
+        clip = QPainterPath()
+        clip.addRoundedRect(rect, radius, radius)
+        p.setClipPath(clip)
+        p.drawPixmap(rect.toRect(), pixmap)
+        p.restore()
+
+    def __content(self):
+        dark = isDarkTheme()
+        deathsColor = colorManager.getColor('deaths')[0]
+        dpr = self.devicePixelRatioF()
+        key = (self.width(), self.height(), dpr, dark, deathsColor.rgba())
+        if key == self._cacheKey:
+            return self._cache
+
+        fg = QColor(255, 255, 255) if dark else QColor(0, 0, 0)
+        sub = QColor(255, 255, 255, 153) if dark else QColor(0, 0, 0, 153)
+        accent = LOSS_COLOR if self.resultType == 'lose' else WIN_COLOR
+
+        out = QPixmap(round(self.width() * dpr), round(self.height() * dpr))
+        out.setDevicePixelRatio(dpr)
+        out.fill(Qt.transparent)
+
+        p = QPainter(out)
+        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform
+                         | QPainter.TextAntialiasing)
+
+        def text(rect, string, font, color, align=Qt.AlignLeft | Qt.AlignVCenter):
+            p.setFont(font)
+            p.setPen(color)
+            p.drawText(rect, align, string)
+
+        m, w, h = self.MARGIN, self.width(), self.height()
+
+        # 左: 模式 / 多久前 / 结果 / 时长
+        x = m
+        text(QRectF(x, 10, self.INFO_W, 20), self.game['name'], self.__font(14, True), accent)
+        text(QRectF(x, 30, self.INFO_W, 18), self.agoText, self.__font(13), sub)
+        text(QRectF(x, 54, self.INFO_W, 20), self.resultText, self.__font(14, True), fg)
+        text(QRectF(x, 74, self.INFO_W, 18), self.durationText, self.__font(13), sub)
+        self.infoRect = QRect(x, 10, self.INFO_W, 82)
+        x += self.INFO_W + 10
+
+        # 英雄头像 (圆形 + 金边) 与等级角标 (同 RoundIconWithLevel)
+        iconRect = QRectF(x, (h - self.ICON) / 2, self.ICON, self.ICON)
+        if not self.championPixmap.isNull():
+            src = self.championPixmap.copy(6, 6, self.championPixmap.width() - 12,
+                                           self.championPixmap.height() - 12)
+            p.save()
+            clip = QPainterPath()
+            clip.addEllipse(iconRect)
+            p.setClipPath(clip)
+            p.drawPixmap(iconRect.toRect(), src)
+            p.restore()
+            p.setPen(QPen(QColor(120, 90, 40), 4))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(iconRect.adjusted(2, 2, -2, -2))
+
+        levelRect = QRectF(iconRect.left() + 42, iconRect.top() + 36, 22, 22)
+        p.setPen(QPen(QColor(120, 90, 40), 1))
+        p.setBrush(QColor(1, 10, 19) if dark else QColor(249, 249, 249))
+        p.drawEllipse(levelRect)
+        text(levelRect, str(self.game['champLevel']), self.__font(11, True),
+             QColor(153, 148, 135) if dark else QColor(1, 10, 19), Qt.AlignCenter)
+        x += self.ICON + 6 + 10
+
+        # 召唤师技能 (竖排) + 基石符文
+        top = (h - 2 * self.SMALL - 2) / 2
+        for i, spell in enumerate(self.spells):
+            self.__roundedPixmap(p, spell, QRectF(x, top + i * (self.SMALL + 2),
+                                                  self.SMALL, self.SMALL), 3)
+        x += self.SMALL + 4
+        if not self.rune.isNull():
+            p.drawPixmap(QRectF(x, top, self.SMALL, self.SMALL).toRect(), self.rune)
+        x += self.SMALL + 10
+
+        # K / D / A
+        kdaTop = h / 2 - 20
+        bold18, regular18 = self.__font(18, True), self.__font(18)
+        cx = x
+        for string, font, color in ((str(self.game['kills']), bold18, fg),
+                                    (" / ", regular18, sub),
+                                    (str(self.game['deaths']), bold18, deathsColor),
+                                    (" / ", regular18, sub),
+                                    (str(self.game['assists']), bold18, fg)):
+            text(QRectF(cx, kdaTop, 200, 24), string, font, color)
+            cx += QFontMetrics(font).horizontalAdvance(string)
+        kda = (self.game['kills'] + self.game['assists']) / max(self.game['deaths'], 1)
+        text(QRectF(x, kdaTop + 24, self.KDA_W, 18), f"{kda:.2f}:1 KDA", self.__font(13), sub)
+        x += self.KDA_W + 10
+        itemsX = x
+
+        # 右: 本局 10 名玩家 (两队各一列)
+        right = w - m
+        self.playerRects = []
+        if self.teams:
+            playersX = right - 2 * self.CHIP_W - 8
+            rowH = 17
+            playersTop = (h - 5 * rowH) / 2
+            nameFont = self.__font(12)
+            selfFont = self.__font(12, True)
+            for column, team in enumerate(self.teams):
+                for row, player in enumerate(team):
+                    px = playersX + column * (self.CHIP_W + 8)
+                    py = playersTop + row * rowH
+                    self.__roundedPixmap(p, self.playerIcons[id(player)],
+                                         QRectF(px, py + 0.5, 16, 16), 2)
+                    isSelf = player.get('puuid') == self.currentPuuid
+                    name = player['name'] or "?"
+                    name = name if len(name) <= 11 else name[:10] + "…"
+                    text(QRectF(px + 20, py, self.CHIP_W - 20, rowH), name,
+                         selfFont if isSelf else nameFont, fg if isSelf else sub)
+                    self.playerRects.append(
+                        (QRect(int(px), int(py), self.CHIP_W, rowH), player))
+            right = playersX - 10
+
+        # 参团率 / 补刀 / 金币
+        statsX = right - self.STATS_W
+        statsTop = h / 2 - 28
+        text(QRectF(statsX, statsTop, self.STATS_W, 20), self.kpText,
+             self.__font(14), QColor(232, 64, 87))
+        text(QRectF(statsX, statsTop + 20, self.STATS_W, 18), self.csText, self.__font(13), sub)
+        text(QRectF(statsX, statsTop + 38, self.STATS_W, 18), self.goldText, self.__font(13), sub)
+        self.statsRect = QRect(int(statsX), int(statsTop), self.STATS_W, 56)
+
+        # 物品 + 标签
+        self.itemRects = []
+        itemsTop = h / 2 - self.ITEM - 2
+        for i, (pixmap, itemId) in enumerate(self.items):
+            rect = QRectF(itemsX + i * (self.ITEM + 2), itemsTop, self.ITEM, self.ITEM)
+            self.__roundedPixmap(p, pixmap, rect, 3)
+            self.itemRects.append((rect.toRect(), itemId))
+
+        tagX, tagY = itemsX, itemsTop + self.ITEM + 6
+        pillFont = self.__font(12, True)
+        metrics = QFontMetrics(pillFont)
+        p.setFont(pillFont)
+        for string, color in self.tags:
+            rect = QRectF(tagX, tagY, metrics.horizontalAdvance(string) + 16, 20)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(color))
+            p.drawRoundedRect(rect, 9, 9)
+            p.setPen(QColor(255, 255, 255))
+            p.drawText(rect, Qt.AlignCenter, string)
+            tagX += rect.width() + 4
+
+        p.end()
+
+        self._cache, self._cacheKey = out, key
+        return out

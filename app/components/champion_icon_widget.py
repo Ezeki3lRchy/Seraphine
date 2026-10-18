@@ -23,13 +23,25 @@ class RoundIcon(QFrame):
 
         self.havePic = icon != None
 
+        # 渲染好的成品图缓存 (裁圆 + 缩放 + 描边). 之前每次重绘都重新平滑缩放原图,
+        # 对局信息页滚动时一帧要缩放几百张图, 很卡; 现在只在图片 / 尺寸 / 缩放比变化时重画
+        self._cache = None
+        self._cacheKey = None
+
         self.setFixedSize(diameter, diameter)
 
-    def paintEvent(self, event) -> None:
-        if not self.havePic:
-            return
+    def __render(self):
+        dpr = self.devicePixelRatioF()
+        key = (self.image.cacheKey(), self.width(), self.height(), dpr,
+               self.overscaled, self.borderWidth, self.drawBackground, self.enabled)
+        if key == self._cacheKey:
+            return self._cache
 
-        painter = QPainter(self)
+        out = QPixmap(QSize(round(self.width() * dpr), round(self.height() * dpr)))
+        out.setDevicePixelRatio(dpr)
+        out.fill(Qt.transparent)
+
+        painter = QPainter(out)
         painter.setRenderHint(QPainter.Antialiasing)
 
         width = self.image.width() - 2*self.overscaled
@@ -38,7 +50,7 @@ class RoundIcon(QFrame):
         image = self.image.copy(
             self.overscaled, self.overscaled, width, height)
 
-        size = self.size() * self.devicePixelRatioF()
+        size = self.size() * dpr
         image: QPixmap = image.scaled(size,
                                       Qt.AspectRatioMode.KeepAspectRatio,
                                       Qt.TransformationMode.SmoothTransformation)
@@ -65,6 +77,19 @@ class RoundIcon(QFrame):
                 QPen(QColor(120, 90, 40), self.borderWidth, Qt.SolidLine))
             painter.drawEllipse(0, 0, self.width(), self.height())
             painter.restore()
+
+        painter.end()
+
+        self._cache, self._cacheKey = out, key
+        return out
+
+    def paintEvent(self, event) -> None:
+        if not self.havePic:
+            return
+
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.__render())
+        painter.end()
 
         return super().paintEvent(event)
 
@@ -229,15 +254,26 @@ class RoundedLabel(QLabel):
         self.borderColor = borderColor if borderColor else QColor(120, 90, 40)
         self.drawBackground = drawBackground
 
-    def paintEvent(self, e):
-        if not self.havePic:
-            return super().paintEvent(e)
+        # 渲染好的成品图缓存, 原因同 RoundIcon
+        self._cache = None
+        self._cacheKey = None
 
-        painter = QPainter(self)
+    def __render(self):
+        dpr = self.devicePixelRatioF()
+        key = (self.pixmap().cacheKey(), self.width(), self.height(), dpr, self.radius,
+               self.borderWidth, self.borderColor.rgba(), self.drawBackground)
+        if key == self._cacheKey:
+            return self._cache
+
+        out = QPixmap(QSize(round(self.width() * dpr), round(self.height() * dpr)))
+        out.setDevicePixelRatio(dpr)
+        out.fill(Qt.transparent)
+
+        painter = QPainter(out)
         painter.setRenderHints(QPainter.Antialiasing)
 
         pixmap = self.pixmap().scaled(
-            self.size()*self.devicePixelRatioF(),
+            self.size()*dpr,
             Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 
         path = QPainterPath()
@@ -261,6 +297,19 @@ class RoundedLabel(QLabel):
 
             painter.drawRoundedRect(
                 QRectF(self.rect()), self.radius, self.radius)
+
+        painter.end()
+
+        self._cache, self._cacheKey = out, key
+        return out
+
+    def paintEvent(self, e):
+        if not self.havePic:
+            return super().paintEvent(e)
+
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.__render())
+        painter.end()
 
     def setPicture(self, imagePath):
         self.havePic = True
