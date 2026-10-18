@@ -128,3 +128,74 @@ SummonerName[pressed=true] {
     border-radius: 10px;
     background-color: rgba(255, 255, 255, 0.667);
 } */
+
+/* ---- OP.GG 风格: 段位卡 / 近期概况 / 战绩行 (career_widgets.py) ---- */
+
+/* 滚动区本身不再画框, 由里面的卡片各自画 */
+#gameInfoArea {
+    border: none;
+    background-color: transparent;
+}
+
+#careerCard {
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.095);
+    background-color: rgba(255, 255, 255, 0.667);
+}
+
+#cardTitle {
+    font: bold 15px 'Segoe UI', 'Microsoft YaHei';
+}
+
+#tierLabel {
+    font: bold 22px 'Segoe UI', 'Microsoft YaHei';
+}
+
+#bodyLabel {
+    font: 14px 'Segoe UI', 'Microsoft YaHei';
+}
+
+#secondaryLabel {
+    font: 13px 'Segoe UI', 'Microsoft YaHei';
+    color: rgba(0, 0, 0, 0.6);
+}
+
+#bigNumberLabel {
+    font: bold 22px 'Segoe UI', 'Microsoft YaHei';
+}
+
+#kpLabel {
+    font: 14px 'Segoe UI', 'Microsoft YaHei';
+    color: #e84057;
+}
+
+CareerGameRow {
+    border-radius: 6px;
+    border: 1px solid;
+}
+
+CareerGameRow #modeLabel {
+    font: bold 14px 'Segoe UI', 'Microsoft YaHei';
+}
+
+CareerGameRow #resultLabel {
+    font: bold 14px 'Segoe UI', 'Microsoft YaHei';
+}
+
+CareerGameRow #kdaNumber {
+    font: bold 18px 'Segoe UI', 'Microsoft YaHei';
+}
+
+CareerGameRow #kdaSlash {
+    font: 18px 'Segoe UI', 'Microsoft YaHei';
+    color: rgba(0, 0, 0, 0.6);
+}
+
+#playerLabel {
+    font: 12px 'Segoe UI', 'Microsoft YaHei';
+    color: rgba(0, 0, 0, 0.6);
+}
+
+#selfPlayerLabel {
+    font: bold 12px 'Segoe UI', 'Microsoft YaHei';
+}

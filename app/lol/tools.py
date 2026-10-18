@@ -166,6 +166,13 @@ async def parseSummonerData(summoner, rankTask, gameTask):
                     games["losses"] += 1
             games["games"].append(info)
 
+        # OP.GG 风格战绩行: MVP / SVP / 名次 / 参团率与每局 10 名玩家都来自完整对局
+        details = await attachGameScores(games['games'], summoner['puuid'])
+        participants = await asyncio.gather(
+            *[gameParticipantsFromLcuDetail(detail) for detail in details])
+        for game, players in zip(games['games'], participants):
+            game['participants'] = players
+
         champions = getRecentChampions(games['games'])
 
     try:

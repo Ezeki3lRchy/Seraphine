@@ -11,7 +11,7 @@ from ..common.qfluentwidgets import (TableWidget, PushButton, ComboBox,
                                      Flyout, FlyoutViewBase, FlyoutAnimationType, InfoBar,
                                      InfoBarPosition)
 
-from app.components.game_infobar_widget import GameInfoBar
+from app.components.career_widgets import RankCard, RecentSummaryCard, CareerGameRow
 from app.components.champion_icon_widget import RoundIcon
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.summoner_name_button import SummonerName
@@ -72,6 +72,14 @@ class CareerInterface(SeraphineInterface):
         self.rankInfo = None
         self.rankTable = TableWidget(self)
 
+        # OP.GG 风格: 单双 / 灵活段位卡 + 近期对局概况, 与战绩一起在滚动区里
+        self.rankCardsLayout = QHBoxLayout()
+        self.soloCard = RankCard(self.tr("Ranked Solo/Duo"))
+        self.flexCard = RankCard(self.tr("Ranked Flex"))
+        self.summaryCard = RecentSummaryCard()
+        self.scrollContent = QWidget()
+        self.scrollContentLayout = QVBoxLayout(self.scrollContent)
+
         self.recentInfoHLayout = QHBoxLayout()
         self.recent20GamesLabel = QLabel(
             self.tr('Recent matches') + " " + self.tr('(Last') + " None " +
@@ -126,6 +134,10 @@ class CareerInterface(SeraphineInterface):
         self.recentInfoHLayout.setObjectName("recentInfoHLayout")
         self.gameInfoArea.setObjectName('gameInfoArea')
         self.gameInfoWidget.setObjectName("gameInfoWidget")
+        self.scrollContent.setObjectName("gameInfoWidget")
+        self.soloCard.setObjectName("careerCard")
+        self.flexCard.setObjectName("careerCard")
+        self.summaryCard.setObjectName("careerCard")
 
         self.backToMeButton.setEnabled(False)
 
@@ -239,18 +251,28 @@ class CareerInterface(SeraphineInterface):
         self.IconNameHBoxLayout.addLayout(self.buttonsLayout)
 
         self.gameInfoWidget.setLayout(self.gameInfoLayout)
-        self.gameInfoArea.setWidget(self.gameInfoWidget)
+        self.gameInfoLayout.setContentsMargins(0, 0, 0, 0)
+
+        self.rankCardsLayout.setContentsMargins(0, 0, 0, 0)
+        self.rankCardsLayout.setSpacing(12)
+        self.rankCardsLayout.addWidget(self.soloCard)
+        self.rankCardsLayout.addWidget(self.flexCard)
+
+        self.scrollContentLayout.setContentsMargins(0, 0, 0, 0)
+        self.scrollContentLayout.setSpacing(10)
+        self.scrollContentLayout.addLayout(self.rankCardsLayout)
+        self.scrollContentLayout.addWidget(self.summaryCard)
+        self.scrollContentLayout.addLayout(self.recentInfoHLayout)
+        self.scrollContentLayout.addWidget(self.gameInfoWidget, stretch=1)
+
+        self.gameInfoArea.setWidget(self.scrollContent)
         self.gameInfoArea.setWidgetResizable(True)
         self.gameInfoArea.setViewportMargins(0, 0, 5, 0)
 
         self.vBoxLayout.addWidget(self.progressRing, alignment=Qt.AlignCenter)
 
         self.vBoxLayout.addLayout(self.IconNameHBoxLayout)
-        self.vBoxLayout.addSpacing(20)
-        self.vBoxLayout.addWidget(self.rankTable)
-        self.vBoxLayout.addSpacing(5)
-        self.vBoxLayout.addLayout(self.recentInfoHLayout)
-        self.vBoxLayout.addSpacing(5)
+        self.vBoxLayout.addSpacing(16)
         self.vBoxLayout.addWidget(self.gameInfoArea)
         self.vBoxLayout.addSpacing(10)
 
@@ -268,16 +290,15 @@ class CareerInterface(SeraphineInterface):
         self.refreshButton.setVisible(not enable)
         self.backToMeButton.setVisible(not enable)
         self.searchButton.setVisible(not enable)
-        self.rankTable.setVisible(not enable)
+        # 段位表 / 胜负 / KDA / 常用英雄 已由段位卡与概况卡取代
+        self.rankTable.setVisible(False)
+        self.championsCard.setVisible(False)
+        self.winsLabel.setVisible(False)
+        self.lossesLabel.setVisible(False)
+        self.kdaLabel.setVisible(False)
         self.recent20GamesLabel.setVisible(not enable)
         self.filterComboBox.setVisible(not enable)
-        self.championsCard.setVisible(not enable)
         self.recentTeamButton.setVisible(not enable)
-        self.winsLabel.setVisible(not enable)
-        self.lossesLabel.setVisible(not enable)
-        self.kdaLabel.setVisible(not enable)
-        self.winsLabel.setVisible(not enable)
-        self.lossesLabel.setVisible(not enable)
         self.gameInfoArea.setVisible(not enable)
         self.tagLineLabel.setVisible(not enable and self.showTagLine)
 
@@ -461,6 +482,10 @@ class CareerInterface(SeraphineInterface):
 
         self.__updateTable()
 
+        queueMap = rankInfo.get('queueMap') or {}
+        self.soloCard.updateRank(queueMap.get('RANKED_SOLO_5x5'))
+        self.flexCard.updateRank(queueMap.get('RANKED_FLEX_SR'))
+
         if 'gameCount' in games:
             self.recent20GamesLabel.setText(
                 f"{self.tr('Recent matches')} {self.tr('(Last')} {len(games['games'])} {self.tr('games)')}"
@@ -506,13 +531,14 @@ class CareerInterface(SeraphineInterface):
 
         if 'gameCount' in self.games:
 
-            for bar in [GameInfoBar(game) for game in self.games['games']]:
-                bar.setMaximumHeight(86)
+            for bar in [CareerGameRow(game, self.puuid) for game in self.games['games']]:
                 self.gameInfoLayout.addWidget(bar)
                 self.gameInfoLayout.addSpacing(5)
 
             self.gameInfoLayout.addSpacerItem(
                 QSpacerItem(1, 1, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        self.summaryCard.updateGames(self.games.get('games', []) if self.games else [])
 
     def __onfilterComboBoxChanged(self, index):
         self.gameInfoArea.delegate.vScrollBar.resetValue(0)
@@ -538,10 +564,11 @@ class CareerInterface(SeraphineInterface):
             self.games.get("games", []), targetId)
 
         for game in hitGames:
-            bar = GameInfoBar(game)
-            bar.setMaximumHeight(86)
+            bar = CareerGameRow(game, self.puuid)
             self.gameInfoLayout.addWidget(bar)
             self.gameInfoLayout.addSpacing(5)
+
+        self.summaryCard.updateGames(hitGames)
 
         self.recent20GamesLabel.setText(
             f"{self.tr('Recent matches')} {self.tr('(Last')} {len(hitGames)} {self.tr('games)')}"
