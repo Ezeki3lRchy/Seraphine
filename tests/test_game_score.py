@@ -142,6 +142,20 @@ class AdapterTest(unittest.TestCase):
             sgpGame(tenPlayers(), queueId=1700), "puuid-3"))
 
 
+class LcuDetailPlayersTest(unittest.TestCase):
+
+    def test_extracts_all_players(self):
+        players = tools.lcuDetailPlayers(lcuDetail(tenPlayers()))
+        self.assertEqual(len(players), 10)
+        self.assertEqual(players[2]["kills"], 10)
+        self.assertEqual(players[2]["damage"], 40000)
+
+    def test_subteams_and_bad_payload(self):
+        self.assertEqual(tools.lcuDetailPlayers(lcuDetail(tenPlayers(), subteam=True)), [])
+        self.assertEqual(tools.lcuDetailPlayers({"participants": [{}]}), [])
+        self.assertEqual(tools.lcuDetailPlayers(None), [])
+
+
 class SummaryBadgeCountTest(unittest.TestCase):
 
     def test_counts(self):

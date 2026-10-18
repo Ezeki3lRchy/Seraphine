@@ -26,6 +26,7 @@ from app.common.config import cfg
 from app.common.signals import signalBus
 from app.components.champion_icon_widget import RoundIcon, RoundedLabel
 from app.components.match_widgets import ItemIcon
+from app.components.match_detail_widgets import DetailTeamTable, TeamCompareBar, teamMaxima
 from app.components.search_line_edit import SearchLineEdit
 from app.components.summoner_name_button import SummonerName
 from app.components.animation_frame import ColorAnimationFrame, CardWidget
@@ -287,6 +288,11 @@ class GameDetailView(QFrame):
         self.teamView1 = TeamView()
         self.teamView2 = TeamView()
 
+        # OP.GG 风格: 两队各一张表 + 中间的目标 / 击杀 / 经济对比 (斗魂竞技场仍用 TeamView)
+        self.detailTeam1 = DetailTeamTable()
+        self.compareBar = TeamCompareBar()
+        self.detailTeam2 = DetailTeamTable()
+
         self.extraTeamView1 = TeamView()
         self.extraTeamView2 = TeamView()
         self.extraTeamView3 = TeamView()
@@ -319,6 +325,11 @@ class GameDetailView(QFrame):
         self.teamView1 = TeamView()
         self.teamView2 = TeamView()
 
+        # OP.GG 风格: 两队各一张表 + 中间的目标 / 击杀 / 经济对比 (斗魂竞技场仍用 TeamView)
+        self.detailTeam1 = DetailTeamTable()
+        self.compareBar = TeamCompareBar()
+        self.detailTeam2 = DetailTeamTable()
+
         self.extraTeamView1 = TeamView()
         self.extraTeamView2 = TeamView()
         self.extraTeamView3 = TeamView()
@@ -343,6 +354,9 @@ class GameDetailView(QFrame):
         self.vBoxLayout.addWidget(self.titleBar)
 
         self.scrollLayout.setContentsMargins(0, 0, 0, 0)
+        self.scrollLayout.addWidget(self.detailTeam1)
+        self.scrollLayout.addWidget(self.compareBar)
+        self.scrollLayout.addWidget(self.detailTeam2)
         self.scrollLayout.addWidget(self.teamView1)
         self.scrollLayout.addWidget(self.teamView2)
 
@@ -361,6 +375,10 @@ class GameDetailView(QFrame):
         self.extraTeamView4.setVisible(False)
         self.extraTeamView5.setVisible(False)
         self.extraTeamView6.setVisible(False)
+        self.detailTeam1.setVisible(False)
+        self.compareBar.setVisible(False)
+        self.detailTeam2.setVisible(False)
+        self.scrollLayout.addStretch()
 
         self.stackedWidget.addWidget(self.loadingPage)
         self.stackedWidget.addWidget(self.infoPage)
@@ -392,6 +410,19 @@ class GameDetailView(QFrame):
 
         team1 = game["teams"][100]
         team2 = game["teams"][200]
+
+        # 普通两队对局: OP.GG 风格详情表; 斗魂竞技场: 原来的 8 队视图
+        for w in (self.detailTeam1, self.compareBar, self.detailTeam2):
+            w.setVisible(not isCherry)
+        self.teamView1.setVisible(isCherry)
+        self.teamView2.setVisible(isCherry)
+
+        if not isCherry:
+            maxDealt, maxTaken = teamMaxima((team1, team2))
+            secs = game.get('durationSecs') or 0
+            self.detailTeam1.updateTeam(team1, self.tr("Blue team"), maxDealt, maxTaken, secs)
+            self.detailTeam2.updateTeam(team2, self.tr("Red team"), maxDealt, maxTaken, secs)
+            self.compareBar.setTeams(team1, team2)
 
         self.teamView1.updateTeam(team1, isCherry, self.tr("1st"))
         self.teamView1.updateSummoners(team1["summoners"])

@@ -440,6 +440,12 @@ async def parseGameDetailData(puuid, game):
 
                 runeIcon = await connector.getRuneIcon(stats['perk0'])
 
+                # 副系符文 (8000 / 8100 ... 系别图标), 取不到就不显示
+                try:
+                    subStyleIcon = await connector.getRuneIcon(stats.get('perkSubStyle') or 0)
+                except Exception:
+                    subStyleIcon = None
+
                 itemIds = [
                     stats['item0'],
                     stats['item1'],
@@ -455,6 +461,7 @@ async def parseGameDetailData(puuid, game):
                 ]
 
                 getRankInfo = cfg.get(cfg.showTierInGameInfo)
+                tierKey = ""
 
                 tier = division = lp = rankIcon = ""
                 if getRankInfo:
@@ -474,6 +481,7 @@ async def parseGameDetailData(puuid, game):
                                 'RANKED_FLEX_SR'] if queueId == 440 else rank['RANKED_SOLO_5x5']
 
                             tier = rankInfo['tier']
+                            tierKey = tier
                             division = rankInfo['division']
                             lp = rankInfo['leaguePoints']
 
@@ -509,7 +517,17 @@ async def parseGameDetailData(puuid, game):
                     'champLevel': stats['champLevel'],
                     'demage': stats['totalDamageDealtToChampions'],
                     'subteamPlacement': subteamPlacement,
-                    'isPublic': isPublic
+                    'isPublic': isPublic,
+                    # OP.GG 风格详情表用
+                    'participantId': participantId,
+                    'tierKey': tierKey,
+                    'subStyleIcon': subStyleIcon,
+                    'damageTaken': stats.get('totalDamageTaken', 0),
+                    'controlWards': stats.get('visionWardsBoughtInGame', 0),
+                    'wardsPlaced': stats.get('wardsPlaced', 0),
+                    'wardsKilled': stats.get('wardsKilled', 0),
+                    'visionScore': stats.get('visionScore', 0),
+                    'multiKill': stats.get('largestMultiKill', 0),
                 }
                 # 同 teams[tid] 聚合守卫: 异常 placement 的 tid 不在 teams 内则跳过
                 if tid in teams:
@@ -522,11 +540,25 @@ async def parseGameDetailData(puuid, game):
     if win == None:
         return None
 
+    # 评分 / 名次 / MVP SVP / 参团率 (与战绩页同一套评分); 斗魂竞技场不评
+    players = lcuDetailPlayers(game)
+    if players and queueId not in (1700, 1710):
+        scores = scoreGameParticipants(players)
+        for team in teams.values():
+            for summoner in team['summoners']:
+                result = scores.get(summoner['participantId'])
+                if result:
+                    summoner['score'] = result['score']
+                    summoner['scoreRank'] = result['scoreRank']
+                    summoner['kp'] = result['kp']
+                    summoner['badge'] = None if remake else result['badge']
+
     return {
         'gameId': game['gameId'],
         'mapIcon': mapIcon,
         'gameCreation': timeStampToStr(game['gameCreation']),
         'gameDuration': secsToStr(game['gameDuration']),
+        'durationSecs': game['gameDuration'],
         'modeName': modeName,
         'mapName': mapName,
         'queueId': queueId,
@@ -971,6 +1003,31 @@ def _pickScore(players, myId, remake):
     }
 
 
+def lcuDetailPlayers(detail):
+    """
+    LCU 完整对局 -> scoreGameParticipants 的输入; 多小队模式 (斗魂竞技场) 或数据不全返回 []
+    """
+    try:
+        players = []
+        for p in detail['participants']:
+            st = p['stats']
+            if st.get('playerSubteamId'):
+                return []
+
+            players.append({
+                'id': p['participantId'], 'teamId': p['teamId'],
+                'win': bool(st['win']), 'kills': st['kills'],
+                'deaths': st['deaths'], 'assists': st['assists'],
+                'damage': st.get('totalDamageDealtToChampions', 0),
+                'damageTaken': st.get('totalDamageTaken', 0),
+                'gold': st.get('goldEarned', 0),
+                'vision': st.get('visionScore', 0),
+            })
+        return players
+    except (KeyError, TypeError, AttributeError):
+        return []
+
+
 def getGameScoreFromLcuDetail(detail, puuid):
     """
     由 LCU `/lol-match-history/v1/games/{gameId}` 的完整对局算出 puuid 这名玩家的
@@ -984,25 +1041,15 @@ def getGameScoreFromLcuDetail(detail, puuid):
             pi['participantId']: pi.get('player', {}).get('puuid')
             for pi in detail.get('participantIdentities', [])}
 
-        players, myId, remake = [], None, False
+        players = lcuDetailPlayers(detail)
+        if not players:
+            return None
+
+        myId, remake = None, False
         for p in detail['participants']:
-            st = p['stats']
-            if st.get('playerSubteamId'):
-                return None
-
-            players.append({
-                'id': p['participantId'], 'teamId': p['teamId'],
-                'win': bool(st['win']), 'kills': st['kills'],
-                'deaths': st['deaths'], 'assists': st['assists'],
-                'damage': st.get('totalDamageDealtToChampions', 0),
-                'damageTaken': st.get('totalDamageTaken', 0),
-                'gold': st.get('goldEarned', 0),
-                'vision': st.get('visionScore', 0),
-            })
-
             if identities.get(p['participantId']) == puuid:
                 myId = p['participantId']
-                remake = bool(st.get('gameEndedInEarlySurrender'))
+                remake = bool(p['stats'].get('gameEndedInEarlySurrender'))
 
         return _pickScore(players, myId, remake)
     except (KeyError, TypeError, AttributeError):
