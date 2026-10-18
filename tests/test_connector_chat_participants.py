@@ -47,6 +47,12 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send(404, {"errorCode": "NOT_FOUND"})
             if self.path == "/chat/v5/participants":
                 return self._send(200, mixed)
+        if self.mode == "empty200":
+            # live Riot Client: filtered endpoint answers 200 with an empty list
+            if self.path == "/chat/v5/participants/champ-select":
+                return self._send(200, {"participants": []})
+            if self.path == "/chat/v5/participants":
+                return self._send(200, mixed)
         if self.mode == "garbage" and self.path == "/chat/v5/participants/champ-select":
             return self._send(200, b"<html>not json</html>", "text/html")
         if self.mode == "shape" and self.path == "/chat/v5/participants/champ-select":
@@ -98,6 +104,12 @@ class ChatParticipantsTest(unittest.TestCase):
 
     def test_non_200_falls_back_to_full_list(self):
         res = self._call("fallback")
+        self.assertEqual([p["puuid"] for p in res], ["p1"])
+        self.assertEqual(_Handler.seen, ["/chat/v5/participants/champ-select",
+                                         "/chat/v5/participants"])
+
+    def test_empty_200_falls_back_to_full_list(self):
+        res = self._call("empty200")
         self.assertEqual([p["puuid"] for p in res], ["p1"])
         self.assertEqual(_Handler.seen, ["/chat/v5/participants/champ-select",
                                          "/chat/v5/participants"])

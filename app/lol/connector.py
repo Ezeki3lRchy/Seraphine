@@ -921,34 +921,37 @@ class LolClientConnector(QObject):
         if self.rcSess is None:
             return []
 
+        # 首选按聊天房过滤的接口; 非 200 或返回空名单 (实测会 200 + 空列表)
+        # 再退到 reveal 实际使用的全量接口并按 cid 过滤
+        participants = await self.__getChatParticipants(
+            '/chat/v5/participants/champ-select')
+
+        if not participants:
+            logger.error(
+                "reveal-hidden: /chat/v5/participants/champ-select empty or failed, "
+                "falling back to /chat/v5/participants", TAG)
+            participants = await self.__getChatParticipants('/chat/v5/participants')
+
+        return [p for p in participants
+                if isinstance(p, dict) and 'champ-select' in str(p.get('cid', 'champ-select'))]
+
+    async def __getChatParticipants(self, path):
+        '''Riot Client 聊天参与者列表; 非 200 / 异常 / 格式不对都返回 [].'''
         try:
-            # 首选按聊天房过滤的接口; 非 200 再退到 reveal 实际使用的全量接口并按 cid 过滤
-            res = await self.rcSess.get(
-                '/chat/v5/participants/champ-select', ssl=False)
+            res = await self.rcSess.get(path, ssl=False)
 
             if res.status != 200:
-                logger.error(
-                    f"reveal-hidden: /chat/v5/participants/champ-select -> {res.status}, "
-                    f"falling back to /chat/v5/participants", TAG)
-                res = await self.rcSess.get('/chat/v5/participants', ssl=False)
-
-                if res.status != 200:
-                    logger.error(
-                        f"reveal-hidden: /chat/v5/participants -> {res.status}", TAG)
-                    return []
+                logger.error(f"reveal-hidden: {path} -> {res.status}", TAG)
+                return []
 
             data = await res.json(content_type=None)
         except Exception as e:
             logger.error(
-                f"reveal-hidden: chat participants request failed: {e!r}", TAG)
+                f"reveal-hidden: {path} request failed: {e!r}", TAG)
             return []
 
         participants = data.get('participants') if isinstance(data, dict) else None
-        if not isinstance(participants, list):
-            return []
-
-        return [p for p in participants
-                if isinstance(p, dict) and 'champ-select' in str(p.get('cid', 'champ-select'))]
+        return participants if isinstance(participants, list) else []
 
     # 同意交换英雄
     @retry()
