@@ -52,9 +52,10 @@ class Config(QConfig):
                                      [1, 1.25, 1.5, 1.75, 2, "Auto"]),
                                  restart=True)
 
+    # 默认英文 (原为 AUTO, 中文系统会显示中文); 已保存的设置不受影响, 设置页仍可切换
     language = OptionsConfigItem("Personalization",
                                  "Language",
-                                 Language.AUTO,
+                                 Language.ENGLISH,
                                  OptionsValidator(Language),
                                  LanguageSerializer(),
                                  restart=True)
