@@ -188,6 +188,43 @@ async def parseSummonerData(summoner, rankTask, gameTask):
     }
 
 
+def getPositionKey(queueId, lane, role):
+    """
+    排位 (420 / 440) 对局里的分路, 返回 'TOP' / 'JUNGLE' / 'MIDDLE' / 'BOTTOM' /
+    'UTILITY' 之一; 非排位或无法判断时返回 None
+    """
+    if queueId not in [420, 440]:
+        return None
+
+    if lane == 'TOP':
+        return 'TOP'
+    elif lane == "JUNGLE":
+        return 'JUNGLE'
+    elif lane == 'MIDDLE':
+        return 'MIDDLE'
+    elif role == 'SUPPORT':
+        return 'UTILITY'
+    elif lane == 'BOTTOM' and role == 'CARRY':
+        return 'BOTTOM'
+
+    return None
+
+
+def translatePositionKey(positionKey):
+    if positionKey is None:
+        return None
+
+    tt = ToolsTranslator()
+
+    return {
+        'TOP': tt.top,
+        'JUNGLE': tt.jungle,
+        'MIDDLE': tt.middle,
+        'BOTTOM': tt.bottom,
+        'UTILITY': tt.support,
+    }.get(positionKey)
+
+
 async def parseGameData(game):
     timeStamp = game["gameCreation"]  # 毫秒级时间戳
     time = timeStampToStr(game['gameCreation'])
@@ -233,28 +270,15 @@ async def parseGameData(game):
 
     cs = stats['totalMinionsKilled'] + stats['neutralMinionsKilled']
     gold = stats['goldEarned']
+    damage = stats.get('totalDamageDealtToChampions', 0)
+    visionScore = stats.get('visionScore', 0)
+    multiKill = stats.get('largestMultiKill', 0)
     remake = stats['gameEndedInEarlySurrender']
     win = stats['win']
 
     timeline = participant['timeline']
-    lane = timeline['lane']
-    role = timeline['role']
-
-    position = None
-
-    tt = ToolsTranslator()
-
-    if queueId in [420, 440]:
-        if lane == 'TOP':
-            position = tt.top
-        elif lane == "JUNGLE":
-            position = tt.jungle
-        elif lane == 'MIDDLE':
-            position = tt.middle
-        elif role == 'SUPPORT':
-            position = tt.support
-        elif lane == 'BOTTOM' and role == 'CARRY':
-            position = tt.bottom
+    positionKey = getPositionKey(queueId, timeline['lane'], timeline['role'])
+    position = translatePositionKey(positionKey)
 
     return {
         'queueId': queueId,
@@ -264,6 +288,7 @@ async def parseGameData(game):
         'name': modeName,
         'map': mapName,
         'duration': duration,
+        'durationSecs': game['gameDuration'],
         'remake': remake,
         'win': win,
         'championId': championId,
@@ -279,8 +304,13 @@ async def parseGameData(game):
         'runeIcon': runeIcon,
         'cs': cs,
         'gold': gold,
+        'damage': damage,
+        'visionScore': visionScore,
+        'multiKill': multiKill,
+        'gameMode': game.get('gameMode'),
         'timeStamp': timeStamp,
         'position': position,
+        'positionKey': positionKey,
     }
 
 
@@ -644,12 +674,28 @@ def parseRankInfo(info):
             "icon": soloIcon,
             "division": soloDivision,
             "lp": soloRankInfo.get("leaguePoints", ""),
+            "wins": soloRankInfo.get("wins", 0),
+            "losses": soloRankInfo.get("losses", 0),
+            # 原始英文段位 (徽章图用) / 赛季最高 / 上赛季结算; 取不到为 ""
+            "tierKey": soloRankInfo.get("tier", "") or "",
+            "highestTier": soloRankInfo.get("highestTier", "") or "",
+            "highestDivision": soloRankInfo.get("highestDivision", "") or "",
+            "previousTier": soloRankInfo.get("previousSeasonEndTier", "") or "",
+            "previousDivision": soloRankInfo.get("previousSeasonEndDivision", "") or "",
         },
         "flex": {
             "tier": flexTier,
             "icon": flexIcon,
             "division": flexDivision,
             "lp": flexRankInfo.get("leaguePoints", ""),
+            "wins": flexRankInfo.get("wins", 0),
+            "losses": flexRankInfo.get("losses", 0),
+            # 原始英文段位 (徽章图用) / 赛季最高 / 上赛季结算; 取不到为 ""
+            "tierKey": flexRankInfo.get("tier", "") or "",
+            "highestTier": flexRankInfo.get("highestTier", "") or "",
+            "highestDivision": flexRankInfo.get("highestDivision", "") or "",
+            "previousTier": flexRankInfo.get("previousSeasonEndTier", "") or "",
+            "previousDivision": flexRankInfo.get("previousSeasonEndDivision", "") or "",
         },
     }
 
@@ -702,12 +748,28 @@ def parseRankInfoFromSGP(info):
             "icon": soloIcon,
             "division": soloDivision,
             "lp": soloRankInfo.get("leaguePoints", ""),
+            "wins": soloRankInfo.get("wins", 0),
+            "losses": soloRankInfo.get("losses", 0),
+            # 原始英文段位 (徽章图用) / 赛季最高 / 上赛季结算; 取不到为 ""
+            "tierKey": soloRankInfo.get("tier", "") or "",
+            "highestTier": soloRankInfo.get("highestTier", "") or "",
+            "highestDivision": soloRankInfo.get("highestDivision", "") or "",
+            "previousTier": soloRankInfo.get("previousSeasonEndTier", "") or "",
+            "previousDivision": soloRankInfo.get("previousSeasonEndDivision", "") or "",
         },
         "flex": {
             "tier": flexTier,
             "icon": flexIcon,
             "division": flexDivision,
             "lp": flexRankInfo.get("leaguePoints", ""),
+            "wins": flexRankInfo.get("wins", 0),
+            "losses": flexRankInfo.get("losses", 0),
+            # 原始英文段位 (徽章图用) / 赛季最高 / 上赛季结算; 取不到为 ""
+            "tierKey": flexRankInfo.get("tier", "") or "",
+            "highestTier": flexRankInfo.get("highestTier", "") or "",
+            "highestDivision": flexRankInfo.get("highestDivision", "") or "",
+            "previousTier": flexRankInfo.get("previousSeasonEndTier", "") or "",
+            "previousDivision": flexRankInfo.get("previousSeasonEndDivision", "") or "",
         },
     }
 
@@ -818,6 +880,272 @@ def parseGames(games, targetId=0):
                     losses += 1
 
     return hitGames, kills, deaths, assists, wins, losses
+
+
+# 选手评分权重 (Seraphine 自己的评分, 非 OP.GG OP Score; Riot 的 totalPlayerScore 等字段实测全为 0)
+# 每项都按本局 10 人里的最大值归一化
+GAME_SCORE_WEIGHTS = {
+    'kp': 3,           # 参团率 (击杀 + 助攻) / 本队击杀
+    'damage': 2,       # 对英雄伤害
+    'kda': 2,          # (击杀 + 助攻) / max(死亡, 1), 封顶 10
+    'damageTaken': 1,  # 承受伤害
+    'gold': 1,         # 金币
+    'vision': 1,       # 视野得分
+}
+
+
+def scoreGameParticipants(players):
+    """
+    给一局里的所有玩家打分并排名, 选出 MVP (胜方最高分) 与 SVP (败方最高分)
+
+    @param players: [{'id', 'teamId', 'win', 'kills', 'deaths', 'assists',
+                      'damage', 'damageTaken', 'gold', 'vision'}], id 为 participantId
+    @return: {id: {'score', 'scoreRank', 'kp', 'badge'}}; badge 为 'MVP' / 'SVP' / None.
+             不是恰好两队且一胜一负时不评徽章 (仍有排名)
+    """
+    if not players:
+        return {}
+
+    teamKills = {}
+    for p in players:
+        teamKills[p['teamId']] = teamKills.get(p['teamId'], 0) + p['kills']
+
+    raw = {}
+    for p in players:
+        raw[p['id']] = {
+            'kp': (p['kills'] + p['assists']) / max(teamKills[p['teamId']], 1),
+            'damage': p['damage'],
+            'kda': min((p['kills'] + p['assists']) / max(p['deaths'], 1), 10),
+            'damageTaken': p['damageTaken'],
+            'gold': p['gold'],
+            'vision': p['vision'],
+        }
+
+    maxes = {k: max(r[k] for r in raw.values()) for k in GAME_SCORE_WEIGHTS}
+
+    scores = {}
+    for pid, r in raw.items():
+        scores[pid] = sum(w * (r[k] / maxes[k] if maxes[k] else 0)
+                          for k, w in GAME_SCORE_WEIGHTS.items())
+
+    byId = {p['id']: p for p in players}
+    # 同分时按伤害高者优先, 再按 participantId, 保证同一局在不同玩家的战绩里结果一致
+    order = sorted(scores, key=lambda pid: (-scores[pid], -byId[pid]['damage'], pid))
+
+    result = {pid: {'score': scores[pid], 'scoreRank': i + 1,
+                    'kp': raw[pid]['kp'], 'badge': None}
+              for i, pid in enumerate(order)}
+
+    teams = {p['teamId'] for p in players}
+    winners = [pid for pid in order if byId[pid]['win']]
+    losers = [pid for pid in order if not byId[pid]['win']]
+
+    if len(teams) == 2 and winners and losers:
+        result[winners[0]]['badge'] = 'MVP'
+        result[losers[0]]['badge'] = 'SVP'
+
+    return result
+
+
+def _pickScore(players, myId, remake):
+    """scoreGameParticipants 的结果里取出自己那一项, 转成 gamesInfo 用的字段"""
+    if myId is None or len(players) < 2:
+        return None
+
+    result = scoreGameParticipants(players).get(myId)
+    if not result:
+        return None
+
+    return {
+        'badge': None if remake else result['badge'],
+        'scoreRank': result['scoreRank'],
+        'scorePlayers': len(players),
+        'kp': result['kp'],
+    }
+
+
+def getGameScoreFromLcuDetail(detail, puuid):
+    """
+    由 LCU `/lol-match-history/v1/games/{gameId}` 的完整对局算出 puuid 这名玩家的
+    MVP / SVP 徽章, 评分排名与参团率. 斗魂竞技场等多小队模式 / 数据不全时返回 None
+    """
+    try:
+        if not detail or detail.get('queueId') in (1700, 1710):
+            return None
+
+        identities = {
+            pi['participantId']: pi.get('player', {}).get('puuid')
+            for pi in detail.get('participantIdentities', [])}
+
+        players, myId, remake = [], None, False
+        for p in detail['participants']:
+            st = p['stats']
+            if st.get('playerSubteamId'):
+                return None
+
+            players.append({
+                'id': p['participantId'], 'teamId': p['teamId'],
+                'win': bool(st['win']), 'kills': st['kills'],
+                'deaths': st['deaths'], 'assists': st['assists'],
+                'damage': st.get('totalDamageDealtToChampions', 0),
+                'damageTaken': st.get('totalDamageTaken', 0),
+                'gold': st.get('goldEarned', 0),
+                'vision': st.get('visionScore', 0),
+            })
+
+            if identities.get(p['participantId']) == puuid:
+                myId = p['participantId']
+                remake = bool(st.get('gameEndedInEarlySurrender'))
+
+        return _pickScore(players, myId, remake)
+    except (KeyError, TypeError, AttributeError):
+        return None
+
+
+def getGameScoreFromSgpGame(game, puuid):
+    """与 getGameScoreFromLcuDetail 相同, 数据来自 SGP 战绩 (game 为其中的 'json')"""
+    try:
+        if not game or game.get('queueId') in (1700, 1710):
+            return None
+
+        players, myId, remake = [], None, False
+        for p in game['participants']:
+            if p.get('playerSubteamId'):
+                return None
+
+            players.append({
+                'id': p['participantId'], 'teamId': p['teamId'],
+                'win': bool(p['win']), 'kills': p['kills'],
+                'deaths': p['deaths'], 'assists': p['assists'],
+                'damage': p.get('totalDamageDealtToChampions', 0),
+                'damageTaken': p.get('totalDamageTaken', 0),
+                'gold': p.get('goldEarned', 0),
+                'vision': p.get('visionScore', 0),
+            })
+
+            if p.get('puuid') == puuid:
+                myId = p['participantId']
+                remake = bool(p.get('gameEndedInEarlySurrender'))
+
+        return _pickScore(players, myId, remake)
+    except (KeyError, TypeError, AttributeError):
+        return None
+
+
+async def gameParticipantsFromLcuDetail(detail):
+    """
+    生涯页每局右侧的玩家列表 [{'teamId', 'championIcon', 'name', 'puuid'}], 按队伍排 (100 在前).
+    完整对局取不到时为 []
+    """
+    if not detail:
+        return []
+
+    identities = {pi['participantId']: pi.get('player', {})
+                  for pi in detail.get('participantIdentities', [])}
+
+    players = []
+    for p in detail.get('participants', []):
+        player = identities.get(p.get('participantId'), {})
+        players.append({
+            'teamId': p.get('teamId') or 0,
+            'championIcon': await connector.getChampionIcon(p.get('championId') or 0),
+            'name': player.get('gameName') or player.get('summonerName') or '',
+            'puuid': player.get('puuid'),
+        })
+
+    players.sort(key=lambda x: x['teamId'])
+    return players
+
+
+async def attachGameScores(gamesInfo, puuid):
+    """
+    对局信息页用: 为 parseGameData 得到的每局补上 MVP / SVP 徽章, 评分排名与参团率
+    (LCU 战绩列表只有自己的数据, 需逐局拉完整对局). 拉取失败的局不显示徽章.
+
+    @return: 与 gamesInfo 对齐的完整对局列表 (失败处为 None), 供调用方复用
+    """
+    details = await asyncio.gather(
+        *[connector.getGameDetailByGameIdQuietly(game['gameId'])
+          for game in gamesInfo],
+        return_exceptions=True)
+    details = [d if isinstance(d, dict) else None for d in details]
+
+    for game, detail in zip(gamesInfo, details):
+        score = getGameScoreFromLcuDetail(detail, puuid)
+        if score:
+            game.update(score)
+
+    return details
+
+
+def summarizeGames(games, championId=0, limit=3):
+    """
+    对局信息页左侧概览用的近期战绩汇总 (OP.GG 风格), 只用已拉取的 games, 不发请求.
+
+    @param games: parseGameData / parseGamesDataFromSGP 的结果 (允许含 None)
+    @param championId: 当前所选英雄, 为 0 时不统计 currentChampion
+    @return: {
+        'topChampions': 最常用的至多 limit 个英雄
+            [{'championId', 'icon', 'games', 'wins', 'losses', 'kda'}],
+        'positions': 排位分路按场次降序 [(positionKey, count)],
+        'streak': 最近连续的非重开局 ('win' | 'lose', n), 没有则 None,
+        'currentChampion': 当前英雄的 {'games', 'wins', 'losses', 'kda'}, 没有则 None,
+        'mvp' / 'svp': 拿到 MVP / SVP 的局数,
+    }
+    重开局不计入胜负与 KDA.
+    """
+    games = [g for g in games or [] if g and not g.get('remake')]
+
+    champions = {}
+    positions = {}
+
+    for game in games:
+        cid = game['championId']
+        item = champions.setdefault(cid, {
+            'championId': cid, 'icon': game.get('championIcon'),
+            'games': 0, 'wins': 0, 'losses': 0,
+            'kills': 0, 'deaths': 0, 'assists': 0})
+
+        item['games'] += 1
+        item['wins' if game['win'] else 'losses'] += 1
+        item['kills'] += game['kills']
+        item['deaths'] += game['deaths']
+        item['assists'] += game['assists']
+
+        key = game.get('positionKey')
+        if key:
+            positions[key] = positions.get(key, 0) + 1
+
+    def finish(item):
+        ret = {k: item[k] for k in
+               ('championId', 'icon', 'games', 'wins', 'losses')}
+        ret['kda'] = (item['kills'] + item['assists']) / max(item['deaths'], 1)
+        return ret
+
+    # 场次相同的英雄保持最近出场的顺序 (dict 按首次出现排序, sort 稳定)
+    topChampions = sorted(champions.values(),
+                          key=lambda x: x['games'], reverse=True)[:limit]
+
+    streak = None
+    if games:
+        result = games[0]['win']
+        n = 0
+        for game in games:
+            if game['win'] != result:
+                break
+            n += 1
+        streak = ('win' if result else 'lose', n)
+
+    current = champions.get(championId) if championId else None
+
+    return {
+        'mvp': sum(1 for g in games if g.get('badge') == 'MVP'),
+        'svp': sum(1 for g in games if g.get('badge') == 'SVP'),
+        'topChampions': [finish(item) for item in topChampions],
+        'positions': sorted(positions.items(), key=lambda x: x[1], reverse=True),
+        'streak': streak,
+        'currentChampion': finish(current) if current else None,
+    }
 
 
 async def revealHiddenAllies(myTeam, currentPuuid):
@@ -1189,11 +1517,14 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
                  for game in origGamesInfo["games"][:11]]
         gamesInfo = await asyncio.gather(*tasks)
 
+    # MVP / SVP 等需要每局的完整数据; 顺便复用第一局给下面的队友判断
+    details = await attachGameScores(gamesInfo, puuid)
+
     _, kill, deaths, assists, wins, losses = parseGames(gamesInfo)
 
     teammatesInfo = [
         getTeammates(
-            await connector.getGameDetailByGameId(game["gameId"]),
+            details[0] or await connector.getGameDetailByGameId(game["gameId"]),
             puuid
         ) for game in gamesInfo[:1]  # 避免空报错, 查上一局的队友(对手)
     ]
@@ -1489,28 +1820,21 @@ async def parseGamesDataFromSGP(game, puuid):
     cs = participant['totalMinionsKilled'] + \
         participant['neutralMinionsKilled']
     gold = participant['goldEarned']
+    damage = participant.get('totalDamageDealtToChampions', 0)
+    visionScore = participant.get('visionScore', 0)
+    multiKill = participant.get('largestMultiKill', 0)
     remake = participant['gameEndedInEarlySurrender']
     win = participant['win']
 
-    lane = participant['lane']
-    role = participant['role']
+    positionKey = getPositionKey(
+        queueId, participant['lane'], participant['role'])
+    position = translatePositionKey(positionKey)
 
-    position = None
-    tt = ToolsTranslator()
-
-    if queueId in [420, 440]:
-        if lane == 'TOP':
-            position = tt.top
-        elif lane == "JUNGLE":
-            position = tt.jungle
-        elif lane == 'MIDDLE':
-            position = tt.middle
-        elif role == 'SUPPORT':
-            position = tt.support
-        elif lane == 'BOTTOM' and role == 'CARRY':
-            position = tt.bottom
+    # SGP 战绩本身带全部 10 人数据, MVP / SVP 不用额外请求
+    score = getGameScoreFromSgpGame(game, puuid) or {}
 
     return {
+        **score,
         'queueId': queueId,
         'gameId': gameId,
         'time': time,
@@ -1518,6 +1842,7 @@ async def parseGamesDataFromSGP(game, puuid):
         'name': modeName,
         'map': mapName,
         'duration': duration,
+        'durationSecs': game['gameDuration'],
         'remake': remake,
         'win': win,
         'championId': championId,
@@ -1533,8 +1858,13 @@ async def parseGamesDataFromSGP(game, puuid):
         'runeIcon': runeIcon,
         'cs': cs,
         'gold': gold,
+        'damage': damage,
+        'visionScore': visionScore,
+        'multiKill': multiKill,
+        'gameMode': game.get('gameMode'),
         'timeStamp': timeStamp,
         'position': position,
+        'positionKey': positionKey,
     }
 
 

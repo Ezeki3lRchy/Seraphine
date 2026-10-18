@@ -1097,11 +1097,7 @@ class MainWindow(FluentWindow):
             info = await parseGameInfoByGameflowSession(
                 session, currentSummonerId, "ally", useSGP=True)
 
-            self.gameInfoInterface.allyChampions = {}
-            self.gameInfoInterface.allyOrder = []
-
-            self.gameInfoInterface.summonersView.ally.clear()
-            self.gameInfoInterface.allyGamesView.clear()
+            self.gameInfoInterface.clearAlly()
 
             self.gameInfoInterface.updateAllySummoners(info)
 
@@ -1124,9 +1120,7 @@ class MainWindow(FluentWindow):
             if order == interface.allyOrder or len(order) != len(interface.allyOrder):
                 return
 
-            interface.summonersView.ally.updateSummonersOrder(order)
-            interface.allyGamesView.updateOrder(order)
-            interface.allyOrder = order
+            interface.setAllyOrder(order)
 
         # 绘制提示组队的颜色
         async def paintTeamColor():
