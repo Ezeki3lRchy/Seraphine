@@ -741,6 +741,54 @@ class LolClientConnector(QObject):
 
         return await res.json()
 
+    async def getChampionMasteryQuietly(self, puuid):
+        '''
+        任意玩家的英雄成就 (熟练度), {championId: {'level', 'points'}}.
+        对局信息页展示用, 与 getGameDetailByGameIdQuietly 一样不重试不弹窗, 失败返回 {}
+        '''
+        try:
+            async with self.semaphore:
+                res = await self.__get(
+                    f"/lol-champion-mastery/v1/{puuid}/champion-mastery")
+                if res.status != 200:
+                    res.release()
+                    return {}
+
+                data = await res.json()
+        except Exception as e:
+            logger.warning(
+                f"getChampionMasteryQuietly({puuid}) failed: {e!r}", TAG)
+            return {}
+
+        if not isinstance(data, list):
+            return {}
+
+        return {item['championId']: {'level': item.get('championLevel', 0),
+                                     'points': item.get('championPoints', 0)}
+                for item in data
+                if isinstance(item, dict) and 'championId' in item}
+
+    async def getGameDetailByGameIdQuietly(self, gameId):
+        '''
+        与 getGameDetailByGameId 相同, 但只给可有可无的展示 (MVP / SVP 徽章) 用:
+        不走 @retry (失败不重试, 也不弹 lcuApiExceptionRaised), 任何失败返回 None.
+        对局信息页一次会为每名玩家的每局各请求一次.
+        '''
+        try:
+            async with self.semaphore:
+                res = await self.__get(f"/lol-match-history/v1/games/{gameId}")
+                if res.status != 200:
+                    res.release()
+                    return None
+
+                data = await res.json()
+        except Exception as e:
+            logger.warning(
+                f"getGameDetailByGameIdQuietly({gameId}) failed: {e!r}", TAG)
+            return None
+
+        return data if isinstance(data, dict) and data.get('participants') else None
+
     @retry()
     async def getRankedStatsByPuuid(self, puuid):
         res = await self.__get(f"/lol-ranked/v1/ranked-stats/{puuid}")
@@ -1386,6 +1434,11 @@ class LolClientConnector(QObject):
 class JsonManager:
     def __init__(self, itemData, spellData, runeData, queueData, champions, skins, perks, augments):
         self.items = {item["id"]: item["iconPath"] for item in itemData}
+        # 物品悬浮提示用: 名称 / 总价 / 描述 (描述是 LoL 自定义标签的富文本)
+        self.itemInfo = {item["id"]: {"name": item.get("name", ""),
+                                      "description": item.get("description", ""),
+                                      "priceTotal": item.get("priceTotal", 0)}
+                         for item in itemData}
         self.spells = {item["id"]: item["iconPath"] for item in spellData[:-3]}
         self.runes = {item["id"]: {"icon": item["iconPath"],
                                    'name': item['name'],
@@ -1449,6 +1502,9 @@ class JsonManager:
         self.cherryAugments = {
             item['id']: item
             for item in augments}
+
+    def getItemInfo(self, itemId):
+        return self.itemInfo.get(itemId)
 
     def getItemIconPath(self, iconId):
         if iconId != 0:

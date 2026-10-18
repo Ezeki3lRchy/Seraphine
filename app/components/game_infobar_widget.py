@@ -9,6 +9,7 @@ from app.common.config import cfg
 from app.components.champion_icon_widget import RoundIcon, RoundedLabel
 from app.components.color_label import ColorLabel, DeathsLabel
 from app.components.animation_frame import CardWidget, ColorAnimationFrame
+from app.components.match_widgets import ItemIcon
 
 
 class RoundLevel(QFrame):
@@ -171,9 +172,9 @@ class ItemsKdaCsGold(QFrame):
     def __initLayout(self, items):
         self.itemsLayout.setSpacing(0)
 
-        for item in items:
-            image = RoundedLabel(item, 1)
-            image.setFixedSize(34, 34)
+        # items: [(图标, 物品 id)], 悬浮显示物品详情
+        for icon, itemId in items:
+            image = ItemIcon(icon, itemId, 34, radius=1, borderWidth=2)
 
             self.itemsLayout.addWidget(image)
 
@@ -266,7 +267,8 @@ class GameInfoBar(ColorAnimationFrame):
             game["runeIcon"],
         )
         self.itemsKdaCsGold = ItemsKdaCsGold(
-            game["itemIcons"],
+            list(zip(game["itemIcons"],
+                     game.get("itemIds") or [0] * len(game["itemIcons"]))),
             game["kills"],
             game["deaths"],
             game["assists"],

@@ -25,6 +25,7 @@ from app.common.icons import Icon
 from app.common.config import cfg
 from app.common.signals import signalBus
 from app.components.champion_icon_widget import RoundIcon, RoundedLabel
+from app.components.match_widgets import ItemIcon
 from app.components.search_line_edit import SearchLineEdit
 from app.components.summoner_name_button import SummonerName
 from app.components.animation_frame import ColorAnimationFrame, CardWidget
@@ -800,10 +801,10 @@ class SummonerInfoBar(QFrame):
         self.levelLabel.setFixedWidth(20)
 
         self.items = []
-        for icon in summoner['itemIcons']:
-            label = RoundedLabel(icon, 0)
-            label.setFixedSize(23, 23)
-            self.items.append(label)
+        itemIds = summoner.get('itemIds') or [0] * len(summoner['itemIcons'])
+        for icon, itemId in zip(summoner['itemIcons'], itemIds):
+            # 悬浮显示物品详情
+            self.items.append(ItemIcon(icon, itemId, 23, radius=0, borderWidth=2))
 
         if summoner["rankInfo"]:
             if summoner['rankIcon'] != None and summoner['rankIcon'] != '':

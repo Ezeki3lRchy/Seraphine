@@ -275,6 +275,7 @@ async def parseGameData(game):
         'deaths': deaths,
         'assists': assists,
         'itemIcons': itemIcons,
+        'itemIds': itemIds,
         'runeIcon': runeIcon,
         'cs': cs,
         'gold': gold,
@@ -461,6 +462,7 @@ async def parseGameDetailData(puuid, game):
                     'spell1Icon': spell1Icon,
                     'spell2Icon': spell2Icon,
                     'itemIcons': itemIcons,
+                    'itemIds': itemIds,
                     'kills': kills,
                     'deaths': deaths,
                     'assists': assists,
@@ -1152,6 +1154,9 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
     if puuid == "00000000-0000-0000-0000-000000000000" or not puuid:
         return None
 
+    # 英雄成就 (熟练度) 与战绩并行拉取, 失败为 {}
+    masteryTask = asyncio.ensure_future(connector.getChampionMasteryQuietly(puuid))
+
     try:
         origRankInfo = await connector.getRankedStatsByPuuid(puuid)
     except SummonerRankInfoNotFound:
@@ -1230,7 +1235,9 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
         "fateFlag": fateFlag,
         "isPublic": summoner["privacy"] == "PUBLIC",
         # 最近游戏的英雄 (用于上一局与与同一召唤师游玩之后显示)
-        "recentlyChampionName": recentlyChampionName
+        "recentlyChampionName": recentlyChampionName,
+        # {championId: {'level', 'points'}}
+        "mastery": await masteryTask,
     }
 
 
@@ -1245,6 +1252,9 @@ async def getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId):
 
     if puuid == "00000000-0000-0000-0000-000000000000" or not puuid:
         return None
+
+    # 英雄成就 (熟练度) 与战绩并行拉取, 失败为 {}
+    masteryTask = asyncio.ensure_future(connector.getChampionMasteryQuietly(puuid))
 
     championId = item.get('championId') or 0
     icon = await connector.getChampionIcon(championId)
@@ -1365,7 +1375,9 @@ async def getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId):
         "fateFlag": fateFlag,
         "isPublic": summoner["privacy"] == "PUBLIC",
         # 最近游戏的英雄 (用于上一局与与同一召唤师游玩之后显示)
-        "recentlyChampionName": recentlyChampionName
+        "recentlyChampionName": recentlyChampionName,
+        # {championId: {'level', 'points'}}
+        "mastery": await masteryTask,
     }
 
 
@@ -1517,6 +1529,7 @@ async def parseGamesDataFromSGP(game, puuid):
         'deaths': deaths,
         'assists': assists,
         'itemIcons': itemIcons,
+        'itemIds': itemIds,
         'runeIcon': runeIcon,
         'cs': cs,
         'gold': gold,
