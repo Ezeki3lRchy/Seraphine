@@ -123,5 +123,35 @@ class SeasonRecordTest(unittest.TestCase):
         self.assertEqual((r["solo"]["wins"], r["solo"]["losses"]), (0, 0))
 
 
+
+
+class MergeRankedPageTest(unittest.TestCase):
+    """Ranked-filter paging: the LCU repeats already-returned games past the end
+    of a player's history; those must not be appended again."""
+
+    @staticmethod
+    def key(game):
+        return game["q"], game["id"]
+
+    def test_skips_seen_and_non_ranked(self):
+        games, seen = [], {1}
+        page = [{"q": 420, "id": 1}, {"q": 450, "id": 2}, {"q": 440, "id": 3}]
+        self.assertTrue(tools.mergeRankedPage(games, page, seen, self.key))
+        self.assertEqual([g["id"] for g in games], [3])
+        self.assertEqual(seen, {1, 2, 3})
+
+    def test_page_with_only_old_games_reports_no_progress(self):
+        games, seen = [], {1, 2}
+        page = [{"q": 420, "id": 1}, {"q": 420, "id": 2}]
+        self.assertFalse(tools.mergeRankedPage(games, page, seen, self.key))
+        self.assertEqual(games, [])
+
+    def test_new_non_ranked_page_still_counts_as_progress(self):
+        games, seen = [], set()
+        self.assertTrue(tools.mergeRankedPage(
+            games, [{"q": 450, "id": 9}], seen, self.key))
+        self.assertEqual(games, [])
+
+
 if __name__ == "__main__":
     unittest.main()

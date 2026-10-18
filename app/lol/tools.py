@@ -1470,6 +1470,28 @@ async def parseGamesDataConcurrently(games):
     return await asyncio.gather(*tasks)
 
 
+def mergeRankedPage(games, page, seen, key):
+    """
+    把一页战绩里的排位局 (420 / 440) 追加到 games, 跳过 seen 里已有的 gameId.
+
+    @param seen: 已见过的 gameId 集合 (含非排位局), 会被更新
+    @param key: game -> (queueId, gameId)
+    @return: 这一页有没有新的对局 (不论是否排位); 没有说明已翻到历史尽头
+    """
+    fresh = False
+    for game in page:
+        queueId, gameId = key(game)
+        if gameId in seen:
+            continue
+
+        seen.add(gameId)
+        fresh = True
+        if queueId in (420, 440):
+            games.append(game)
+
+    return fresh
+
+
 async def parseSummonerGameInfo(item, isRank, currentSummonerId):
     summonerId = item.get('summonerId', None)
 
@@ -1504,17 +1526,22 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
             puuid, 0, 14)
 
         if cfg.get(cfg.gameInfoFilter) and isRank:
-            origGamesInfo["games"] = [
-                game for game in origGamesInfo["games"] if game["queueId"] in (420, 440)]
+            def lcuKey(game):
+                return game["queueId"], game["gameId"]
+
+            firstPage = origGamesInfo["games"]
+            seen = {lcuKey(game)[1] for game in firstPage}
+            origGamesInfo["games"] = []
+            mergeRankedPage(origGamesInfo["games"], firstPage, set(), lcuKey)
 
             begIdx = 15
             while len(origGamesInfo["games"]) < 11 and begIdx <= 95:
                 endIdx = begIdx + 5
                 new = (await connector.getSummonerGamesByPuuid(puuid, begIdx, endIdx))["games"]
 
-                for game in new:
-                    if game["queueId"] in (420, 440):
-                        origGamesInfo['games'].append(game)
+                # 超出历史范围时 LCU 会重复返回已拿到的对局: 去重, 整页都是旧的就停
+                if not mergeRankedPage(origGamesInfo["games"], new, seen, lcuKey):
+                    break
 
                 begIdx = endIdx + 1
     except:
@@ -1614,17 +1641,22 @@ async def getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId):
         origGamesInfo = await connector.getSummonerGamesByPuuidViaSGP(puuid, 0, 14)
 
         if cfg.get(cfg.gameInfoFilter) and isRank:
-            origGamesInfo["games"] = [
-                game for game in origGamesInfo["games"] if game['json']["queueId"] in (420, 440)]
+            def sgpKey(game):
+                return game['json']["queueId"], game['json']["gameId"]
+
+            firstPage = origGamesInfo["games"]
+            seen = {sgpKey(game)[1] for game in firstPage}
+            origGamesInfo["games"] = []
+            mergeRankedPage(origGamesInfo["games"], firstPage, set(), sgpKey)
 
             begIdx = 15
             while len(origGamesInfo["games"]) < 11 and begIdx <= 95:
                 endIdx = begIdx + 10
                 new = (await connector.getSummonerGamesByPuuidViaSGP(puuid, begIdx, endIdx))["games"]
 
-                for game in new:
-                    if game['json']["queueId"] in (420, 440):
-                        origGamesInfo['games'].append(game)
+                # 同 LCU: 去重, 整页都是旧的就停
+                if not mergeRankedPage(origGamesInfo["games"], new, seen, sgpKey):
+                    break
 
                 begIdx = endIdx + 1
     except:
