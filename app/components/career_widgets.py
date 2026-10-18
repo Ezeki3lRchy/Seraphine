@@ -65,6 +65,7 @@ class RankCard(QFrame):
 
     def __init__(self, title, parent=None):
         super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.vBoxLayout = QVBoxLayout(self)
         self.mainLayout = QHBoxLayout()
         self.tierLayout = QVBoxLayout()
@@ -232,6 +233,7 @@ class RecentSummaryCard(QFrame):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.hBoxLayout = QHBoxLayout(self)
 
         self.donut = DonutChart()

@@ -469,6 +469,7 @@ class PlayerHeader(ColorAnimationFrame):
     def __init__(self, info: dict, aramInfo=None, parent=None):
         super().__init__(type='default', parent=parent)
         self._pressedBackgroundColor = self._hoverBackgroundColor
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
         self.info = info
         self.gamesInfo = [g for g in info.get('gamesInfo') or [] if g]
