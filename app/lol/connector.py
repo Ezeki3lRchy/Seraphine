@@ -942,6 +942,7 @@ class LolClientConnector(QObject):
 
             if res.status != 200:
                 logger.error(f"reveal-hidden: {path} -> {res.status}", TAG)
+                res.release()
                 return []
 
             data = await res.json(content_type=None)

@@ -240,6 +240,15 @@ class MainWindow(FluentWindow):
 
         # 组队大厅成员战绩: puuid 缓存 (只查新成员) + 防抖 (合并连续成员变动)
         self._lobbyGameInfoCache = {}
+
+        # 选人阶段揭示隐藏队友: 队友是陆续进入选人聊天房的, 开局那一次只能拿到一部分,
+        # 之后在选人事件里节流地重读名单, 名单变长就用缓存重新解析 (只为新队友发请求)
+        self._allyGameInfoCache = {}
+        self._champSelectEpoch = 0
+        self._champSelectReady = False
+        self._revealRefreshing = False
+        self._lastRevealRefresh = 0.0
+        self._revealParticipantCount = 0
         self._lobbyRefreshTimer = QTimer(self)
         self._lobbyRefreshTimer.setSingleShot(True)
         self._lobbyRefreshTimer.setInterval(800)
@@ -844,6 +853,10 @@ class MainWindow(FluentWindow):
         title = None
         isGaming = False
 
+        # 离开选人后不再补揭示隐藏队友 (见 __refreshHiddenAllies)
+        if status != 'ChampSelect':
+            self._champSelectReady = False
+
         if status == 'None':
             title = self.tr("Home")
             await self.__onGameEnd()
@@ -972,6 +985,13 @@ class MainWindow(FluentWindow):
     # 进入英雄选择界面时触发
     async def __onChampionSelectBegin(self):
         self.championSelection.reset()
+
+        self._champSelectEpoch += 1
+        self._champSelectReady = False
+        self._allyGameInfoCache = {}
+        self._revealParticipantCount = 0
+        self._lastRevealRefresh = time.monotonic()
+
         session = await connector.getChampSelectSession()
 
         if cfg.get(cfg.autoShowOpgg):
@@ -982,10 +1002,58 @@ class MainWindow(FluentWindow):
 
         currentSummonerId = self.currentSummoner['summonerId']
         info = await parseAllyGameInfo(session, currentSummonerId, useSGP=True,
-                                       currentPuuid=self.currentSummoner.get('puuid'))
+                                       currentPuuid=self.currentSummoner.get('puuid'),
+                                       cache=self._allyGameInfoCache)
         self.gameInfoInterface.updateAllySummoners(info)
+        self._champSelectReady = True
 
         self.checkAndSwitchTo(self.gameInfoInterface)
+
+    async def __refreshHiddenAllies(self, session):
+        """
+        选人中仍有队友没显示时, 节流 (2s) 重读 Riot Client 选人聊天房名单;
+        名单比上次长就重新解析己方 (缓存命中的队友不再请求), 直到 5 人齐全
+        """
+        if not cfg.get(cfg.revealHiddenTeammates) or not self._champSelectReady:
+            return
+
+        if self._revealRefreshing:
+            return
+
+        myTeam = session.get('myTeam') or []
+        if len(self.gameInfoInterface.allyOrder) >= len(myTeam):
+            return
+
+        now = time.monotonic()
+        if now - self._lastRevealRefresh < 2:
+            return
+
+        self._lastRevealRefresh = now
+        self._revealRefreshing = True
+        epoch = self._champSelectEpoch
+
+        try:
+            participants = await connector.getChampSelectChatParticipants()
+            if len(participants) <= self._revealParticipantCount:
+                return
+
+            self._revealParticipantCount = len(participants)
+
+            info = await parseAllyGameInfo(
+                session, self.currentSummoner['summonerId'], useSGP=True,
+                currentPuuid=self.currentSummoner.get('puuid'),
+                cache=self._allyGameInfoCache)
+
+            # 解析期间可能已离开这次选人 (秒退 / 进游戏), 结果作废
+            if epoch != self._champSelectEpoch or not self._champSelectReady:
+                return
+
+            if len(info['summoners']) > len(self.gameInfoInterface.allyOrder):
+                self.gameInfoInterface.updateAllySummoners(info)
+        except Exception as e:
+            logger.error(f"reveal-hidden: refresh failed: {e!r}", TAG)
+        finally:
+            self._revealRefreshing = False
 
     # 英雄选择时，英雄改变 / 楼层改变时触发
     @asyncSlot(dict)
@@ -1007,6 +1075,9 @@ class MainWindow(FluentWindow):
 
         # 更新楼层顺序
         self.gameInfoInterface.updateAllySummonersOrder(data['myTeam'])
+
+        # 后进入聊天房的隐藏队友
+        await self.__refreshHiddenAllies(data)
 
     # 进入游戏后触发
     async def __onGameStart(self):

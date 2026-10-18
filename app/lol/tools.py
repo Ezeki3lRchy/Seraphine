@@ -862,7 +862,15 @@ async def fillRevealedSummonerIds(team):
         await asyncio.gather(*tasks)
 
 
-async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuuid=None):
+async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuuid=None,
+                            cache=None):
+    '''
+    @param cache: {puuid: summoner_dict} 同一次选人内复用; 队友陆续进入聊天房后重新解析时
+        (见 MainWindow.__refreshHiddenAllies), 只为新揭示的队友发请求
+    '''
+    if cache is None:
+        cache = {}
+
     # 排位会有预选位
     isRank = bool(session["myTeam"][0]["assignedPosition"])
 
@@ -872,23 +880,40 @@ async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuu
     if cfg.get(cfg.revealHiddenTeammates):
         myTeam = await revealHiddenAllies(myTeam, currentPuuid)
 
+    def cached(fetch):
+        async def resolve(item):
+            puuid = item.get('puuid')
+            if puuid and cache.get(puuid):
+                summoner = dict(cache[puuid])
+                summoner['cellId'] = item.get('cellId')
+                summoner['selectedPosition'] = item.get('selectedPosition')
+                championId = item.get('championId') or 0
+                if championId != summoner['championId']:
+                    summoner['championId'] = championId
+                    summoner['icon'] = await connector.getChampionIcon(championId)
+                return summoner
+
+            summoner = await fetch(item, isRank, currentSummonerId)
+            if summoner and summoner.get('puuid'):
+                cache[summoner['puuid']] = summoner
+            return summoner
+
+        return resolve
+
     if useSGP and connector.isInTencent():
         # 如果是国服就优先尝试 SGP
         try:
-            tasks = [getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId)
-                     for item in myTeam]
-            summoners = await asyncio.gather(*tasks)
+            resolve = cached(getSummonerGamesInfoViaSGP)
+            summoners = await asyncio.gather(*[resolve(item) for item in myTeam])
         except:
             await fillRevealedSummonerIds(myTeam)
-            tasks = [parseSummonerGameInfo(item, isRank, currentSummonerId)
-                     for item in myTeam]
-            summoners = await asyncio.gather(*tasks)
+            resolve = cached(parseSummonerGameInfo)
+            summoners = await asyncio.gather(*[resolve(item) for item in myTeam])
 
     else:
         await fillRevealedSummonerIds(myTeam)
-        tasks = [parseSummonerGameInfo(item, isRank, currentSummonerId)
-                 for item in myTeam]
-        summoners = await asyncio.gather(*tasks)
+        resolve = cached(parseSummonerGameInfo)
+        summoners = await asyncio.gather(*[resolve(item) for item in myTeam])
 
     summoners = [summoner for summoner in summoners if summoner]
 
