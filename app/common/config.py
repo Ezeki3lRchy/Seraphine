@@ -60,12 +60,13 @@ class Config(QConfig):
                                  LanguageSerializer(),
                                  restart=True)
 
+    # 胜 / 负 / 重开卡片颜色 (#AARRGGBB): OP.GG 同款蓝 / 红, 灰
     winCardColor = ColorConfigItem(
-        "Personalization", "WinCardColor", '#2839b01b')
+        "Personalization", "WinCardColor", '#285383e8')
     loseCardColor = ColorConfigItem(
-        "Personalization", "LoseCardColor", '#28d3190c')
+        "Personalization", "LoseCardColor", '#28e84057')
     remakeCardColor = ColorConfigItem(
-        "Personalization", "RemakeCardColor", '#28a2a2a2')
+        "Personalization", "RemakeCardColor", '#289aa1ae')
 
     lightDeathsNumberColor = ColorConfigItem(
         "Personalization", "LightDeathsNumberColor", "#ffb60000")
