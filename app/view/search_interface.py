@@ -28,6 +28,7 @@ from app.components.champion_icon_widget import RoundIcon, RoundedLabel
 from app.components.match_widgets import ItemIcon
 from app.components.match_detail_widgets import DetailTeamTable, TeamCompareBar, teamMaxima
 from app.components.match_build_widgets import DetailModeBar, MatchBuildView
+from app.components.match_graph_widgets import MatchGraphView
 from app.components.design_tokens import palette, numberFont, textFont, deathsColor
 from app.components.scoreboard import (cachedContent, drawText, drawRuns, runsWidth,
                                        drawChampion, drawResultCard, stripeColor,
@@ -302,9 +303,10 @@ class GameDetailView(QFrame):
         self.extraTeamView5 = TeamView()
         self.extraTeamView6 = TeamView()
 
-        # 概览 / 出装 切换 (出装视图按需加载, 切换对局时保留所选模式)
+        # 概览 / 出装 / 图表 切换 (出装与图表共用一次按需加载, 切换对局时保留所选模式)
         self.modeBar = DetailModeBar()
         self.buildView = MatchBuildView()
+        self.graphView = MatchGraphView()
         self.detailMode = 0
         self.game = None
         self.buildGameId = None
@@ -349,6 +351,7 @@ class GameDetailView(QFrame):
 
         self.modeBar = DetailModeBar()
         self.buildView = MatchBuildView()
+        self.graphView = MatchGraphView()
         self.game = None
         self.buildGameId = None
 
@@ -378,6 +381,8 @@ class GameDetailView(QFrame):
         self.scrollLayout.addWidget(self.detailTeam2)
         self.scrollLayout.addWidget(self.buildView)
         self.buildView.setVisible(False)
+        self.scrollLayout.addWidget(self.graphView)
+        self.graphView.setVisible(False)
         self.scrollLayout.addWidget(self.teamView1)
         self.scrollLayout.addWidget(self.teamView2)
 
@@ -484,12 +489,21 @@ class GameDetailView(QFrame):
             self.extraTeamView6.updateTeam(team8, isCherry, self.tr("8th"))
             self.extraTeamView6.updateSummoners(team8["summoners"])
 
-        # 概览 / 出装 切换 (斗魂竞技场没有出装视图)
+        # 概览 / 出装 / 图表 切换 (斗魂竞技场没有出装与图表)
         self.game = game
         self.modeBar.setVisible(not isCherry)
         if not isCherry:
             self.modeBar.setPlayers(team1["summoners"], team2["summoners"])
             self.modeBar.setMode(self.detailMode)
+
+            def label(name, team):
+                result = self.tr("Victory") if team.get('win') == 'Win' else self.tr("Defeat")
+                return f"{name} · {result}"
+
+            self.graphView.setPlayers(team1["summoners"], team2["summoners"],
+                                      (label(self.tr("Blue team"), team1),
+                                       label(self.tr("Red team"), team2)),
+                                      self.modeBar.selected)
         self.__applyDetailMode()
 
     def __onDetailModeChanged(self, mode):
@@ -500,19 +514,23 @@ class GameDetailView(QFrame):
         game = self.game
         twoTeams = bool(game) and game["queueId"] != 1700
         build = twoTeams and self.detailMode == 1
+        graphs = twoTeams and self.detailMode == 2
 
         for w in (self.detailTeam1, self.compareBar, self.detailTeam2):
-            w.setVisible(twoTeams and not build)
+            w.setVisible(twoTeams and not build and not graphs)
         self.buildView.setVisible(build)
+        self.graphView.setVisible(graphs)
 
-        if build and self.buildGameId != game['gameId']:
+        # 出装与图表用同一份数据 (时间线), 每局只加载一次
+        if (build or graphs) and self.buildGameId != game['gameId']:
             self.buildGameId = game['gameId']
             self.buildView.setLoading()
+            self.graphView.setLoading()
             # 持有 task 引用, 防止被回收
             self.buildTask = asyncio.ensure_future(
-                self.__loadBuild(game['gameId'], self.buildView))
+                self.__loadBuild(game['gameId'], self.buildView, self.graphView))
 
-    async def __loadBuild(self, gameId, view):
+    async def __loadBuild(self, gameId, view, graphView):
         try:
             data = await loadGameBuildData(gameId)
         except CancelledError:
@@ -522,11 +540,12 @@ class GameDetailView(QFrame):
                            f"{traceback.format_exc()}", TAG)
             data = None
 
-        # 加载期间切换了对局 (clear() 会换掉 buildView): 丢弃旧结果
-        if self.buildGameId != gameId or view is not self.buildView:
+        # 加载期间切换了对局 (clear() 会换掉 buildView / graphView): 丢弃旧结果
+        if self.buildGameId != gameId or view is not self.buildView                 or graphView is not self.graphView:
             return
 
         view.setData(data, self.modeBar.selected)
+        graphView.setData(data)
 
 
 class TeamView(QFrame, ColorChangeable):

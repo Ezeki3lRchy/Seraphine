@@ -1,8 +1,8 @@
 """
 对局详情 (搜索页右侧) 的 "出装" 视图, 仿 OP.GG 对局的 Build 页:
 
-- DetailModeBar: 标题栏下的 "Overview / Build" 分段切换 + (Build 时) 10 名玩家的英雄头像条, 点头像
-  切换查看的玩家;
+- DetailModeBar: 标题栏下的 "Overview / Build / Graphs" 分段切换 + (Build 时) 10 名玩家的英雄头像条,
+  点头像切换查看的玩家 (Graphs 有自己的多选开关, 见 match_graph_widgets.py);
 - MatchBuildView: 物品时间线 (按分钟分组, 组间箭头, 自动换行, 叠加计数 / 卖出标记) + 技能加点
   (主升顺序 + 1..18 级序列) + 符文页 (主系 / 副系, 选中全彩, 未选灰暗).
 
@@ -95,7 +95,7 @@ def drawChevron(p, center, color, size=4.5):
 
 class DetailModeBar(QWidget):
     """
-    标题栏下的一行:  [ Overview | Build ]                 名字  (蓝队 5 头像) | (红队 5 头像)
+    标题栏下的一行:  [ Overview | Build | Graphs ]        名字  (蓝队 5 头像) | (红队 5 头像)
     头像条只在 Build 时显示; 选中的头像金边全亮, 其余半透明
     """
 
@@ -112,7 +112,7 @@ class DetailModeBar(QWidget):
         super().__init__(parent)
         self.setFixedHeight(self.HEIGHT)
         self.setMouseTracking(True)
-        self.labels = [self.tr("Overview"), self.tr("Build")]
+        self.labels = [self.tr("Overview"), self.tr("Build"), self.tr("Graphs")]
         self.mode = 0
         self.teams = ([], [])     # [(participantId, QPixmap, name)] x 2
         self.selected = None

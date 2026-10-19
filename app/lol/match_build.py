@@ -6,6 +6,9 @@
 - 对局详情 participant.stats 的 perk0..5 / perkPrimaryStyle / perkSubStyle -> 符文页 (主系 4 行 +
   副系 3 行, 选中与否; 有 statPerk0..2 时再加属性碎片 3 行).
 
+- 时间线每分钟一帧的 participantFrames -> 每名玩家的经济 / 经验 / 补刀 (/ 对英雄伤害) 曲线
+  ("图表" 视图).
+
 注意: 目前 LCU 的 /lol-match-history/v1/game-timelines/{gameId} 实测只有 CHAMPION_KILL /
 ELITE_MONSTER_KILL / BUILDING_KILL 事件, 没有 ITEM_* / SKILL_LEVEL_UP; 这时改用 Riot 对局服务器
 (SGP) 的完整时间线 (connector.getGameTimelineViaSgpQuietly), 其 participantId 用
@@ -52,8 +55,9 @@ def _participantIdsByPuuid(detail):
 def remapTimelineParticipants(timeline, detail):
     """
     SGP 时间线 (participants: [{participantId, puuid}]) 的 participantId 按 puuid 换成 LCU 对局详情
-    (participantIdentities) 里的 participantId; 对不上的事件 (以及 participantId 0 的系统事件)
-    保持原样, 不会被归到任何玩家. 返回新的时间线, 不修改输入
+    (participantIdentities) 里的 participantId: 事件的 participantId 与每帧 participantFrames 的键
+    都换. 对不上的事件 (以及 participantId 0 的系统事件) 不会被归到任何玩家, 对不上的帧数据丢掉.
+    返回新的时间线, 不修改输入
     """
     if not isinstance(timeline, dict) or not isinstance(detail, dict):
         return timeline
@@ -80,7 +84,19 @@ def remapTimelineParticipants(timeline, detail):
                 # 对不上的玩家: 不能留着原编号, 否则会被算到同号的另一个人身上
                 event = dict(event, participantId=None)
             events.append(event)
-        frames.append(dict(frame, events=events))
+        frame = dict(frame, events=events)
+
+        participantFrames = frame.get('participantFrames')
+        if isinstance(participantFrames, dict):
+            remapped = {}
+            for key, value in participantFrames.items():
+                lcuId = mapping.get(_intOrNone(key))
+                if lcuId is not None:
+                    remapped[str(lcuId)] = dict(value, participantId=lcuId) \
+                        if isinstance(value, dict) else value
+            frame['participantFrames'] = remapped
+
+        frames.append(frame)
 
     return dict(timeline, frames=frames)
 
@@ -299,6 +315,66 @@ def parseGameBuilds(detail, timeline, perkStyles, statPerks=None):
                   'skills': parseSkillOrder(timeline, pid) if hasEvents else None,
                   'runes': parseRunePage(statsById.get(pid), perkStyles)}
             for pid in participantIds}
+
+
+SERIES_METRICS = ('gold', 'xp', 'cs', 'damage')
+
+
+def _frameValues(frame):
+    """一帧里一名玩家的 {gold, xp, cs, damage}; damage (对英雄伤害) 只有 Riot 对局服务器的帧有"""
+    damage = (frame.get('damageStats') or {}).get('totalDamageDoneToChampions')
+    return {'gold': frame.get('totalGold') or 0,
+            'xp': frame.get('xp') or 0,
+            'cs': (frame.get('minionsKilled') or 0) + (frame.get('jungleMinionsKilled') or 0),
+            'damage': damage}
+
+
+def parseTimelineSeries(timeline):
+    """
+    时间线每分钟一帧的成长曲线 (对局详情的 "图表" 视图):
+        {'minutes': [0.0, 1.0, ..., 21.3], 'metrics': ['gold', 'xp', 'cs'(, 'damage')],
+         'series': {participantId: {'gold': [...], 'xp': [...], 'cs': [...](, 'damage': [...])}}}
+    横轴取帧的 timestamp (分钟, 浮点; 最后一帧是对局结束的时刻, 不是整分钟); participantFrames 的
+    键就是 participantId. 某帧缺了某名玩家时沿用他上一帧的值; damage 只要有一帧缺就整项不提供.
+    少于 2 帧 (画不出线) 返回 None
+    """
+    if not isinstance(timeline, dict):
+        return None
+
+    frames = sorted((frame for frame in timeline.get('frames') or []
+                     if isinstance(frame, dict) and isinstance(frame.get('participantFrames'), dict)
+                     and frame['participantFrames']),
+                    key=lambda frame: frame.get('timestamp') or 0)
+    if len(frames) < 2:
+        return None
+
+    ids = sorted({pid for frame in frames for pid in map(_intOrNone, frame['participantFrames'])
+                  if pid})
+    series = {pid: {metric: [] for metric in SERIES_METRICS} for pid in ids}
+    hasDamage = True
+    for frame in frames:
+        participantFrames = frame['participantFrames']
+        for pid in ids:
+            data = participantFrames.get(str(pid), participantFrames.get(pid))
+            values = series[pid]
+            if isinstance(data, dict):
+                current = _frameValues(data)
+            else:
+                # 缺帧: 沿用上一帧 (第一帧缺就从 0 开始)
+                current = {metric: values[metric][-1] if values[metric] else 0
+                           for metric in SERIES_METRICS}
+            if current['damage'] is None:
+                hasDamage = False
+            for metric in SERIES_METRICS:
+                values[metric].append(current[metric])
+
+    metrics = [metric for metric in SERIES_METRICS if metric != 'damage' or hasDamage]
+    for values in series.values():
+        if not hasDamage:
+            del values['damage']
+
+    return {'minutes': [(frame.get('timestamp') or 0) / 60000 for frame in frames],
+            'metrics': metrics, 'series': series}
 
 
 def buildItemIds(builds):

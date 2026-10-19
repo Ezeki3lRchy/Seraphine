@@ -9,7 +9,8 @@ from PySide6.QtCore import QObject, QLocale
 from .exceptions import SummonerRankInfoNotFound
 from .chat_reveal import mergeHiddenTeammates, revealStats, isHiddenSlot
 from .match_build import (parseGameBuilds, buildItemIds, hasBuildEvents,
-                          remapTimelineParticipants, statPerksFromSummary)
+                          remapTimelineParticipants, statPerksFromSummary,
+                          parseTimelineSeries)
 from ..common.config import cfg, Language, isChineseText
 from ..common.logger import logger
 from ..lol.connector import connector
@@ -2519,25 +2520,34 @@ async def fixLCUWindowViaExe():
 
 async def loadGameBuildData(gameId):
     """
-    对局详情 "出装" 视图的数据, 从不抛异常:
+    对局详情 "出装" / "图表" 视图的数据, 从不抛异常:
         {'builds': {participantId: {'itemGroups', 'skills', 'runes'}},
-         'itemIcons': {itemId: 本地图标路径}, 'hasTimeline': 时间线里有出装 / 加点事件}
+         'itemIcons': {itemId: 本地图标路径}, 'hasTimeline': 时间线里有出装 / 加点事件,
+         'series': match_build.parseTimelineSeries 的结果 (每分钟的经济 / 经验 / 补刀) 或 None}
     符文来自对局详情的 perk0..5 (总能拿到), 属性碎片来自 Riot 对局服务器的 SUMMARY (拿不到就不显示),
     出装 / 加点来自时间线 (LCU 的没有时用 Riot 对局服务器的)
     """
     # SUMMARY 与下面的请求并行, 不额外增加等待
     summaryTask = asyncio.ensure_future(connector.getGameSummaryViaSgpQuietly(gameId))
-    detail, timeline = await asyncio.gather(
+    detail, localTimeline = await asyncio.gather(
         connector.getGameDetailByGameIdQuietly(gameId),
         connector.getGameTimelineQuietly(gameId))
 
     # LCU 时间线没有购买 / 加点事件时, 改用 Riot 对局服务器的完整时间线
+    timeline = localTimeline
     if not hasBuildEvents(timeline):
         sgpTimeline = await connector.getGameTimelineViaSgpQuietly(gameId)
         if hasBuildEvents(sgpTimeline):
             timeline = remapTimelineParticipants(sgpTimeline, detail)
 
     summary = await summaryTask
+
+    # 图表: Riot 对局服务器的帧多了对英雄伤害; 它的帧没能对上全部玩家时用本地时间线
+    # (本地帧的键本来就是对局详情的 participantId)
+    series = parseTimelineSeries(timeline) if timeline is not localTimeline else None
+    playerIds = {p.get('participantId') for p in (detail or {}).get('participants') or []}
+    if not series or (playerIds and set(series['series']) != playerIds):
+        series = parseTimelineSeries(localTimeline) or series
 
     manager = connector.manager
     builds = parseGameBuilds(detail, timeline, manager.getPerkStyles() if manager else None,
@@ -2550,4 +2560,5 @@ async def loadGameBuildData(gameId):
         except Exception:
             pass
 
-    return {'builds': builds, 'itemIcons': itemIcons, 'hasTimeline': hasBuildEvents(timeline)}
+    return {'builds': builds, 'itemIcons': itemIcons, 'hasTimeline': hasBuildEvents(timeline),
+            'series': series}

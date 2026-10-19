@@ -310,3 +310,83 @@ class RemapTimelineParticipantsTest(unittest.TestCase):
         self.assertIsNone(mb.remapTimelineParticipants(None, self.detail))
         tl = self.timeline()
         self.assertIs(mb.remapTimelineParticipants(tl, None), tl)
+
+
+def pf(pid, gold, xp, minions, jungle=0, damage=None):
+    frame = {'participantId': pid, 'totalGold': gold, 'xp': xp, 'minionsKilled': minions,
+             'jungleMinionsKilled': jungle, 'level': 1, 'currentGold': 0}
+    if damage is not None:
+        frame['damageStats'] = {'totalDamageDoneToChampions': damage}
+    return frame
+
+
+class TimelineSeriesTest(unittest.TestCase):
+    """Per-minute gold / XP / CS (/ damage) curves from timeline participantFrames."""
+
+    def test_lcu_frames_without_damage(self):
+        tl = {'frames': [
+            {'timestamp': 0, 'events': [], 'participantFrames': {
+                '1': pf(1, 500, 0, 0), '2': pf(2, 500, 0, 0)}},
+            {'timestamp': 60000, 'events': [], 'participantFrames': {
+                '1': pf(1, 700, 280, 3, 1), '2': pf(2, 650, 250, 2)}},
+            {'timestamp': 90000, 'events': [], 'participantFrames': {
+                '1': pf(1, 900, 400, 6, 2), '2': pf(2, 800, 390, 5)}},
+        ]}
+        out = mb.parseTimelineSeries(tl)
+        self.assertEqual(out['minutes'], [0.0, 1.0, 1.5])
+        self.assertEqual(out['metrics'], ['gold', 'xp', 'cs'])
+        self.assertEqual(out['series'][1], {'gold': [500, 700, 900], 'xp': [0, 280, 400],
+                                            'cs': [0, 4, 8]})
+        self.assertEqual(out['series'][2]['cs'], [0, 2, 5])
+
+    def test_damage_when_every_frame_has_it(self):
+        tl = {'frames': [
+            {'timestamp': 60000, 'participantFrames': {'1': pf(1, 700, 280, 3, damage=120)}},
+            {'timestamp': 0, 'participantFrames': {'1': pf(1, 500, 0, 0, damage=0)}},
+        ]}
+        out = mb.parseTimelineSeries(tl)
+        self.assertEqual(out['metrics'], ['gold', 'xp', 'cs', 'damage'])
+        self.assertEqual(out['series'][1]['damage'], [0, 120])
+        self.assertEqual(out['series'][1]['gold'], [500, 700])
+
+    def test_missing_player_frame_keeps_previous_value(self):
+        tl = {'frames': [
+            {'timestamp': 0, 'participantFrames': {'1': pf(1, 500, 0, 0), '2': pf(2, 500, 0, 0)}},
+            {'timestamp': 60000, 'participantFrames': {'1': pf(1, 700, 280, 3)}},
+            {'timestamp': 120000, 'participantFrames': {'1': pf(1, 900, 500, 9),
+                                                         '2': pf(2, 950, 520, 10)}},
+        ]}
+        self.assertEqual(mb.parseTimelineSeries(tl)['series'][2]['gold'], [500, 500, 950])
+
+    def test_not_enough_frames(self):
+        self.assertIsNone(mb.parseTimelineSeries(None))
+        self.assertIsNone(mb.parseTimelineSeries({'frames': []}))
+        self.assertIsNone(mb.parseTimelineSeries(
+            {'frames': [{'timestamp': 0, 'participantFrames': {'1': pf(1, 500, 0, 0)}}]}))
+        # the build-test timelines have empty participantFrames
+        self.assertIsNone(mb.parseTimelineSeries(timeline(buy(1, 1055, 1000), buy(1, 1, 70000),
+                                                          perFrame=1)))
+
+    def test_sgp_frames_are_remapped_to_lcu_ids(self):
+        """SGP participant 1 is LCU participant 2 (and vice versa): curves must follow puuid."""
+        detail = {'participantIdentities': [
+            {'participantId': 1, 'player': {'puuid': 'a'}},
+            {'participantId': 2, 'player': {'puuid': 'b'}}]}
+        sgp = {'participants': [{'participantId': 1, 'puuid': 'b'},
+                                {'participantId': 2, 'puuid': 'a'},
+                                {'participantId': 3, 'puuid': 'stranger'}],
+               'frames': [
+                   {'timestamp': 0, 'events': [], 'participantFrames': {
+                       '1': pf(1, 500, 0, 0, damage=0), '2': pf(2, 500, 0, 0, damage=0),
+                       '3': pf(3, 500, 0, 0, damage=0)}},
+                   {'timestamp': 60000, 'events': [], 'participantFrames': {
+                       '1': pf(1, 1111, 0, 0, damage=10), '2': pf(2, 2222, 0, 0, damage=20),
+                       '3': pf(3, 3333, 0, 0, damage=30)}}]}
+        remapped = mb.remapTimelineParticipants(sgp, detail)
+        out = mb.parseTimelineSeries(remapped)
+        self.assertEqual(set(out['series']), {1, 2})
+        self.assertEqual(out['series'][1]['gold'], [500, 2222])
+        self.assertEqual(out['series'][2]['gold'], [500, 1111])
+        self.assertEqual(remapped['frames'][1]['participantFrames']['1']['participantId'], 1)
+        # input untouched
+        self.assertEqual(sgp['frames'][1]['participantFrames']['1']['totalGold'], 1111)
