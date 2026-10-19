@@ -103,7 +103,9 @@ else {
 
 if ($NotesFile) {
     if (-not (Test-Path $NotesFile)) { Die "notes file not found: $NotesFile" }
-    $Notes = Get-Content -Path $NotesFile -Raw
+    # -Encoding UTF8: Windows PowerShell 5.1 otherwise reads a BOM-less file in the
+    # system code page (e.g. GBK), garbling non-ASCII notes (Chinese, arrows, dashes).
+    $Notes = Get-Content -Path $NotesFile -Raw -Encoding UTF8
 }
 if (-not $Notes) {
     $Notes = "## v$Version (Windows)`n`nMaintenance release. Use **Update and Restart** to install."
