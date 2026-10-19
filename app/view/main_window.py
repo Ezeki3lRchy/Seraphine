@@ -48,7 +48,8 @@ from app.lol.connector import connector
 from app.lol.tools import (parseAllyGameInfo, parseLobbyGameInfo, parseGameInfoByGameflowSession,
                            getAllyOrderByGameRole, getTeamColor, autoBan, autoPick,
                            autoComplete, autoSwap, autoTrade, ChampionSelection,
-                           SERVERS_NAME, SERVERS_SUBSET, showOpggBuild, autoShow)
+                           SERVERS_NAME, SERVERS_SUBSET, showOpggBuild, autoShow,
+                           parseEnemyChampSelectInfo, visibleEnemies)
 from app.lol.aram import AramBuff
 from app.lol.champions import ChampionAlias
 from app.lol.opgg import opgg
@@ -256,6 +257,12 @@ class MainWindow(FluentWindow):
         self._revealRefreshing = False
         self._lastRevealRefresh = 0.0
         self._revealParticipantCount = 0
+
+        # 选人阶段的敌方战绩: 只有能看到敌方身份的模式 (自定义 / 锦标赛征召等) 才有;
+        # 排位里敌方被隐藏, 仍在进游戏 (GameStart) 后查
+        self._enemyGameInfoCache = {}
+        self._enemyKey = None
+        self._enemyLoading = False
         self._lobbyRefreshTimer = QTimer(self)
         self._lobbyRefreshTimer.setSingleShot(True)
         self._lobbyRefreshTimer.setInterval(800)
@@ -870,9 +877,11 @@ class MainWindow(FluentWindow):
         title = None
         isGaming = False
 
-        # 离开选人后不再补揭示隐藏队友 (见 __refreshHiddenAllies)
+        # 离开选人后不再补揭示隐藏队友 (见 __refreshHiddenAllies), 也作废这次选人里
+        # 还在加载的队友 / 敌方结果 (进游戏后由 __onGameStart 重新绘制)
         if status != 'ChampSelect':
             self._champSelectReady = False
+            self._champSelectEpoch += 1
 
         if status == 'None':
             title = self.tr("Home")
@@ -1009,8 +1018,11 @@ class MainWindow(FluentWindow):
         self._allyGameInfoCache = {}
         self._revealParticipantCount = 0
         self._lastRevealRefresh = time.monotonic()
+        self._enemyGameInfoCache = {}
+        self._enemyKey = None
 
         session = await connector.getChampSelectSession()
+        self.__refreshEnemies(session)
 
         if cfg.get(cfg.autoShowOpgg):
             self.opggWindow.show()
@@ -1108,6 +1120,44 @@ class MainWindow(FluentWindow):
 
         # 后进入聊天房的隐藏队友
         await self.__refreshHiddenAllies(data)
+
+        # 能看到身份的敌方: 加载战绩, 跟随其选的英雄
+        self.__refreshEnemies(data)
+        await self.gameInfoInterface.updateEnemyIcon(data.get('theirTeam') or [])
+
+    def __refreshEnemies(self, session):
+        """
+        选人阶段, 敌方身份可见时 (自定义 / 锦标赛征召等; 排位里 Riot 隐藏敌方) 在后台加载
+        敌方战绩, 每到一个人先显示; 可见的敌方变化时再加载一次 (已加载的走缓存)
+        """
+        enemies = visibleEnemies(session)
+        if not enemies or self._enemyLoading or not self.currentSummoner:
+            return
+
+        key = frozenset(m.get('puuid') or m.get('summonerId') for m in enemies)
+        if key == self._enemyKey:
+            return
+
+        self._enemyKey = key
+        self._enemyLoading = True
+        epoch = self._champSelectEpoch
+
+        def show(info):
+            if epoch == self._champSelectEpoch:
+                self.gameInfoInterface.updateEnemySummoners(info)
+
+        async def load():
+            try:
+                info = await parseEnemyChampSelectInfo(
+                    session, self.currentSummoner['summonerId'], useSGP=True,
+                    cache=self._enemyGameInfoCache, onPartial=show)
+                show(info)
+            except Exception as e:
+                logger.error(f"load enemies in champ select failed: {e!r}", TAG)
+            finally:
+                self._enemyLoading = False
+
+        asyncio.ensure_future(load())
 
     # 进入游戏后触发
     async def __onGameStart(self):

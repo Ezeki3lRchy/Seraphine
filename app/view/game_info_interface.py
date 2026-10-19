@@ -55,6 +55,8 @@ class GameInfoInterface(SeraphineInterface):
         # 保存召唤师的英雄信息
         # {summonerId: championId}
         self.allyChampions = {}
+        # 敌方同上 (选人阶段能看到敌方身份时才有)
+        self.enemyChampions = {}
 
         # 保存召唤师楼层的顺序，列表中为 summonerId
         self.allyOrder = []
@@ -168,6 +170,7 @@ class GameInfoInterface(SeraphineInterface):
         if not info or len(info['summoners']) > 5:
             return
 
+        self.enemyChampions = dict(info.get('champions') or {})
         self.enemyView.updateSummoners(info['summoners'])
         self.__fillScoresLater(self.enemyView, info['summoners'])
 
@@ -176,13 +179,20 @@ class GameInfoInterface(SeraphineInterface):
         self.enemyButton.setEnabled(True)
 
     async def updateAllyIcon(self, team):
+        await self.__updateIcons(self.allyView, self.allyChampions, team)
+
+    async def updateEnemyIcon(self, team):
+        """选人阶段敌方选了 / 换了英雄 (只对能看到身份、已显示的敌方生效)"""
+        await self.__updateIcons(self.enemyView, self.enemyChampions, team)
+
+    async def __updateIcons(self, view, champions, team):
         for new in team:
-            if not new['championId'] or not new['summonerId']:
+            if not new.get('championId') or not new.get('summonerId'):
                 continue
 
             summonerId = new['summonerId']
-            column = self.allyView.items.get(summonerId)
-            orig = self.allyChampions.get(summonerId)
+            column = view.items.get(summonerId)
+            orig = champions.get(summonerId)
 
             if not column or orig == None:
                 continue
@@ -191,7 +201,7 @@ class GameInfoInterface(SeraphineInterface):
 
             if orig != newChampionId and newChampionId:  # 若新头像是 0, 那就也不更新
                 icon = await connector.getChampionIcon(newChampionId)
-                self.allyChampions[summonerId] = newChampionId
+                champions[summonerId] = newChampionId
                 aramInfo = AramBuff.getInfoByChampionId(newChampionId) \
                     if self.isAram else None
                 column.updateChampion(newChampionId, icon, aramInfo)
@@ -230,6 +240,7 @@ class GameInfoInterface(SeraphineInterface):
         self.clearAlly()
 
         self.isAram = False
+        self.enemyChampions = {}
         self.enemyView.clear()
 
         self.allyButton.click()

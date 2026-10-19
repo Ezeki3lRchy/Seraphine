@@ -1395,6 +1395,71 @@ async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuu
     return build(summoners)
 
 
+def visibleEnemies(session):
+    """
+    选人阶段能看到身份的敌方 (自定义 / 锦标赛征召等模式); 排位里 Riot 隐藏敌方,
+    theirTeam 的 puuid / summonerId 为空, 这时返回 [] (敌方战绩要等进游戏后才能查)
+    """
+    return [m for m in (session or {}).get('theirTeam') or []
+            if isinstance(m, dict) and m.get('playerType') != 'BOT'
+            and m.get('nameVisibilityType') != 'HIDDEN'
+            and (m.get('summonerId') or m.get('puuid'))]
+
+
+async def parseEnemyChampSelectInfo(session, currentSummonerId, useSGP=False, cache=None,
+                                    onPartial=None):
+    """
+    选人阶段的敌方战绩 (只含能看到身份的敌方, 见 visibleEnemies), 返回值同 parseAllyGameInfo.
+    @param cache: {puuid: summoner_dict} 同一次选人内复用, 选人事件反复触发时不重复请求
+    """
+    if cache is None:
+        cache = {}
+
+    myTeam = session.get('myTeam') or [{}]
+    isRank = bool(myTeam[0].get('assignedPosition'))
+
+    async def resolve(item):
+        puuid = item.get('puuid')
+        if puuid and cache.get(puuid):
+            summoner = dict(cache[puuid])
+            summoner['cellId'] = item.get('cellId')
+            championId = item.get('championId') or 0
+            if championId != summoner['championId']:
+                summoner['championId'] = championId
+                summoner['icon'] = await connector.getChampionIcon(championId)
+            return summoner
+
+        if useSGP and connector.isInTencent() and puuid:
+            try:
+                summoner = await getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId)
+            except Exception:
+                summoner = None
+        else:
+            if not item.get('summonerId') and puuid:
+                # 只有 puuid 时补上 summonerId (LCU 战绩路径按 summonerId 取召唤师)
+                try:
+                    found = await connector.getSummonerByPuuid(puuid)
+                    item = dict(item, summonerId=found.get('summonerId') or 0)
+                except Exception:
+                    return None
+            summoner = await parseSummonerGameInfo(item, isRank, currentSummonerId)
+
+        if summoner and summoner.get('puuid'):
+            cache[summoner['puuid']] = summoner
+        return summoner
+
+    def build(summoners):
+        summoners = sorted([s for s in summoners if s], key=lambda x: x["cellId"])
+        return {'summoners': summoners,
+                'champions': {s['summonerId']: s['championId'] for s in summoners},
+                'order': [s['summonerId'] for s in summoners]}
+
+    summoners = await gatherProgressively(
+        [resolve(item) for item in visibleEnemies(session)], onPartial, build)
+
+    return build(summoners)
+
+
 async def parseLobbyGameInfo(lobby, currentSummonerId, useSGP=False, cache=None,
                              onPartial=None):
     '''
