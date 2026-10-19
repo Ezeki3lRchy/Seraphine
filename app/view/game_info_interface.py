@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict
 
 from PySide6.QtCore import Qt, QRectF, QRect, QPointF, QEvent
@@ -15,7 +16,9 @@ from app.components.animation_frame import ColorAnimationFrame
 from app.components.match_widgets import TagPill, gameTags, itemTooltipHtml, rankEmblemPath
 from app.components.design_tokens import (deathsColor, palette, numberFont, textFont,
                                          resultColor)
-from app.lol.tools import parseSummonerOrder, summarizeGames, translatePositionKey
+from app.lol.tools import (parseSummonerOrder, summarizeGames, translatePositionKey,
+                           needsScores, attachSummonerScores)
+from app.common.logger import logger
 from app.lol.connector import connector
 from app.lol.aram import AramBuff
 from app.components.seraphine_interface import SeraphineInterface
@@ -57,6 +60,9 @@ class GameInfoInterface(SeraphineInterface):
         self.allyOrder = []
 
         self.queueId = 0
+
+        # 正在后台补评分的玩家 (puuid), 避免逐个显示时重复请求
+        self._scoring = set()
 
         self.__initWidget()
         self.__initLayout()
@@ -152,6 +158,7 @@ class GameInfoInterface(SeraphineInterface):
         self.allyOrder = info['order']
 
         self.allyView.updateSummoners(info['summoners'], self.isAram)
+        self.__fillScoresLater(self.allyView, info['summoners'])
 
         self.allyButton.setVisible(True)
         self.enemyButton.setVisible(True)
@@ -162,6 +169,7 @@ class GameInfoInterface(SeraphineInterface):
             return
 
         self.enemyView.updateSummoners(info['summoners'])
+        self.__fillScoresLater(self.enemyView, info['summoners'])
 
         self.allyButton.setVisible(True)
         self.enemyButton.setVisible(True)
@@ -187,6 +195,31 @@ class GameInfoInterface(SeraphineInterface):
                 aramInfo = AramBuff.getInfoByChampionId(newChampionId) \
                     if self.isAram else None
                 column.updateChampion(newChampionId, icon, aramInfo)
+
+    def __fillScoresLater(self, view, summoners):
+        """
+        面板先按基础战绩显示; 近期对局的 MVP / SVP / 名次 / 参团率 每局要一个完整对局请求,
+        放到后台补齐, 补完重画当前这一队 (期间面板被刷新也没关系: 对局字典是共享的)
+        """
+        pending = [s for s in summoners
+                   if s and needsScores(s) and s.get('puuid') not in self._scoring]
+        if not pending:
+            return
+
+        puuids = {s.get('puuid') for s in pending}
+        self._scoring |= puuids
+
+        async def fill():
+            try:
+                await attachSummonerScores(pending)
+            except Exception as e:
+                logger.error(f"fill scores failed: {e!r}", "GameInfoInterface")
+                return
+            finally:
+                self._scoring -= puuids
+            view.refreshScores()
+
+        asyncio.ensure_future(fill())
 
     def clearAlly(self):
         self.allyChampions = {}
@@ -233,20 +266,31 @@ class TeamColumnsView(QFrame):
             self.hBoxLayout.addStretch(5 - len(columns))
 
     def updateSummoners(self, summoners, isAram=False):
-        self.clear()
+        # 加载中会按 "到一个人显示一个" 多次调用: 同一个玩家数据对象的列直接复用, 不重建
+        previous = self.items
+        self.items = {}
 
         columns = []
         for summoner in summoners:
             if not summoner:
                 continue
 
-            aramInfo = None
-            if isAram and summoner["championId"]:
-                aramInfo = AramBuff.getInfoByChampionId(summoner["championId"])
+            column = previous.pop(summoner["summonerId"], None)
+            if column is None or column.info is not summoner:
+                if column is not None:
+                    column.deleteLater()
 
-            column = PlayerColumn(summoner, aramInfo, self)
+                aramInfo = None
+                if isAram and summoner["championId"]:
+                    aramInfo = AramBuff.getInfoByChampionId(summoner["championId"])
+
+                column = PlayerColumn(summoner, aramInfo, self)
+
             self.items[summoner["summonerId"]] = column
             columns.append(column)
+
+        for column in previous.values():
+            column.deleteLater()
 
         self.__relayout(columns)
 
@@ -261,6 +305,11 @@ class TeamColumnsView(QFrame):
             column = self.items.get(summonerId)
             if column:
                 column.updateTeamColor(color)
+
+    def refreshScores(self):
+        """近期对局的评分补齐后重画 (只重画, 不重建列, 选人中的英雄 / 顺序变化都保留)"""
+        for column in self.items.values():
+            column.refreshScores()
 
     def clear(self):
         while self.hBoxLayout.count():
@@ -327,6 +376,11 @@ class PlayerColumn(QFrame):
 
     def updateTeamColor(self, team):
         self.header.updateTeamColor(team)
+
+    def refreshScores(self):
+        self.header.refreshScores()
+        for row in self.gameRows:
+            row.refreshScores()
 
 
 def kdaColor(kda):
@@ -583,6 +637,12 @@ class PlayerHeader(ComposedCardMixin, ColorAnimationFrame):
     def updateTeamColor(self, team):
         if team in [0, 1]:
             self.setType(f"team{team+1}")
+
+    def refreshScores(self):
+        """MVP / SVP 次数等来自后补的评分"""
+        self.summary = summarizeGames(self.gamesInfo, self.championId)
+        self._cacheKey = None
+        self.update()
 
     # ---------------- 交互 ----------------
 
@@ -883,13 +943,22 @@ class GameRow(ComposedCardMixin, ColorAnimationFrame):
 
         self.itemRects = []
 
+        self._cache = None
+        self._cacheKey = None
+        self.__scoreFields()
+
+    def __scoreFields(self):
+        """标签 / 参团率 / 评分说明: 依赖后补的评分 (见 GameInfoInterface.__fillScoresLater)"""
+        game = self.game
         self.tags = gameTags(game)
         kp = game.get('kp')
         self.kpText = f"KP {round(kp * 100)}%" if kp is not None else ""
         self.rowTip = self.__rowTip(game)
 
-        self._cache = None
+    def refreshScores(self):
+        self.__scoreFields()
         self._cacheKey = None
+        self.update()
 
     def __rowTip(self, game):
         tips = [game['name'], game.get('time', '')]

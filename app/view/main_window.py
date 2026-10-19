@@ -994,7 +994,8 @@ class MainWindow(FluentWindow):
 
         info = await parseLobbyGameInfo(
             lobby, currentSummonerId, useSGP=True,
-            cache=self._lobbyGameInfoCache)
+            cache=self._lobbyGameInfoCache,
+            onPartial=self.gameInfoInterface.updateAllySummoners)
 
         self.gameInfoInterface.updateAllySummoners(info)
         self.checkAndSwitchTo(self.gameInfoInterface)
@@ -1018,9 +1019,21 @@ class MainWindow(FluentWindow):
                 self.opggWindow.setStaysOnTopEnabled(True)
 
         currentSummonerId = self.currentSummoner['summonerId']
+        epoch = self._champSelectEpoch
+
+        def showPartial(info):
+            # 每到一个队友先显示 (冷启动时一个人要两秒多); 已离开这次选人则不再刷新
+            if epoch == self._champSelectEpoch:
+                self.gameInfoInterface.updateAllySummoners(info)
+                self.checkAndSwitchTo(self.gameInfoInterface)
+
         info = await parseAllyGameInfo(session, currentSummonerId, useSGP=True,
                                        currentPuuid=self.currentSummoner.get('puuid'),
-                                       cache=self._allyGameInfoCache)
+                                       cache=self._allyGameInfoCache,
+                                       onPartial=showPartial)
+        if epoch != self._champSelectEpoch:
+            return
+
         self.gameInfoInterface.updateAllySummoners(info)
         self._champSelectReady = True
 
@@ -1112,16 +1125,16 @@ class MainWindow(FluentWindow):
                 return
 
             info = await parseGameInfoByGameflowSession(
-                session, currentSummonerId, "ally", useSGP=True)
-
-            self.gameInfoInterface.clearAlly()
+                session, currentSummonerId, "ally", useSGP=True,
+                onPartial=self.gameInfoInterface.updateAllySummoners)
 
             self.gameInfoInterface.updateAllySummoners(info)
 
         # 将敌方的召唤师基本信息绘制上去
         async def paintEnemySummonersInfo():
             info = await parseGameInfoByGameflowSession(
-                session, currentSummonerId, 'enemy', useSGP=True)
+                session, currentSummonerId, 'enemy', useSGP=True,
+                onPartial=self.gameInfoInterface.updateEnemySummoners)
 
             # 这个 info 是已经按照游戏位置排序过的了（若排位）
             self.gameInfoInterface.updateEnemySummoners(info)

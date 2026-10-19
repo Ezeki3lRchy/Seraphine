@@ -1132,6 +1132,77 @@ async def attachGameScores(gamesInfo, puuid):
     return details
 
 
+async def gatherProgressively(coros, onPartial=None, build=None):
+    """
+    与 asyncio.gather 相同 (按原顺序返回结果), 但每完成一个就把目前的结果交给 onPartial
+    (未完成的位置为 None; 先经 build 加工). 冷启动时客户端逐个向服务器拉战绩, 一个人要
+    两秒多, 这样面板可以每到一个人就先显示一个, 不用等最慢的那个.
+    """
+    results = [None] * len(coros)
+
+    async def run(index, coro):
+        results[index] = await coro
+        if onPartial is not None:
+            try:
+                onPartial(build(list(results)) if build else list(results))
+            except Exception as e:
+                logger.error(f"partial update failed: {e!r}", TAG)
+
+    await asyncio.gather(*[run(i, c) for i, c in enumerate(coros)])
+    return results
+
+
+def applyLastGameRelation(summoner, detail, currentSummonerId):
+    """由该玩家上一局的完整对局判断上把和当前召唤师是队友还是对手 (fateFlag, 名字着色),
+    以及上把用的英雄 (recentlyChampionName, 名字悬浮提示)"""
+    if not detail:
+        return
+
+    try:
+        teammates = getTeammates(detail, summoner['puuid'])
+    except Exception:
+        return
+
+    if currentSummonerId in [t['summonerId'] for t in teammates['summoners']]:
+        summoner['fateFlag'] = "ally"
+    elif currentSummonerId in [t['summonerId'] for t in teammates['enemies']]:
+        summoner['fateFlag'] = "enemy"
+
+    championId = max(teammates.get('championId', -1), 0)  # 自定义对局等取不到时是 -1
+    summoner['recentlyChampionName'] = connector.manager.champs.get(championId) or ""
+
+
+def needsScores(summoner):
+    """该玩家的近期对局里还有没算过 MVP / SVP 的 (LCU 战绩; SGP 战绩解析时已算好)
+    最近一局没算过时, 上一局关系 (fateFlag) 也还没判断"""
+    return any(game and 'scoreRank' not in game and not game.get('scoreChecked')
+               for game in (summoner or {}).get('gamesInfo') or [])
+
+
+async def attachSummonerScores(summoners):
+    """
+    对局信息页第二阶段: 面板先按基础战绩显示, 再为每名玩家近期对局补上 MVP / SVP / 名次 /
+    参团率 (每局一个完整对局请求). 直接修改 gamesInfo 里的对局字典, 界面随后重画即可.
+    取不到的局标记为已检查, 不会反复请求.
+    """
+    async def one(summoner):
+        allGames = summoner.get('gamesInfo') or []
+        games = [game for game in allGames
+                 if game and 'scoreRank' not in game and not game.get('scoreChecked')]
+        if not games:
+            return
+
+        details = await attachGameScores(games, summoner['puuid'])
+        for game in games:
+            game['scoreChecked'] = True
+
+        # 最近一局的完整对局顺便判断上把是不是队友 / 对手
+        if allGames and games[0] is allGames[0] and summoner.get('relationTo'):
+            applyLastGameRelation(summoner, details[0], summoner['relationTo'])
+
+    await asyncio.gather(*[one(s) for s in summoners if s])
+
+
 def summarizeGames(games, championId=0, limit=3):
     """
     对局信息页左侧概览用的近期战绩汇总 (OP.GG 风格), 只用已拉取的 games, 不发请求.
@@ -1247,7 +1318,7 @@ async def fillRevealedSummonerIds(team):
 
 
 async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuuid=None,
-                            cache=None):
+                            cache=None, onPartial=None):
     '''
     @param cache: {puuid: summoner_dict} 同一次选人内复用; 队友陆续进入聊天房后重新解析时
         (见 MainWindow.__refreshHiddenAllies), 只为新揭示的队友发请求
@@ -1284,35 +1355,43 @@ async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuu
 
         return resolve
 
+    def build(summoners):
+        summoners = [summoner for summoner in summoners if summoner]
+
+        # 按照楼层排序
+        summoners = sorted(
+            summoners, key=lambda x: x["cellId"])
+
+        champions = {summoner['summonerId']: summoner['championId']
+                     for summoner in summoners}
+        order = [summoner['summonerId'] for summoner in summoners]
+
+        return {'summoners': summoners, 'champions': champions, 'order': order,
+                "isAram": session.get('benchEnabled', False)}
+
     if useSGP and connector.isInTencent():
         # 如果是国服就优先尝试 SGP
         try:
             resolve = cached(getSummonerGamesInfoViaSGP)
-            summoners = await asyncio.gather(*[resolve(item) for item in myTeam])
+            summoners = await gatherProgressively(
+                [resolve(item) for item in myTeam], onPartial, build)
         except:
             await fillRevealedSummonerIds(myTeam)
             resolve = cached(parseSummonerGameInfo)
-            summoners = await asyncio.gather(*[resolve(item) for item in myTeam])
+            summoners = await gatherProgressively(
+                [resolve(item) for item in myTeam], onPartial, build)
 
     else:
         await fillRevealedSummonerIds(myTeam)
         resolve = cached(parseSummonerGameInfo)
-        summoners = await asyncio.gather(*[resolve(item) for item in myTeam])
+        summoners = await gatherProgressively(
+                [resolve(item) for item in myTeam], onPartial, build)
 
-    summoners = [summoner for summoner in summoners if summoner]
-
-    # 按照楼层排序
-    summoners = sorted(
-        summoners, key=lambda x: x["cellId"])
-
-    champions = {summoner['summonerId']: summoner['championId']
-                 for summoner in summoners}
-    order = [summoner['summonerId'] for summoner in summoners]
-
-    return {'summoners': summoners, 'champions': champions, 'order': order, "isAram": session.get('benchEnabled', False)}
+    return build(summoners)
 
 
-async def parseLobbyGameInfo(lobby, currentSummonerId, useSGP=False, cache=None):
+async def parseLobbyGameInfo(lobby, currentSummonerId, useSGP=False, cache=None,
+                             onPartial=None):
     '''
     解析组队大厅成员战绩, 复用选人阶段的 per-summoner 取数逻辑。
 
@@ -1353,16 +1432,20 @@ async def parseLobbyGameInfo(lobby, currentSummonerId, useSGP=False, cache=None)
             cache[puuid] = summoner
         return summoner
 
-    tasks = [resolve(idx, m) for idx, m in enumerate(members)]
-    summoners = await asyncio.gather(*tasks)
+    def build(summoners):
+        summoners = [s for s in summoners if s]
+        summoners = sorted(summoners, key=lambda x: x["cellId"])
 
-    summoners = [s for s in summoners if s]
-    summoners = sorted(summoners, key=lambda x: x["cellId"])
+        champions = {s['summonerId']: s['championId'] for s in summoners}
+        order = [s['summonerId'] for s in summoners]
 
-    champions = {s['summonerId']: s['championId'] for s in summoners}
-    order = [s['summonerId'] for s in summoners]
+        return {'summoners': summoners, 'champions': champions, 'order': order,
+                "isAram": queueId == 450}
 
-    return {'summoners': summoners, 'champions': champions, 'order': order, "isAram": queueId == 450}
+    summoners = await gatherProgressively(
+        [resolve(idx, m) for idx, m in enumerate(members)], onPartial, build)
+
+    return build(summoners)
 
 
 def parseSummonerOrder(team):
@@ -1375,7 +1458,8 @@ def parseSummonerOrder(team):
     return [s['summonerId'] for s in summoners if s['summonerId'] != 0]
 
 
-async def parseGameInfoByGameflowSession(session, currentSummonerId, side, useSGP=False):
+async def parseGameInfoByGameflowSession(session, currentSummonerId, side, useSGP=False,
+                                         onPartial=None):
     data = session['gameData']
     queueId = data['queue']['id']
 
@@ -1389,36 +1473,39 @@ async def parseGameInfoByGameflowSession(session, currentSummonerId, side, useSG
     else:
         team, _ = separateTeams(data, currentSummonerId)
 
+    def build(summoners):
+        summoners = [summoner for summoner in summoners if summoner]
+
+        if isRank:
+            s = sortedSummonersByGameRole(summoners)
+
+            if s != None:
+                summoners = s
+
+        champions = {summoner['summonerId']: summoner['championId']
+                     for summoner in summoners}
+        order = [summoner['summonerId'] for summoner in summoners]
+
+        return {'summoners': summoners, 'champions': champions, 'order': order}
+
     if useSGP and connector.isInTencent():
         # 如果是国服就优先尝试 SGP
         try:
-            tasks = [getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId)
-                     for item in team]
-            summoners = await asyncio.gather(*tasks)
+            summoners = await gatherProgressively(
+                [getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId) for item in team],
+                onPartial, build)
 
         except:
-            tasks = [parseSummonerGameInfo(item, isRank, currentSummonerId)
-                     for item in team]
-            summoners = await asyncio.gather(*tasks)
+            summoners = await gatherProgressively(
+                [parseSummonerGameInfo(item, isRank, currentSummonerId) for item in team],
+                onPartial, build)
 
     else:
-        tasks = [parseSummonerGameInfo(item, isRank, currentSummonerId)
-                 for item in team]
-        summoners = await asyncio.gather(*tasks)
+        summoners = await gatherProgressively(
+            [parseSummonerGameInfo(item, isRank, currentSummonerId) for item in team],
+            onPartial, build)
 
-    summoners = [summoner for summoner in summoners if summoner]
-
-    if isRank:
-        s = sortedSummonersByGameRole(summoners)
-
-        if s != None:
-            summoners = s
-
-    champions = {summoner['summonerId']: summoner['championId']
-                 for summoner in summoners}
-    order = [summoner['summonerId'] for summoner in summoners]
-
-    return {'summoners': summoners, 'champions': champions, 'order': order}
+    return build(summoners)
 
 
 def sortedSummonersByGameRole(summoners: list):
@@ -1598,32 +1685,12 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
                  for game in origGamesInfo["games"][:11]]
         gamesInfo = await asyncio.gather(*tasks)
 
-    # MVP / SVP 等需要每局的完整数据; 顺便复用第一局给下面的队友判断
-    details = await attachGameScores(gamesInfo, puuid)
-
+    # 上一局是不是队友 / 对手 (名字着色) 和各局的 MVP / SVP 都要完整对局, 冷启动时每个请求
+    # 要几秒; 先返回基础战绩让面板显示, 由界面在后台补 (attachSummonerScores)
     _, kill, deaths, assists, wins, losses = parseGames(gamesInfo)
-
-    teammatesInfo = [
-        getTeammates(
-            details[0] or await connector.getGameDetailByGameId(game["gameId"]),
-            puuid
-        ) for game in gamesInfo[:1]  # 避免空报错, 查上一局的队友(对手)
-    ]
 
     recentlyChampionName = ""
     fateFlag = None
-
-    if teammatesInfo:  # 判个空, 避免太久没有打游戏的玩家或新号引发异常
-        if currentSummonerId in [t['summonerId'] for t in teammatesInfo[0]['summoners']]:
-            # 上把队友
-            fateFlag = "ally"
-        elif currentSummonerId in [t['summonerId'] for t in teammatesInfo[0]['enemies']]:
-            # 上把对面
-            fateFlag = "enemy"
-        recentlyChampionId = max(
-            teammatesInfo and teammatesInfo[0]['championId'], 0)  # 取不到时是-1, 如果-1置为0
-        recentlyChampionName = connector.manager.champs.get(
-            recentlyChampionId)
 
     return {
         "name": summoner.get("gameName") or summoner.get("internalName"),
@@ -1645,6 +1712,8 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
         "cellId": item.get("cellId"),
         "selectedPosition": item.get("selectedPosition"),
         "fateFlag": fateFlag,
+        # 上一局关系 (fateFlag) 相对于谁; 由 attachSummonerScores 在后台补
+        "relationTo": currentSummonerId,
         "isPublic": summoner["privacy"] == "PUBLIC",
         # 最近游戏的英雄 (用于上一局与与同一召唤师游玩之后显示)
         "recentlyChampionName": recentlyChampionName,
