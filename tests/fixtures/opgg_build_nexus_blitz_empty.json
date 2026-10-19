@@ -1,0 +1,36 @@
+{
+ "data": {
+  "summary": {
+   "id": 804,
+   "is_rotation": false,
+   "is_rip": false,
+   "average_stats": null,
+   "positions": null,
+   "roles": []
+  },
+  "summoner_spells": [],
+  "core_items": [],
+  "mythic_items": [],
+  "boots": [],
+  "starter_items": [],
+  "last_items": [],
+  "rune_pages": [],
+  "runes": [],
+  "skill_masteries": [],
+  "skills": [],
+  "skill_evolves": [],
+  "trends": {
+   "total_rank": 250,
+   "total_position_rank": 0,
+   "win": [],
+   "pick": [],
+   "ban": []
+  },
+  "game_lengths": [],
+  "counters": []
+ },
+ "meta": {
+  "version": "13.23",
+  "cached_at": "2026-10-19 09:00:56"
+ }
+}
