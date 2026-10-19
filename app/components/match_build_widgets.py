@@ -599,10 +599,10 @@ class RunesCard(BuildCard):
         rows = [self.rowWidth(len(row), size, gap) for row, (size, gap) in zip(tree['rows'], sizes)]
         return max([header] + rows)
 
-    def drawTree(self, p, pal, x, tree, sizes, rowTops, colW):
-        # 系别图标 + 名字
+    def drawTree(self, p, pal, x, tree, sizes, rowTops, colW, headerTop=None):
+        # 系别图标 + 名字 (默认在顶部; 副系放在主系基石那一行的位置, 同 OP.GG, 不留空行)
         icon = pixmap(tree.get('icon'))
-        top = TITLE_H
+        top = TITLE_H if headerTop is None else headerTop
         if not icon.isNull():
             rect = QRectF(x, top + 1, 24, 24)
             p.drawPixmap(rect.toRect(), icon)
@@ -645,23 +645,24 @@ class RunesCard(BuildCard):
 
         primarySizes = [(self.KEY, 10), (self.RUNE, 16), (self.RUNE, 16), (self.RUNE, 16)]
         x = PAD
-        columns = [(page['primary'], primarySizes, rowTops)]
+        columns = [(page['primary'], primarySizes, rowTops, None)]
         if page.get('secondary'):
-            # 副系 3 行与主系的 3 行普通符文对齐
-            columns.append((page['secondary'], primarySizes[1:], rowTops[1:]))
+            # 副系 3 行与主系的 3 行普通符文对齐; 系别图标 + 名字放在基石行的位置
+            keystoneMiddle = rowTops[0] + (self.KEY - self.HEADER) / 2
+            columns.append((page['secondary'], primarySizes[1:], rowTops[1:], keystoneMiddle))
         if page.get('shards'):
             shardTree = {'id': None, 'name': self.tr("Shards"), 'icon': None,
                          'rows': page['shards']}
             shardTops = [rowTops[1] + i * (self.SHARD + 12) - 2 for i in range(3)]
-            columns.append((shardTree, [(self.SHARD, 10)] * 3, shardTops))
+            columns.append((shardTree, [(self.SHARD, 10)] * 3, shardTops, None))
 
-        for i, (tree, sizes, tops) in enumerate(columns):
+        for i, (tree, sizes, tops, headerTop) in enumerate(columns):
             colW = self.columnWidth(tree, sizes)
             if i:
                 p.setPen(QPen(pal['hairline'], 1))
                 lineX = x - self.COL_GAP / 2
                 p.drawLine(QPointF(lineX, TITLE_H + 2), QPointF(lineX, self.height() - PAD - 2))
-            self.drawTree(p, pal, x, tree, sizes, tops, colW)
+            self.drawTree(p, pal, x, tree, sizes, tops, colW, headerTop)
             x += colW + self.COL_GAP
 
 
