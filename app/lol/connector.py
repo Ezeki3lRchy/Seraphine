@@ -789,6 +789,27 @@ class LolClientConnector(QObject):
 
         return data if isinstance(data, dict) and data.get('participants') else None
 
+    async def getGameTimelineQuietly(self, gameId):
+        '''
+        对局时间线 ({'frames': [{'events', 'participantFrames', 'timestamp'}]}), 对局详情的
+        "出装" 视图用. 与 getGameDetailByGameIdQuietly 一样不重试不弹窗, 任何失败返回 None
+        '''
+        try:
+            async with self.semaphore:
+                res = await self.__get(
+                    f"/lol-match-history/v1/game-timelines/{gameId}")
+                if res.status != 200:
+                    res.release()
+                    return None
+
+                data = await res.json()
+        except Exception as e:
+            logger.warning(
+                f"getGameTimelineQuietly({gameId}) failed: {e!r}", TAG)
+            return None
+
+        return data if isinstance(data, dict) and data.get('frames') else None
+
     @retry()
     async def getRankedStatsByPuuid(self, puuid):
         res = await self.__get(f"/lol-ranked/v1/ranked-stats/{puuid}")

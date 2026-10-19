@@ -27,6 +27,7 @@ from app.common.signals import signalBus
 from app.components.champion_icon_widget import RoundIcon, RoundedLabel
 from app.components.match_widgets import ItemIcon
 from app.components.match_detail_widgets import DetailTeamTable, TeamCompareBar, teamMaxima
+from app.components.match_build_widgets import DetailModeBar, MatchBuildView
 from app.components.design_tokens import palette, numberFont, textFont, deathsColor
 from app.components.scoreboard import (cachedContent, drawText, drawRuns, runsWidth,
                                        drawChampion, drawResultCard, stripeColor,
@@ -36,7 +37,8 @@ from app.components.summoner_name_button import SummonerName
 from app.components.color_label import ColorLabel, DeathsLabel
 from app.lol.connector import connector
 from app.lol.exceptions import SummonerGamesNotFound, SummonerNotFound
-from app.lol.tools import parseGameData, parseGameDetailData, parseGamesDataConcurrently
+from app.lol.tools import (parseGameData, parseGameDetailData, parseGamesDataConcurrently,
+                           loadGameBuildData)
 from ..components.seraphine_interface import SeraphineInterface
 
 
@@ -301,6 +303,14 @@ class GameDetailView(QFrame):
         self.extraTeamView5 = TeamView()
         self.extraTeamView6 = TeamView()
 
+        # 概览 / 出装 切换 (出装视图按需加载, 切换对局时保留所选模式)
+        self.modeBar = DetailModeBar()
+        self.buildView = MatchBuildView()
+        self.detailMode = 0
+        self.game = None
+        self.buildGameId = None
+        self.buildTask = None
+
         self.loadingPage = QWidget()
         self.loadingPageLayout = QHBoxLayout(self.loadingPage)
         self.processRing = IndeterminateProgressRing()
@@ -338,6 +348,11 @@ class GameDetailView(QFrame):
         self.extraTeamView5 = TeamView()
         self.extraTeamView6 = TeamView()
 
+        self.modeBar = DetailModeBar()
+        self.buildView = MatchBuildView()
+        self.game = None
+        self.buildGameId = None
+
         self.__initLayout()
 
     def __initLayout(self):
@@ -353,11 +368,17 @@ class GameDetailView(QFrame):
         self.loadingPageLayout.addWidget(self.processRing)
 
         self.vBoxLayout.addWidget(self.titleBar)
+        self.vBoxLayout.addWidget(self.modeBar)
+        self.modeBar.setVisible(False)
+        self.modeBar.modeChanged.connect(self.__onDetailModeChanged)
+        self.modeBar.playerSelected.connect(self.buildView.showPlayer)
 
         self.scrollLayout.setContentsMargins(0, 0, 0, 0)
         self.scrollLayout.addWidget(self.detailTeam1)
         self.scrollLayout.addWidget(self.compareBar)
         self.scrollLayout.addWidget(self.detailTeam2)
+        self.scrollLayout.addWidget(self.buildView)
+        self.buildView.setVisible(False)
         self.scrollLayout.addWidget(self.teamView1)
         self.scrollLayout.addWidget(self.teamView2)
 
@@ -463,6 +484,50 @@ class GameDetailView(QFrame):
 
             self.extraTeamView6.updateTeam(team8, isCherry, self.tr("8th"))
             self.extraTeamView6.updateSummoners(team8["summoners"])
+
+        # 概览 / 出装 切换 (斗魂竞技场没有出装视图)
+        self.game = game
+        self.modeBar.setVisible(not isCherry)
+        if not isCherry:
+            self.modeBar.setPlayers(team1["summoners"], team2["summoners"])
+            self.modeBar.setMode(self.detailMode)
+        self.__applyDetailMode()
+
+    def __onDetailModeChanged(self, mode):
+        self.detailMode = mode
+        self.__applyDetailMode()
+
+    def __applyDetailMode(self):
+        game = self.game
+        twoTeams = bool(game) and game["queueId"] != 1700
+        build = twoTeams and self.detailMode == 1
+
+        for w in (self.detailTeam1, self.compareBar, self.detailTeam2):
+            w.setVisible(twoTeams and not build)
+        self.buildView.setVisible(build)
+
+        if build and self.buildGameId != game['gameId']:
+            self.buildGameId = game['gameId']
+            self.buildView.setLoading()
+            # 持有 task 引用, 防止被回收
+            self.buildTask = asyncio.ensure_future(
+                self.__loadBuild(game['gameId'], self.buildView))
+
+    async def __loadBuild(self, gameId, view):
+        try:
+            data = await loadGameBuildData(gameId)
+        except CancelledError:
+            raise
+        except Exception:
+            logger.warning(f"load build data failed, gameId={gameId}: "
+                           f"{traceback.format_exc()}", TAG)
+            data = None
+
+        # 加载期间切换了对局 (clear() 会换掉 buildView): 丢弃旧结果
+        if self.buildGameId != gameId or view is not self.buildView:
+            return
+
+        view.setData(data, self.modeBar.selected)
 
 
 class TeamView(QFrame, ColorChangeable):
