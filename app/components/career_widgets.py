@@ -14,6 +14,7 @@ from app.common.style_sheet import colorManager
 from app.components.animation_frame import ColorAnimationFrame
 from app.components.design_tokens import palette, numberFont, textFont, resultColor, tint
 from app.components.match_widgets import rankEmblemPath, gameTags, itemTooltipHtml, TAG_COLORS
+from app.lol.activity import activityByHour, activityByWeekday, winRate
 from app.lol.connector import connector
 from app.lol.tools import summarizeGames
 
@@ -57,6 +58,17 @@ def kdaColor(kda):
     elif 5 <= kda:
         return QColor(240, 111, 0)
     return None
+
+
+def contrast(a, b):
+    """两种不透明色的 WCAG 对比度"""
+    def luminance(c):
+        ch = [v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+              for v in (c.redF(), c.greenF(), c.blueF())]
+        return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2] + 0.05
+
+    la, lb = luminance(a), luminance(b)
+    return max(la, lb) / min(la, lb)
 
 
 def drawCard(p, rect, pal, radius=10):
@@ -201,14 +213,22 @@ class RecentSummaryCard(QFrame):
                   7.1 / 9.1 / 5.4     (头) 56%  5W 4L ...      ▮ ▮ ▮ ▮ ▮
                   1.37:1 KDA
                   KP 48%
+        Activity     AM ▢ ▢ ■ ▢ ...  ▮ ▮ ▮ ▮ ▮ ▮ ▮   (本地时间: 每小时一格, 深浅 = 场次;
+                     PM ▢ ■ ■ ▢ ...  Mon ...    Sun    每天一柱, 高 = 场次, 颜色 = 胜率)
         Recent form  ■ ■ □ ■ □ ...   (每格一局, 最新在左; 悬停看本局, 点击打开详情)
     """
 
-    HEIGHT = 178
+    HEIGHT = 260
     TILE = 22
     TILE_GAP = 4
     ROLES = [('TOP', 'top', 'Top'), ('JUNGLE', 'jng', 'Jungle'), ('MIDDLE', 'mid', 'Mid'),
              ('BOTTOM', 'bot', 'Bot'), ('UTILITY', 'sup', 'Support')]
+    ACTIVITY_Y = 132
+    FORM_Y = 214
+    CELL = 22
+    CELL_GAP = 3
+    DAY_PITCH = 30
+    DAY_BAR = 14
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -224,19 +244,54 @@ class RecentSummaryCard(QFrame):
         self.tileRects = []
         self.rolesRect = QRect()
 
+        self.hours = activityByHour([])
+        self.days = activityByWeekday([])
+        self.hourMax = self.dayMax = 1
+        self.hourRects = []
+        self.dayRects = []
+        self.dayNames = [self.tr("Mon"), self.tr("Tue"), self.tr("Wed"), self.tr("Thu"),
+                         self.tr("Fri"), self.tr("Sat"), self.tr("Sun")]
+
+        self._cache = None
+        self._cacheKey = None
+
     def updateGames(self, games):
         self.games = [g for g in games or [] if g]
         self.summary = summarizeGames(self.games, limit=3)
         self.championPixmaps = [QPixmap(item['icon']) if item.get('icon') else QPixmap()
                                 for item in self.summary['topChampions']]
+        self.hours = activityByHour(self.games)
+        self.days = activityByWeekday(self.games)
+        self.hourMax = max(max(h['games'] for h in self.hours), 1)
+        self.dayMax = max(max(d['games'] for d in self.days), 1)
+        self._cacheKey = None
         self.update()
 
-    # ---------------- 交互: 走势条每格 ----------------
+    # ---------------- 交互: 走势条每格 / 活跃时段 ----------------
 
     def __tileAt(self, pos):
         for rect, game in self.tileRects:
             if rect.contains(pos):
                 return game
+        return None
+
+    def __activityTip(self, label, entry):
+        """'18:00 - 3 games, 67% win rate'; 全是重开时不写胜率"""
+        n = entry['games']
+        tip = f"{label} - {n} {self.tr('game') if n == 1 else self.tr('games')}"
+        rate = winRate(entry)
+        if rate is not None:
+            tip += f", {round(rate * 100)}% {self.tr('win rate')}"
+        return tip
+
+    def __activityAt(self, pos):
+        """命中的小时格 / 星期柱 -> (区域, 提示文字)"""
+        for rect, hour in self.hourRects:
+            if rect.contains(pos):
+                return rect, self.__activityTip(f"{hour:02d}:00", self.hours[hour])
+        for rect, day in self.dayRects:
+            if rect.contains(pos):
+                return rect, self.__activityTip(self.dayNames[day], self.days[day])
         return None
 
     def event(self, e):
@@ -248,6 +303,10 @@ class RecentSummaryCard(QFrame):
                 tip = f"{name}  {game['kills']}/{game['deaths']}/{game['assists']}\n" \
                       f"{game['name']}, {timeAgo(game['timeStamp'])}"
                 QToolTip.showText(e.globalPos(), tip.strip(), self)
+                return True
+            hit = self.__activityAt(e.pos()) if self.summary else None
+            if hit:
+                QToolTip.showText(e.globalPos(), hit[1], self, hit[0])
                 return True
             if self.rolesRect.contains(e.pos()) and self.summary:
                 counts = dict(self.summary['positions'])
@@ -274,21 +333,43 @@ class RecentSummaryCard(QFrame):
     # ---------------- 绘制 ----------------
 
     def paintEvent(self, e):
-        pal = palette()
         p = QPainter(self)
+        p.drawPixmap(0, 0, self.__content())
+        p.end()
+
+    def __content(self):
+        """整张卡画进缓存图, 滚动时只贴图; 尺寸 / 主题 / 胜负色 / 数据变了才重画"""
+        dark = isDarkTheme()
+        pal = palette(dark)
+        winC, loseC = resultColor('win'), resultColor('lose')
+        dpr = self.devicePixelRatioF()
+        key = (self.width(), self.height(), dpr, dark, winC.rgba(), loseC.rgba())
+        if key == self._cacheKey:
+            return self._cache
+
+        out = QPixmap(round(self.width() * dpr), round(self.height() * dpr))
+        out.setDevicePixelRatio(dpr)
+        out.fill(Qt.transparent)
+
+        p = QPainter(out)
         p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform
                          | QPainter.TextAntialiasing)
+        self.__paintCard(p, pal, winC, loseC)
+        p.end()
+
+        self._cache, self._cacheKey = out, key
+        return out
+
+    def __paintCard(self, p, pal, winC, loseC):
         drawCard(p, self.rect(), pal)
 
         if self.summary is None:
-            p.end()
             return
 
         games = self.games
         counted = [g for g in games if not g.get('remake')]
         wins = sum(1 for g in counted if g['win'])
         losses = len(counted) - wins
-        winC, loseC = resultColor('win'), resultColor('lose')
 
         # 胜负环
         ring = QRectF(22, 20, 88, 88)
@@ -363,8 +444,10 @@ class RecentSummaryCard(QFrame):
             p.drawPixmap(QRectF(bx - 3, barTop + barH + 6, 16, 16).toRect(), self.roleIcons[key])
         self.rolesRect = QRect(int(rx), 36, rw, 84)
 
+        self.__paintActivity(p, pal, self.ACTIVITY_Y, winC, loseC)
+
         # 近期走势: 每格一局, 最新在左
-        y = 132
+        y = self.FORM_Y
         label = self.tr("Recent form")
         drawText(p, QRectF(22, y, 110, self.TILE), label, textFont(12), pal['muted'])
         tx = 132
@@ -381,11 +464,73 @@ class RecentSummaryCard(QFrame):
                      QColor(255, 255, 255) if t != 'remake' else pal['muted'], Qt.AlignCenter)
             self.tileRects.append((rect.toRect(), game))
             tx += self.TILE + self.TILE_GAP
-        if games:
-            drawText(p, QRectF(tx + 6, y, 120, self.TILE), self.tr("Newest first"),
-                     textFont(11), pal['muted'])
+        newest, newestFont = self.tr("Newest first"), textFont(11)
+        if games and tx + 6 + QFontMetrics(newestFont).horizontalAdvance(newest) \
+                <= self.width() - 22:
+            drawText(p, QRectF(tx + 6, y, 120, self.TILE), newest, newestFont, pal['muted'])
 
-        p.end()
+    def __paintActivity(self, p, pal, y, winC, loseC):
+        """
+        活跃时段 (本地时间): 24 小时格分上午 / 下午两行, 填充深浅 = 该小时开始的场次,
+        没有对局的小时只画发丝线框; 右侧周一 ~ 周日柱, 高 = 场次, 颜色 = 胜率
+        (>= 50% 胜色, 否则负色, 离 50% 越远越不透明). 统计在 updateGames 里算好.
+        """
+        ink, muted, sheet = pal['ink'], pal['muted'], pal['sheet']
+        labelFont, cellFont = textFont(12), numberFont(10, 500)
+        cell, gap = self.CELL, self.CELL_GAP
+        drawText(p, QRectF(22, y, 110, cell), self.tr("Activity"), labelFont, muted)
+
+        cellsX = 132 + 28
+        self.hourRects = []
+        for row, half in enumerate(("AM", "PM")):
+            cy = y + row * (cell + 4)
+            drawText(p, QRectF(132, cy, 28, cell), half, labelFont, muted)
+            for col in range(12):
+                hour = row * 12 + col
+                n = self.hours[hour]['games']
+                rect = QRectF(cellsX + col * (cell + gap), cy, cell, cell)
+                if n:
+                    # 墨色按场次叠在纸面上; 数字取墨色 / 纸面色里与底色对比更强的
+                    t = (60 + 170 * n / self.hourMax) / 255
+                    fill = QColor.fromRgbF(*(i * t + s * (1 - t) for i, s in
+                                             zip(ink.getRgbF()[:3], sheet.getRgbF()[:3])))
+                    p.setPen(Qt.NoPen)
+                    p.setBrush(fill)
+                    p.drawRoundedRect(rect, 4, 4)
+                    color = ink if contrast(fill, ink) >= contrast(fill, sheet) else sheet
+                else:
+                    p.setPen(QPen(pal['hairline'], 1))
+                    p.setBrush(Qt.NoBrush)
+                    p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
+                    color = muted
+                drawText(p, rect, str(hour), cellFont, color, Qt.AlignCenter)
+                self.hourRects.append((rect.toRect(), hour))
+
+        # 星期柱: 与小时格同高, 下方写星期, 周末加粗
+        daysX = cellsX + 12 * (cell + gap) - gap + 36
+        barH = 2 * cell + 4
+        boldFont = textFont(12, True)
+        self.dayRects = []
+        for day, entry in enumerate(self.days):
+            sx = daysX + day * self.DAY_PITCH
+            bar = QRectF(sx + (self.DAY_PITCH - self.DAY_BAR) / 2, y, self.DAY_BAR, barH)
+            p.setPen(Qt.NoPen)
+            p.setBrush(pal['hairline'])
+            p.drawRoundedRect(bar, 3, 3)
+            if entry['games']:
+                h = max(barH * entry['games'] / self.dayMax, 4)
+                rate = winRate(entry)
+                if rate is None:
+                    p.setBrush(muted)
+                else:
+                    p.setBrush(tint(winC if rate >= 0.5 else loseC,
+                                    100 + int(155 * min(abs(rate - 0.5) / 0.3, 1))))
+                p.drawRoundedRect(QRectF(bar.left(), bar.bottom() - h, bar.width(), h), 3, 3)
+            weekend = day >= 5
+            drawText(p, QRectF(sx, y + barH + 4, self.DAY_PITCH, 16), self.dayNames[day],
+                     boldFont if weekend else labelFont, ink if weekend else muted,
+                     Qt.AlignCenter)
+            self.dayRects.append((QRect(int(sx), int(y), self.DAY_PITCH, int(barH + 20)), day))
 
 
 class CareerGameRow(ColorAnimationFrame):
