@@ -7,7 +7,8 @@
 """
 from PySide6.QtGui import QColor, QFont
 
-from app.common.qfluentwidgets import isDarkTheme
+from app.common.qfluentwidgets import isDarkTheme, qconfig
+from app.common.signals import signalBus
 
 NUMBER_FAMILIES = ['Bahnschrift', 'DIN Alternate', 'Segoe UI']
 TEXT_FAMILIES = ['Segoe UI', 'Microsoft YaHei', 'PingFang SC']
@@ -16,11 +17,31 @@ GOLD_LIGHT = QColor('#B8913F')
 GOLD_DARK = QColor('#C8AA6E')
 
 
+# 解析好的颜色缓存. 自绘控件每帧都要取胜负色 / 阵亡数颜色, 直接问 colorManager 每次都会
+# 重新从配置算一遍 (实测对局信息页每帧 ~2ms); 主题或自定义颜色变化时清空
+_cache = {}
+
+
+def _invalidate(*args):
+    _cache.clear()
+
+
+signalBus.customColorChanged.connect(_invalidate)
+qconfig.themeChanged.connect(_invalidate)
+
+
 def palette(dark=None):
-    """当前主题的颜色表"""
+    """当前主题的颜色表 (同一主题返回同一个字典, 调用方不要修改)"""
     if dark is None:
         dark = isDarkTheme()
 
+    key = ('palette', dark)
+    if key not in _cache:
+        _cache[key] = _palette(dark)
+    return _cache[key]
+
+
+def _palette(dark):
     if dark:
         return {
             'sheet': QColor('#23272E'),
@@ -56,11 +77,23 @@ def textFont(size, bold=False):
 
 def resultColor(type):
     """胜 / 负 / 重开的实色 (用户配置的卡片颜色去掉透明度)"""
-    from app.common.style_sheet import colorManager
+    key = ('result', type)
+    if key not in _cache:
+        from app.common.style_sheet import colorManager
 
-    c = QColor(colorManager.getColor(type)[0])
-    c.setAlpha(255)
-    return c
+        c = QColor(colorManager.getColor(type)[0])
+        c.setAlpha(255)
+        _cache[key] = c
+    return QColor(_cache[key])
+
+
+def deathsColor():
+    """阵亡数的颜色 (用户可在设置里改)"""
+    if 'deaths' not in _cache:
+        from app.common.style_sheet import colorManager
+
+        _cache['deaths'] = QColor(colorManager.getColor('deaths')[0])
+    return QColor(_cache['deaths'])
 
 
 def tint(color, alpha):

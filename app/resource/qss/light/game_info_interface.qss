@@ -31,10 +31,6 @@ PlayerColumn[isLast=true] {
     border: none;
 }
 
-PlayerHeader {
-    border-radius: 6px;
-    border: 1px solid rgba(0, 0, 0, 0.095);
-}
 
 SummonerName {
     font: bold 15px 'Microsoft YaHei', 'Segoe UI';
@@ -74,10 +70,6 @@ SummonerName:disabled {
     color: rgba(0, 0, 0, 0.6);
 }
 
-GameRow {
-    border-radius: 6px;
-    border: 1px solid;
-}
 
 GameRow #kills,
 GameRow #deaths,

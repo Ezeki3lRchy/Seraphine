@@ -1,22 +1,20 @@
-import os
 from typing import Dict
 
-from PySide6.QtCore import Signal, Qt, QRectF, QEvent
+from PySide6.QtCore import Qt, QRectF, QRect, QPointF, QEvent
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QFrame, QVBoxLayout,
                                QSizePolicy, QStackedWidget, QWidget, QToolTip)
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QFont, QFontMetrics, QPixmap, QPen
 
 from ..common.qfluentwidgets import (SmoothScrollArea, TransparentTogglePushButton,
-                                     ToolTipFilter, ToolTipPosition, setCustomStyleSheet,
-                                     isDarkTheme)
+                                     setCustomStyleSheet, isDarkTheme)
 
-from app.common.style_sheet import StyleSheet, colorManager
+from app.common.style_sheet import StyleSheet
 from app.common.signals import signalBus
-from app.components.champion_icon_widget import RoundIcon, RoundedLabel
 from app.components.profile_level_icon_widget import RoundLevelAvatar
-from app.components.summoner_name_button import SummonerName
 from app.components.animation_frame import ColorAnimationFrame
-from app.components.match_widgets import TagPill, RankEmblem, gameTags, itemTooltipHtml
+from app.components.match_widgets import TagPill, gameTags, itemTooltipHtml, rankEmblemPath
+from app.components.design_tokens import (deathsColor, palette, numberFont, textFont,
+                                         resultColor)
 from app.lol.tools import parseSummonerOrder, summarizeGames, translatePositionKey
 from app.lol.connector import connector
 from app.lol.aram import AramBuff
@@ -294,7 +292,7 @@ class PlayerColumn(QFrame):
             row = GameRow(game, self)
             row.clicked.connect(
                 lambda gid=row.gameId: signalBus.gameInfoBarClicked.emit(
-                    info['puuid'], self.header.summonerName.text(), str(gid)))
+                    info['puuid'], self.header.nameWithTag(), str(gid)))
             self.gameRows.append(row)
 
         self.championsTitle = QLabel(self.tr("Recent champions"))
@@ -414,345 +412,425 @@ def tierText(tier, division):
     return f"{tier.title()} {division}".strip()
 
 
-class WinLossBar(QWidget):
-    """OP.GG 风格赛季胜负条: 蓝 (胜) / 红 (负), 两端写场次"""
+def fitRuns(runs, maxWidth):
+    """
+    runs: [(text, font, color, group)]; group 为假是必显示的段, 为真 (True 或组号) 的段
+    放不下时整组一起丢 (先丢组号最大 / 最靠后的组, 标签和数值不会只剩一半),
+    仍放不下则最后一段省略号截断. 返回 (要画的 runs, 是否有内容被省略)
+    """
+    def width(rs):
+        return sum(QFontMetrics(f).horizontalAdvance(t) for t, f, _, _ in rs)
 
-    WIN = QColor(83, 131, 232)
-    LOSS = QColor(232, 64, 87)
+    runs = list(runs)
+    dropped = False
+    while width(runs) > maxWidth and any(r[3] for r in runs):
+        groups = [(int(r[3]), i) for i, r in enumerate(runs) if r[3]]
+        group = max(groups)[0]
+        last = max(i for g, i in groups if g == group)
+        runs = [r for i, r in enumerate(runs)
+                if not (r[3] and int(r[3]) == group and (group > 1 or i == last))]
+        dropped = True
 
-    def __init__(self, wins, losses, parent=None):
-        super().__init__(parent)
-        self.wins, self.losses = wins, losses
-        self.setFixedHeight(18)
-        self.setMinimumWidth(80)
+    if runs and width(runs) > maxWidth:
+        text, font, color, optional = runs[-1]
+        room = maxWidth - width(runs[:-1])
+        runs[-1] = (QFontMetrics(font).elidedText(text, Qt.ElideRight, max(int(room), 0)),
+                    font, color, optional)
+        dropped = True
+
+    return runs, dropped
+
+
+def paintRuns(p, x, y, h, runs):
+    for text, font, color, _ in runs:
+        p.setFont(font)
+        p.setPen(color)
+        p.drawText(QRectF(x, y, 2000, h), Qt.AlignLeft | Qt.AlignVCenter, text)
+        x += QFontMetrics(font).horizontalAdvance(text)
+    return x
+
+
+class ComposedCardMixin:
+    """
+    给自绘的 ColorAnimationFrame 子类用: 背景 (含悬浮动画色) + 描边 + 内容合成一张缓存图,
+    每帧只贴这一张. 背景色只在悬浮动画时变化, 那几帧才重新合成.
+
+    同时不再用样式表画边框: ColorAnimationFrame.setColor 原本每次都 setStyleSheet,
+    让 Qt 的样式表引擎在每次重绘时为每一行画一遍边框, 滚动时代价很高.
+    子类需实现 _contentPixmap() 返回内容图 (透明底), 并在重画内容时递增 self._contentVersion.
+    """
+
+    RADIUS = 6
+
+    def setColor(self, c1, c2, c3, c4):
+        self.normalBackgroundColor = c1
+        self.hoverBackgroundColor = c2
+        self.pressedBackgroundColor = c3
+        self._borderColor = c4
+        self._composedKey = None
+        try:
+            self._updateBackgroundColor()
+        except Exception:
+            return
+
+    def _composed(self):
+        content = self._contentPixmap()
+        bg = self.backgroundColor
+        border = getattr(self, '_borderColor', None) or QColor(0, 0, 0, 0)
+        # 内容版本号由子类在重画内容时递增 (QPixmap.cacheKey 在这里不可靠, 实测每次都变)
+        key = (bg.rgba(), border.rgba(), getattr(self, '_contentVersion', 0))
+        if key == getattr(self, '_composedKey', None):
+            return self._composedPixmap
+
+        dpr = self.devicePixelRatioF()
+        out = QPixmap(content.size())
+        out.setDevicePixelRatio(dpr)
+        out.fill(Qt.transparent)
+
+        p = QPainter(out)
+        p.setRenderHint(QPainter.Antialiasing)
+        rect = QRectF(0, 0, self.width(), self.height()).adjusted(0.5, 0.5, -0.5, -0.5)
+        p.setPen(QPen(border, 1))
+        p.setBrush(bg)
+        p.drawRoundedRect(rect, self.RADIUS, self.RADIUS)
+        p.drawPixmap(0, 0, content)
+        p.end()
+
+        self._composedPixmap, self._composedKey = out, key
+        return out
 
     def paintEvent(self, e):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        rect = QRectF(self.rect())
-        total = max(self.wins + self.losses, 1)
-        winWidth = rect.width() * self.wins / total
-
-        clip = QPainterPath()
-        clip.addRoundedRect(rect, 4, 4)
-        painter.setClipPath(clip)
-
-        painter.fillRect(QRectF(0, 0, winWidth, rect.height()), self.WIN)
-        painter.fillRect(QRectF(winWidth, 0, rect.width() - winWidth, rect.height()),
-                         self.LOSS)
-
-        font = QFont('Segoe UI')
-        font.setPixelSize(11)
-        font.setBold(True)
-        painter.setFont(font)
-        painter.setPen(Qt.white)
-        textRect = rect.adjusted(6, 0, -6, 0)
-        painter.drawText(textRect, Qt.AlignLeft | Qt.AlignVCenter, f"{self.wins}W")
-        painter.drawText(textRect, Qt.AlignRight | Qt.AlignVCenter, f"{self.losses}L")
+        painter.drawPixmap(0, 0, self._composed())
+        painter.end()
 
 
-class PlayerHeader(ColorAnimationFrame):
+class PlayerHeader(ComposedCardMixin, ColorAnimationFrame):
     """
-    一列顶部的玩家卡片:
+    一列顶部的玩家卡片, 整卡自绘, 固定高度 (每行一个固定槽位, 没数据就空着),
+    这样同一队 5 列的卡片一样高, 下面的近期对局逐行对齐.
 
-        [头像 + 熟练度]  名字 #tag
-        [段位大徽章]     Diamond II · 95 LP
-                        [胜 ===== | == 负] 50%
-                        Peak Master · S-1 Diamond I
-        Flex  Master 0 LP · 55% (100W 82L)
-        近期: KDA · 胜率 · 连胜 · 重开
-        分路 · MVP / SVP 次数
-        当前英雄: 熟练度 · 近期战绩
+        [头像]   名字
+        [熟练度] #tag
+        [徽章]  Diamond II  55 LP
+                455W ▬▬▬▬▬▭▭ 463L   50%
+                Peak Master   Last season Diamond I
+        Flex  Diamond I 75 LP  55%
+        Recent  KDA 2.27  40%  4W 6L
+        3L streak  1 remake  2 MVP  2 SVP   BOT 6 SUP 3
+        Pick Ahri  M45 210k  2G 50% 3.4 KDA
     """
+
+    HEIGHT = 236
+    PAD = 10
+    AVATAR = 56
 
     def __init__(self, info: dict, aramInfo=None, parent=None):
         super().__init__(type='default', parent=parent)
         self._pressedBackgroundColor = self._hoverBackgroundColor
+        self.setFixedHeight(self.HEIGHT)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.setMouseTracking(True)
 
         self.info = info
         self.gamesInfo = [g for g in info.get('gamesInfo') or [] if g]
         self.mastery = info.get('mastery') or {}
-
-        self.vBoxLayout = QVBoxLayout(self)
-        self.topLayout = QHBoxLayout()
-        self.nameLayout = QVBoxLayout()
+        self.championId = info.get('championId') or 0
+        self.summary = summarizeGames(self.gamesInfo, self.championId)
 
         self.avatar = RoundLevelAvatar(info['icon'],
                                        info['xpSinceLastLevel'],
                                        info['xpUntilNextLevel'],
-                                       58, info["level"], aramInfo=aramInfo)
-        # 当前英雄熟练度, 盖在头像左下角 (位置在 resizeEvent 里摆)
+                                       self.AVATAR, info["level"], aramInfo=aramInfo)
+        self.avatar.setParent(self)
+        self.avatar.move(self.PAD, self.PAD)
+
+        # 当前英雄熟练度, 盖在头像左下角
         self.masteryPill = TagPill("", "#3b4a6b", 10, self)
         self.masteryPill.setVisible(False)
 
-        fateFlag = info["fateFlag"]
-        nameColor = None
-        if fateFlag:
-            nameColor = "#bf242a" if fateFlag == "enemy" else "#057748"
-        self.summonerName = SummonerName(
-            info['name'], isPublic=info["isPublic"], color=nameColor,
-            tagLine=info['tagLine'], tips=info["recentlyChampionName"])
-        self.summonerName.setObjectName("playerName")
-        self.summonerName.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.summonerName.clicked.connect(
-            lambda: signalBus.toCareerInterface.emit(info['puuid']))
-
-        self.tagLabel = QLabel(f"#{info['tagLine']}" if info.get('tagLine') else "")
-        self.tagLabel.setObjectName("secondaryLabel")
-
         solo, flex = info['rankInfo']['solo'], info['rankInfo']['flex']
+        self.solo, self.flex = solo, flex
+        self.soloEmblem = QPixmap(rankEmblemPath(solo.get('tierKey'))) \
+            if tierText(solo.get('tierKey'), solo.get('division')) else QPixmap()
+        self.flexEmblem = QPixmap(rankEmblemPath(flex.get('tierKey'))) \
+            if tierText(flex.get('tierKey'), flex.get('division')) else QPixmap()
 
-        # 单双排段位卡
-        self.rankLayout = QHBoxLayout()
-        self.rankTextLayout = QVBoxLayout()
-        self.emblem = RankEmblem(solo.get('tierKey'), 48)
-        self.rankLabel = QLabel()
-        self.rankLabel.setObjectName("rankLabel")
-        self.rankLabel.setWordWrap(True)
-        self.winLossLayout = QHBoxLayout()
-        self.winLossBar = None
-        self.winRateLabel = QLabel()
-        self.winRateLabel.setObjectName("bodyLabel")
-        self.peakLabel = QLabel()
-        self.peakLabel.setObjectName("secondaryLabel")
-        self.peakLabel.setWordWrap(True)
-        self.__initSoloRank(solo)
+        self.nameRect = QRect()
+        self.tips = []          # [(QRect, text)]
+        self._cache = None
+        self._cacheKey = None
 
-        # 灵活组排一行
-        self.flexLayout = QHBoxLayout()
-        self.flexEmblem = RankEmblem(flex.get('tierKey'), 24)
-        self.flexLabel = QLabel()
-        self.flexLabel.setObjectName("secondaryLabel")
-        self.flexLabel.setWordWrap(True)
-        self.__initFlexRank(flex)
+        self.__updateMasteryPill()
 
-        summary = summarizeGames(self.gamesInfo, info.get('championId') or 0)
+    # ---------------- 对外 ----------------
 
-        self.recentLabel = QLabel(self.__recentText(info, summary))
-        self.recentLabel.setObjectName("bodyLabel")
-        self.recentLabel.setWordWrap(True)
-        self.recentLabel.setToolTip(self.tr("Recent games (remakes excluded)"))
-        self.recentLabel.installEventFilter(
-            ToolTipFilter(self.recentLabel, 0, ToolTipPosition.TOP))
-
-        self.rolesLabel = QLabel(self.__rolesText(summary))
-        self.rolesLabel.setObjectName("bodyLabel")
-        self.rolesLabel.setWordWrap(True)
-
-        self.pickLabel = QLabel()
-        self.pickLabel.setObjectName("bodyLabel")
-        self.pickLabel.setWordWrap(True)
-        self.__updatePick(info.get('championId') or 0, summary)
-
-        self.__initLayout()
-
-    def __initSoloRank(self, solo):
-        ranked = tierText(solo.get('tierKey'), solo.get('division'))
-        if ranked:
-            lp = solo.get('lp')
-            self.rankLabel.setText(
-                f"{ranked}" + (f" · {lp} LP" if lp not in ("", None) else ""))
-        else:
-            self.rankLabel.setText(self.tr("Unranked"))
-
-        wins, losses = solo.get('wins', 0), solo.get('losses', 0)
-        if losses:
-            self.winLossBar = WinLossBar(wins, losses)
-            winRate = round(wins / (wins + losses) * 100)
-            self.winRateLabel.setText(
-                colorSpan(f"{winRate}%", winRateColor(winRate), bold=True))
-        elif wins:
-            # LCU 对其他玩家常把 losses 返回 0 (实测 "211-0"), 不画会误导的胜负条
-            self.winRateLabel.setText(f"{wins}W " + self.tr("this season"))
-
-        peak = []
-        highest = tierText(solo.get('highestTier'), solo.get('highestDivision'))
-        # 不间断空格: 只在 " · " 处换行, 不把 "Last season Emerald III" 拆开
-        if highest:
-            peak.append(f"{self.tr('Peak')} {highest}".replace(' ', NBSP))
-        previous = tierText(solo.get('previousTier'), solo.get('previousDivision'))
-        if previous:
-            peak.append(f"{self.tr('Last season')} {previous}".replace(' ', NBSP))
-        self.peakLabel.setText(" · ".join(peak))
-        self.peakLabel.setVisible(bool(peak))
-
-        tip = self.tr("Ranked Solo / Duo")
-        for w in (self.emblem, self.rankLabel):
-            w.setToolTip(tip)
-            w.installEventFilter(ToolTipFilter(w, 0, ToolTipPosition.TOP))
-
-    def __initFlexRank(self, flex):
-        ranked = tierText(flex.get('tierKey'), flex.get('division'))
-        text = f"{self.tr('Flex')}  "
-        if ranked:
-            lp = flex.get('lp')
-            text += ranked + (f" {lp} LP" if lp not in ("", None) else "")
-            wins, losses = flex.get('wins', 0), flex.get('losses', 0)
-            if losses:
-                text += " · " + winRateText(wins, losses)
-            elif wins:
-                text += f" · {wins}W"
-        else:
-            text += self.tr("Unranked")
-            self.flexEmblem.setVisible(False)
-
-        self.flexLabel.setText(text)
-
-    def __recentText(self, info, summary):
-        wins = info.get('wins', 0)
-        losses = info.get('losses', 0)
-
-        k, d, a = info['kda']
-        kda = (k + a) / max(d, 1)
-
-        parts = [f"KDA {colorSpan(f'{kda:.2f}', kdaColor(kda), bold=True)}",
-                 winRateText(wins, losses)]
-
-        streak = summary['streak']
-        if streak and streak[1] >= 3:
-            if streak[0] == 'win':
-                parts.append(colorSpan(self.tr("%1W streak").replace("%1", str(streak[1])),
-                                       QColor(0, 163, 80), bold=True))
-            else:
-                parts.append(colorSpan(self.tr("%1L streak").replace("%1", str(streak[1])),
-                                       QColor(191, 36, 42), bold=True))
-
-        remakes = info.get('remakes', 0)
-        if remakes > 0:
-            parts.append(colorSpan(self.tr("%1 remake").replace("%1", str(remakes)),
-                                   QColor(191, 36, 42)))
-
-        return f"{self.tr('Recent')}: " + " · ".join(parts)
-
-    def __rolesText(self, summary):
-        parts = [f"{translatePositionKey(key)} {count}"
-                 for key, count in summary['positions'][:2]]
-
-        for badge, color in (('mvp', QColor('#d4a017')), ('svp', QColor('#8e6bd8'))):
-            if summary[badge]:
-                parts.append(colorSpan(f"{summary[badge]} {badge.upper()}", color, bold=True))
-
-        return " · ".join(parts)
-
-    def __updatePick(self, championId, summary):
-        """当前所选英雄: 熟练度 (头像左下角 + 文字) 与近期战绩"""
-        if not championId:
-            self.pickLabel.setVisible(False)
-            self.masteryPill.setVisible(False)
-            return
-
-        parts = []
-        mastery = self.mastery.get(championId)
-        if mastery:
-            self.masteryPill.setText(f"M{mastery['level']}")
-            self.masteryPill.setToolTip(
-                f"{self.tr('Mastery')} {mastery['level']} · {mastery['points']:,} pts")
-            self.masteryPill.installEventFilter(
-                ToolTipFilter(self.masteryPill, 0, ToolTipPosition.TOP))
-            self.masteryPill.setVisible(True)
-            parts.append(f"M{mastery['level']} {shortNumber(mastery['points'])}")
-        else:
-            self.masteryPill.setVisible(False)
-
-        current = summary['currentChampion']
-        if current:
-            games = current['wins'] + current['losses']
-            winRate = round(current['wins'] / games * 100) if games else 0
-            parts.append(
-                f"{current['games']}G "
-                f"{colorSpan(f'{winRate}%', winRateColor(winRate), bold=True)}"
-                f" {current['kda']:.1f} KDA")
-        else:
-            parts.append(self.tr("no recent games"))
-
-        name = connector.manager.champs.get(championId, "") \
-            if getattr(connector, 'manager', None) else ""
-        self.pickLabel.setText(f"{self.tr('Pick')}{' ' + name if name else ''}: "
-                               + " · ".join(parts))
-        self.pickLabel.setVisible(True)
-        self.__placeMastery()
+    def nameWithTag(self):
+        tag = self.info.get('tagLine')
+        return f"{self.info['name']}#{tag}" if tag else self.info['name']
 
     def updateChampion(self, championId, icon, aramInfo=None):
         self.avatar.updateIcon(icon)
         if aramInfo:
             self.avatar.updateAramInfo(aramInfo)
 
-        self.__updatePick(championId, summarizeGames(self.gamesInfo, championId))
-
-    def __initLayout(self):
-        self.nameLayout.setContentsMargins(0, 0, 0, 0)
-        self.nameLayout.setSpacing(0)
-        self.nameLayout.addStretch()
-        self.nameLayout.addWidget(self.summonerName)
-        self.nameLayout.addWidget(self.tagLabel)
-        self.nameLayout.addStretch()
-
-        self.topLayout.setContentsMargins(0, 0, 0, 0)
-        self.topLayout.setSpacing(8)
-        self.topLayout.addWidget(self.avatar)
-        self.topLayout.addLayout(self.nameLayout, stretch=1)
-
-        self.winLossLayout.setContentsMargins(0, 0, 0, 0)
-        self.winLossLayout.setSpacing(6)
-        if self.winLossBar:
-            self.winLossLayout.addWidget(self.winLossBar, stretch=1)
-        self.winLossLayout.addWidget(self.winRateLabel)
-        if not self.winLossBar:
-            self.winLossLayout.addStretch()
-
-        self.rankTextLayout.setContentsMargins(0, 0, 0, 0)
-        self.rankTextLayout.setSpacing(3)
-        self.rankTextLayout.addStretch()
-        self.rankTextLayout.addWidget(self.rankLabel)
-        self.rankTextLayout.addLayout(self.winLossLayout)
-        self.rankTextLayout.addWidget(self.peakLabel)
-        self.rankTextLayout.addStretch()
-
-        self.rankLayout.setContentsMargins(0, 0, 0, 0)
-        self.rankLayout.setSpacing(6)
-        self.rankLayout.addWidget(self.emblem)
-        self.rankLayout.addLayout(self.rankTextLayout, stretch=1)
-
-        self.flexLayout.setContentsMargins(0, 0, 0, 0)
-        self.flexLayout.setSpacing(4)
-        self.flexLayout.addWidget(self.flexEmblem)
-        self.flexLayout.addWidget(self.flexLabel, stretch=1)
-
-        self.vBoxLayout.setContentsMargins(10, 8, 10, 8)
-        self.vBoxLayout.setSpacing(5)
-        self.vBoxLayout.addLayout(self.topLayout)
-        self.vBoxLayout.addLayout(self.rankLayout)
-        self.vBoxLayout.addLayout(self.flexLayout)
-        self.vBoxLayout.addWidget(self.recentLabel)
-        if self.rolesLabel.text():
-            self.vBoxLayout.addWidget(self.rolesLabel)
-        self.vBoxLayout.addWidget(self.pickLabel)
-
-    def resizeEvent(self, e):
-        super().resizeEvent(e)
-        self.__placeMastery()
-
-    def showEvent(self, e):
-        super().showEvent(e)
-        self.__placeMastery()
-
-    def __placeMastery(self):
-        if not self.masteryPill.isVisible():
-            return
-
-        self.masteryPill.adjustSize()
-        g = self.avatar.geometry()
-        self.masteryPill.move(g.left() - 2, g.bottom() - self.masteryPill.height() + 2)
-        self.masteryPill.raise_()
+        self.championId = championId
+        self.summary = summarizeGames(self.gamesInfo, championId)
+        self._cacheKey = None
+        self.__updateMasteryPill()
+        self.update()
 
     def updateTeamColor(self, team):
         if team in [0, 1]:
             self.setType(f"team{team+1}")
 
+    # ---------------- 交互 ----------------
 
-class GameRow(ColorAnimationFrame):
+    def event(self, e):
+        if e.type() == QEvent.ToolTip:
+            for rect, text in self.tips:
+                if rect.contains(e.pos()) and text:
+                    QToolTip.showText(e.globalPos(), text, self, rect)
+                    return True
+            QToolTip.hideText()
+            e.ignore()
+            return True
+        return super().event(e)
+
+    def mouseMoveEvent(self, e):
+        self.setCursor(Qt.PointingHandCursor if self.nameRect.contains(e.position().toPoint())
+                       else Qt.ArrowCursor)
+        super().mouseMoveEvent(e)
+
+    def mouseReleaseEvent(self, e):
+        if self.nameRect.contains(e.position().toPoint()):
+            signalBus.toCareerInterface.emit(self.info['puuid'])
+            e.accept()
+            return
+        super().mouseReleaseEvent(e)
+
+    # ---------------- 绘制 ----------------
+
+    def __updateMasteryPill(self):
+        mastery = self.mastery.get(self.championId) if self.championId else None
+        if not mastery:
+            self.masteryPill.setVisible(False)
+            return
+
+        self.masteryPill.setText(f"M{mastery['level']}")
+        self.masteryPill.setToolTip(
+            f"{self.tr('Mastery')} {mastery['level']}, {mastery['points']:,} pts")
+        self.masteryPill.adjustSize()
+        self.masteryPill.move(self.PAD - 2,
+                              self.PAD + self.AVATAR - self.masteryPill.height() + 2)
+        self.masteryPill.setVisible(True)
+        self.masteryPill.raise_()
+
+    def _contentPixmap(self):
+        return self.__content()
+
+    def __content(self):
+        dark = isDarkTheme()
+        pal = palette(dark)
+        dpr = self.devicePixelRatioF()
+        winC, loseC = resultColor('win'), resultColor('lose')
+        key = (self.width(), dpr, dark, winC.rgba(), loseC.rgba(), self.championId)
+        if key == self._cacheKey:
+            return self._cache
+
+        ink, muted = pal['ink'], pal['muted']
+        out = QPixmap(round(self.width() * dpr), round(self.height() * dpr))
+        out.setDevicePixelRatio(dpr)
+        out.fill(Qt.transparent)
+
+        p = QPainter(out)
+        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform
+                         | QPainter.TextAntialiasing)
+
+        w, pad = self.width(), self.PAD
+        tips = []
+        info, solo, flex, summary = self.info, self.solo, self.flex, self.summary
+
+        def line(x, y, h, runs, tip=None):
+            fitted, dropped = fitRuns(runs, w - pad - x)
+            end = paintRuns(p, x, y, h, fitted)
+            full = "".join(r[0] for r in runs)
+            if tip or dropped:
+                tips.append((QRect(int(x), int(y), int(w - pad - x), int(h)),
+                             tip or full.strip()))
+            return end
+
+        # 名字 (预组队上一局的队友 / 对手着色) + tag
+        fate = info.get("fateFlag")
+        nameColor = QColor("#bf242a") if fate == "enemy" else \
+            QColor("#057748") if fate == "ally" else ink
+        nx = pad + self.AVATAR + 10
+        name = info['name'] + ("" if info.get("isPublic", True) else " 🔒")
+        nameFont = textFont(15, True)
+        name = QFontMetrics(nameFont).elidedText(name, Qt.ElideRight, int(w - pad - nx))
+        p.setFont(nameFont)
+        p.setPen(nameColor)
+        p.drawText(QRectF(nx, 14, w - pad - nx, 22), Qt.AlignLeft | Qt.AlignVCenter, name)
+        self.nameRect = QRect(int(nx), 14, QFontMetrics(nameFont).horizontalAdvance(name) + 2, 22)
+        nameTip = self.nameWithTag()
+        if info.get("recentlyChampionName"):
+            nameTip += "\n" + str(info["recentlyChampionName"])
+        tips.append((self.nameRect, nameTip))
+        if info.get('tagLine'):
+            line(nx, 36, 18, [(f"#{info['tagLine']}", textFont(12), muted, False)])
+
+        # 单双排: 徽章 + 段位 + 胜点
+        y = 74
+        if not self.soloEmblem.isNull():
+            p.drawPixmap(QRectF(pad - 4, y - 4, 44, 44).toRect(), self.soloEmblem)
+        tx = pad + 44
+        tier = tierText(solo.get('tierKey'), solo.get('division'))
+        if tier:
+            lp = solo.get('lp')
+            line(tx, y, 22, [(tier, numberFont(16), ink, False),
+                             (f"  {lp} LP" if lp not in ("", None) else "", numberFont(13, 400),
+                              muted, True)], self.tr("Ranked Solo / Duo"))
+        else:
+            line(tx, y, 22, [(self.tr("Unranked"), textFont(13, True), muted, False)],
+                 self.tr("Ranked Solo / Duo"))
+
+        # 赛季胜负条 (其他玩家 LCU 常把负场给 0, 那时只写胜场)
+        y = 98
+        wins, losses = solo.get('wins', 0), solo.get('losses', 0)
+        if losses:
+            rate = wins / (wins + losses)
+            rateText = f"{round(rate * 100)}%"
+            rateFont = numberFont(14)
+            rateW = QFontMetrics(rateFont).horizontalAdvance(rateText)
+            bar = QRectF(tx, y + 2, max(w - pad - tx - rateW - 8, 40), 16)
+            path = QPainterPath()
+            path.addRoundedRect(bar, 4, 4)
+            p.save()
+            p.setClipPath(path)
+            p.fillRect(bar, loseC)
+            p.fillRect(QRectF(bar.left(), bar.top(), bar.width() * rate, bar.height()), winC)
+            p.restore()
+            small = numberFont(11)
+            p.setFont(small)
+            p.setPen(QColor(255, 255, 255))
+            p.drawText(bar.adjusted(5, 0, -5, 0), Qt.AlignLeft | Qt.AlignVCenter, f"{wins}W")
+            p.drawText(bar.adjusted(5, 0, -5, 0), Qt.AlignRight | Qt.AlignVCenter, f"{losses}L")
+            p.setFont(rateFont)
+            p.setPen(winRateColor(round(rate * 100)) or ink)
+            p.drawText(QRectF(w - pad - rateW, y, rateW, 20), Qt.AlignRight | Qt.AlignVCenter,
+                       rateText)
+        elif wins:
+            line(tx, y, 20, [(f"{wins}W", numberFont(13), ink, False),
+                             ("  " + self.tr("this season"), textFont(12), muted, True)])
+
+        # 赛季最高 / 上赛季
+        y = 119
+        runs = []
+        for label, value in ((self.tr("Peak"), tierText(solo.get('highestTier'),
+                                                          solo.get('highestDivision'))),
+                             (self.tr("Last season"), tierText(solo.get('previousTier'),
+                                                               solo.get('previousDivision')))):
+            if value:
+                # 第二对 (上赛季) 放不下时标签 + 数值一起省略
+                group = 2 if runs else 0
+                runs += [(("   " if runs else "") + label + " ", textFont(12), muted, group),
+                         (value, textFont(12, True), ink, group)]
+        if runs:
+            line(tx, y, 18, runs)
+
+        # 灵活组排
+        y = 144
+        fx = pad
+        if not self.flexEmblem.isNull():
+            p.drawPixmap(QRectF(pad, y + 1, 18, 18).toRect(), self.flexEmblem)
+            fx += 22
+        flexTier = tierText(flex.get('tierKey'), flex.get('division'))
+        runs = [(self.tr("Flex") + "  ", textFont(12), muted, False)]
+        if flexTier:
+            lp = flex.get('lp')
+            runs.append((flexTier + (f" {lp} LP" if lp not in ("", None) else ""),
+                         textFont(12, True), ink, False))
+            fw, fl = flex.get('wins', 0), flex.get('losses', 0)
+            if fl:
+                fr = round(fw / (fw + fl) * 100)
+                runs.append((f"  {fr}%", numberFont(13), winRateColor(fr) or ink, True))
+            elif fw:
+                runs.append((f"  {fw}W", numberFont(13, 400), muted, True))
+        else:
+            runs.append((self.tr("Unranked"), textFont(12), muted, False))
+        line(fx, y, 20, runs, self.tr("Ranked Flex"))
+
+        # 分隔线
+        p.setPen(QPen(pal['hairline'], 1))
+        p.drawLine(QPointF(pad, 169.5), QPointF(w - pad, 169.5))
+
+        # 近期: KDA + 胜率
+        y = 175
+        k, d, a = info['kda']
+        kda = (k + a) / max(d, 1)
+        rw, rl = info.get('wins', 0), info.get('losses', 0)
+        runs = [(self.tr("Recent") + "  ", textFont(12), muted, False),
+                (f"{kda:.2f}", numberFont(14), kdaColor(kda) or ink, False),
+                (" KDA", textFont(12), muted, False)]
+        if rw + rl:
+            rr = round(rw / (rw + rl) * 100)
+            runs += [(f"   {rr}%", numberFont(14), winRateColor(rr) or ink, False),
+                     (f"  {rw}W {rl}L", numberFont(13, 400), muted, True)]
+        line(pad, y, 18, runs, self.tr("Recent games (remakes excluded)"))
+
+        # 标记: 连胜 / 连败, 重开, MVP / SVP 次数, 常用分路
+        y = 195
+        runs = []
+        streak = summary['streak']
+        if streak and streak[1] >= 3:
+            label = (self.tr("%1W streak") if streak[0] == 'win'
+                     else self.tr("%1L streak")).replace("%1", str(streak[1]))
+            runs.append((label + "   ", textFont(12, True),
+                         winC if streak[0] == 'win' else loseC, False))
+        if info.get('remakes', 0):
+            runs.append((self.tr("%1 remake").replace("%1", str(info['remakes'])) + "   ",
+                         textFont(12), loseC, True))
+        if summary['mvp']:
+            runs.append((f"{summary['mvp']} MVP   ", textFont(12, True), pal['gold'], False))
+        if summary['svp']:
+            runs.append((f"{summary['svp']} SVP   ", textFont(12, True), QColor('#8e6bd8'),
+                         False))
+        for position, count in summary['positions'][:2]:
+            runs.append((f"{translatePositionKey(position)} {count}  ", textFont(12), muted, True))
+        if runs:
+            line(pad, y, 18, runs)
+
+        # 当前所选英雄: 熟练度 + 近期战绩
+        y = 215
+        if self.championId:
+            champ = connector.manager.champs.get(self.championId, "") \
+                if getattr(connector, 'manager', None) else ""
+            runs = [(self.tr("Pick") + (f" {champ}" if champ else "") + "  ", textFont(12),
+                     muted, False)]
+            mastery = self.mastery.get(self.championId)
+            if mastery:
+                runs.append((f"M{mastery['level']} {shortNumber(mastery['points'])}   ",
+                             numberFont(13), pal['gold'], True))
+            current = summary['currentChampion']
+            if current:
+                games = current['wins'] + current['losses']
+                cr = round(current['wins'] / games * 100) if games else 0
+                runs += [(f"{current['games']}G ", numberFont(13, 400), muted, False),
+                         (f"{cr}%", numberFont(13), winRateColor(cr) or ink, False),
+                         (f"  {current['kda']:.1f} KDA", numberFont(13, 400), muted, True)]
+            else:
+                runs.append((self.tr("no recent games"), textFont(12), muted, False))
+            line(pad, y, 18, runs)
+
+        p.end()
+
+        self.tips = tips
+        self._cache, self._cacheKey = out, key
+        self._contentVersion = getattr(self, '_contentVersion', 0) + 1
+        return out
+
+
+class GameRow(ComposedCardMixin, ColorAnimationFrame):
     """
     近期一局 (OP.GG 风格), 整行自绘:
 
@@ -794,11 +872,7 @@ class GameRow(ColorAnimationFrame):
         itemIds = game.get('itemIds') or [0] * len(game.get('itemIcons', []))
         self.items = [(QPixmap(icon) if icon else QPixmap(), itemId)
                       for icon, itemId in zip(game.get('itemIcons', []), itemIds)]
-        self.tags = gameTags(game)
-
         self.kda = (game['kills'] + game['assists']) / max(game['deaths'], 1)
-        kp = game.get('kp')
-        self.kpText = f"KP {round(kp * 100)}%" if kp is not None else ""
 
         secs = game.get('durationSecs') or 0
         minutes = secs / 60
@@ -807,8 +881,12 @@ class GameRow(ColorAnimationFrame):
         self.modeText = shortModeName(game)
         self.dateText = game['shortTime'] + (f" · {int(minutes)}m" if secs else "")
 
-        self.rowTip = self.__rowTip(game)
         self.itemRects = []
+
+        self.tags = gameTags(game)
+        kp = game.get('kp')
+        self.kpText = f"KP {round(kp * 100)}%" if kp is not None else ""
+        self.rowTip = self.__rowTip(game)
 
         self._cache = None
         self._cacheKey = None
@@ -846,12 +924,8 @@ class GameRow(ColorAnimationFrame):
 
         return super().event(e)
 
-    def paintEvent(self, e):
-        super().paintEvent(e)  # 背景 (胜 / 负 / 重开, 悬浮动画)
-
-        painter = QPainter(self)
-        painter.drawPixmap(0, 0, self.__content())
-        painter.end()
+    def _contentPixmap(self):
+        return self.__content()
 
     @staticmethod
     def __font(size, bold=False):
@@ -862,9 +936,9 @@ class GameRow(ColorAnimationFrame):
 
     def __content(self):
         dark = isDarkTheme()
-        deathsColor = colorManager.getColor('deaths')[0]
+        deaths = deathsColor()
         dpr = self.devicePixelRatioF()
-        key = (self.width(), self.height(), dpr, dark, deathsColor.rgba())
+        key = (self.width(), self.height(), dpr, dark, deaths.rgba())
         if key == self._cacheKey:
             return self._cache
 
@@ -902,7 +976,7 @@ class GameRow(ColorAnimationFrame):
         regular15 = self.__font(15)
         for text, font, color in ((str(self.game['kills']), bold15, fg),
                                   (" / ", regular15, sub),
-                                  (str(self.game['deaths']), bold15, deathsColor),
+                                  (str(self.game['deaths']), bold15, deaths),
                                   (" / ", regular15, sub),
                                   (str(self.game['assists']), bold15, fg)):
             p.setFont(font)
@@ -968,48 +1042,88 @@ class GameRow(ColorAnimationFrame):
         p.end()
 
         self._cache, self._cacheKey = out, key
+        self._contentVersion = getattr(self, '_contentVersion', 0) + 1
         return out
 
 
-class ChampionStatRow(QFrame):
-    """近期英雄一行: 头像 | KDA | 场次 | 胜率 | 熟练度"""
+class ChampionStatRow(QWidget):
+    """近期英雄一行 (自绘): 头像 | KDA | 场次 | 胜率 | 熟练度"""
+
+    HEIGHT = 30
 
     def __init__(self, item, mastery=None, parent=None):
         super().__init__(parent)
-        self.hBoxLayout = QHBoxLayout(self)
-
-        self.icon = RoundIcon(item['icon'], 26, 2, 1)
-
-        self.kdaLabel = QLabel(f"{item['kda']:.2f} KDA")
-        self.kdaLabel.setObjectName("bodyLabel")
-        color = kdaColor(item['kda'])
-        if color:
-            self.kdaLabel.setStyleSheet(f"color: {color.name()};")
-
-        self.gamesLabel = QLabel(f"{item['games']}G")
-        self.gamesLabel.setObjectName("secondaryLabel")
-
-        games = item['wins'] + item['losses']
-        winRate = round(item['wins'] / games * 100) if games else 0
-        self.winRateLabel = QLabel(
-            colorSpan(f"{winRate}%", winRateColor(winRate), bold=True))
-        self.winRateLabel.setObjectName("bodyLabel")
-
-        self.masteryLabel = QLabel(f"M{mastery['level']}" if mastery else "")
-        self.masteryLabel.setObjectName("secondaryLabel")
+        self.setFixedHeight(self.HEIGHT)
+        self.item = item
+        self.mastery = mastery
+        self.icon = QPixmap(item['icon']) if item.get('icon') else QPixmap()
 
         name = connector.manager.champs.get(item['championId'], "") \
             if getattr(connector, 'manager', None) else ""
-        tip = f"{name} · {item['wins']}W {item['losses']}L · {item['kda']:.2f} KDA"
+        tip = f"{name}  {item['wins']}W {item['losses']}L, {item['kda']:.2f} KDA".strip()
         if mastery:
-            tip += f"\n{self.tr('Mastery')} {mastery['level']} · {mastery['points']:,} pts"
+            tip += f"\n{self.tr('Mastery')} {mastery['level']}, {mastery['points']:,} pts"
         self.setToolTip(tip)
-        self.installEventFilter(ToolTipFilter(self, 0, ToolTipPosition.TOP))
 
-        self.hBoxLayout.setContentsMargins(4, 1, 4, 1)
-        self.hBoxLayout.setSpacing(8)
-        self.hBoxLayout.addWidget(self.icon)
-        self.hBoxLayout.addWidget(self.kdaLabel, stretch=1)
-        self.hBoxLayout.addWidget(self.gamesLabel)
-        self.hBoxLayout.addWidget(self.winRateLabel)
-        self.hBoxLayout.addWidget(self.masteryLabel)
+    def paintEvent(self, e):
+        # 内容缓存成图, 滚动时只贴图 (按宽度 / 缩放比 / 主题重画)
+        dpr = self.devicePixelRatioF()
+        key = (self.width(), dpr, isDarkTheme())
+        if key != getattr(self, '_cacheKey', None):
+            self._cache, self._cacheKey = self.__render(dpr), key
+
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self._cache)
+        painter.end()
+
+    def __render(self, dpr):
+        pal = palette()
+        item = self.item
+        out = QPixmap(round(self.width() * dpr), round(self.HEIGHT * dpr))
+        out.setDevicePixelRatio(dpr)
+        out.fill(Qt.transparent)
+
+        p = QPainter(out)
+        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform
+                         | QPainter.TextAntialiasing)
+        h, w = self.HEIGHT, self.width()
+
+        icon = QRectF(4, (h - 24) / 2, 24, 24)
+        if not self.icon.isNull():
+            p.save()
+            clip = QPainterPath()
+            clip.addEllipse(icon)
+            p.setClipPath(clip)
+            p.drawPixmap(icon.toRect(), self.icon)
+            p.restore()
+        p.setPen(QPen(pal['gold'], 1.5))
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(icon.adjusted(0.75, 0.75, -0.75, -0.75))
+
+        p.setFont(numberFont(13))
+        p.setPen(kdaColor(item['kda']) or pal['ink'])
+        p.drawText(QRectF(36, 0, 80, h), Qt.AlignLeft | Qt.AlignVCenter, f"{item['kda']:.2f}")
+        p.setFont(textFont(12))
+        p.setPen(pal['muted'])
+        p.drawText(QRectF(36 + QFontMetrics(numberFont(13)).horizontalAdvance(
+            f"{item['kda']:.2f}") + 3, 0, 40, h), Qt.AlignLeft | Qt.AlignVCenter, "KDA")
+
+        games = item['wins'] + item['losses']
+        rate = round(item['wins'] / games * 100) if games else 0
+        right = w - 4
+        if self.mastery:
+            p.setFont(numberFont(12, 400))
+            p.setPen(pal['gold'])
+            p.drawText(QRectF(right - 40, 0, 40, h), Qt.AlignRight | Qt.AlignVCenter,
+                       f"M{self.mastery['level']}")
+        right -= 46
+        p.setFont(numberFont(13))
+        p.setPen(winRateColor(rate) or pal['ink'])
+        p.drawText(QRectF(right - 44, 0, 44, h), Qt.AlignRight | Qt.AlignVCenter, f"{rate}%")
+        right -= 50
+        p.setFont(numberFont(12, 400))
+        p.setPen(pal['muted'])
+        p.drawText(QRectF(right - 36, 0, 36, h), Qt.AlignRight | Qt.AlignVCenter,
+                   f"{item['games']}G")
+        p.end()
+        return out
