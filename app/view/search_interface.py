@@ -10,8 +10,8 @@ from qasync import asyncSlot
 import asyncio
 from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QFrame,
                              QSpacerItem, QSizePolicy, QLabel, QStackedWidget, QWidget)
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap, QColor
+from PySide6.QtCore import Qt, Signal, QEvent, QRectF, QPointF
+from PySide6.QtGui import QPixmap, QColor, QPainter, QPen, QFontMetrics
 
 from ..common.logger import logger
 from ..common.qfluentwidgets import (SmoothScrollArea, PushButton, ToolButton, InfoBar,
@@ -27,9 +27,12 @@ from app.common.signals import signalBus
 from app.components.champion_icon_widget import RoundIcon, RoundedLabel
 from app.components.match_widgets import ItemIcon
 from app.components.match_detail_widgets import DetailTeamTable, TeamCompareBar, teamMaxima
+from app.components.design_tokens import palette, numberFont, textFont, deathsColor
+from app.components.scoreboard import (cachedContent, drawText, drawRuns, runsWidth,
+                                       drawChampion, drawResultCard, stripeColor,
+                                       resultType, queueShortName, compactAgo, durationText)
 from app.components.search_line_edit import SearchLineEdit
 from app.components.summoner_name_button import SummonerName
-from app.components.animation_frame import ColorAnimationFrame, CardWidget
 from app.components.color_label import ColorLabel, DeathsLabel
 from app.lol.connector import connector
 from app.lol.exceptions import SummonerGamesNotFound, SummonerNotFound
@@ -61,13 +64,11 @@ class GamesTab(QFrame):
 
     def __init__(self, parnet=None):
         super().__init__(parnet)
-        # Holds the 153px-wide GameTab cards. Bumped from 160 together with
-        # GameTab's width so the KDA row has room (see GameTab.__initWidget for
-        # the cross-platform font-metrics rationale). The layout margins are
-        # pinned explicitly in __initLayout because Qt's *default* layout margin
-        # differs by platform (~20px on macOS vs ~9 on Windows); the larger macOS
-        # margin shrank the inner width below the card width and clipped the
-        # card's right edge.
+        # Holds the self-painted GameTab rows, which stretch to the inner width
+        # (mode name elided, time right-aligned, so wider macOS fonts can't clip).
+        # The layout margins are pinned explicitly in __initLayout because Qt's
+        # *default* layout margin differs by platform (~20px on macOS vs ~9 on
+        # Windows).
         self.setFixedWidth(174)
         self.vBoxLayout = QVBoxLayout(self)
 
@@ -923,23 +924,32 @@ class SummonerInfoBar(QFrame):
         self.hBoxLayout.addWidget(self.demageLabel)
 
 
-class GameTitleBar(QFrame, ColorChangeable):
+class GameTitleBar(QFrame):
+    """
+    对局详情标题 (记分表风格), 自绘:
+
+        ▌[地图]  Defeat  Ranked Solo/Duo                              Game ID
+        ▌        Summoner's Rift   Duration 32m 39s   Played 2026/10/19 06:53   5662847234  [复制]
+
+    胜负用左侧实色边条 + 浅色底 + 结果色大字; 其余信息为 "灰色标签 + 墨色数值", 不用点号串起来.
+    """
+
+    HEIGHT = 72
+    MAP = 44
+
     def __init__(self, type: str = None, parent=None):
-        # PySide6's QFrame binding rejects parent= as a keyword in this
-        # multiple-inheritance context (QFrame, ColorChangeable); pass it
-        # positionally. PyQt5 accepted the keyword.
-        QFrame.__init__(self, parent)
-        ColorChangeable.__init__(self, type)
+        super().__init__(parent)
+        self.setFixedHeight(self.HEIGHT)
+        # search_interface.qss 里旧的底色 / 边框改由 paintEvent 自绘 (控件自己的样式表优先)
+        self.setStyleSheet("GameTitleBar { border: none; background: transparent; }")
 
-        self.setFixedHeight(78)
         self.titleBarLayout = QHBoxLayout(self)
-        self.infoLayout = QVBoxLayout()
-
-        self.mapIcon = RoundedLabel(borderWidth=0, radius=0)
-        self.resultLabel = QLabel()
-        self.infoLabel = QLabel()
         self.copyGameIdButton = ToolButton(Icon.COPY)
         self.gameId = None
+        self.game = None
+        self.mapPixmap = QPixmap()
+        self.resultText = ""
+        self.type = type or 'lose'
 
         self.remake = None
         self.win = None
@@ -949,44 +959,26 @@ class GameTitleBar(QFrame, ColorChangeable):
         self.__connectSignalToSlot()
 
     def __initWidget(self):
-        self.resultLabel.setObjectName("resultLabel")
-        self.infoLabel.setObjectName("infoLabel")
         self.copyGameIdButton.setVisible(False)
-        self.copyGameIdButton.setFixedSize(36, 36)
+        self.copyGameIdButton.setFixedSize(34, 34)
         self.copyGameIdButton.setToolTip(self.tr("Copy game ID"))
         self.copyGameIdButton.installEventFilter(ToolTipFilter(
             self.copyGameIdButton, 500, ToolTipPosition.LEFT))
 
     def __initLayout(self):
-        self.infoLayout.setSpacing(0)
-        self.infoLayout.setContentsMargins(0, 4, 0, 2)
-        self.infoLayout.addSpacing(-5)
-        self.infoLayout.addWidget(self.resultLabel)
-        self.infoLayout.addWidget(self.infoLabel)
-
-        self.titleBarLayout.addWidget(self.mapIcon)
-        self.titleBarLayout.addSpacing(5)
-        self.titleBarLayout.addLayout(self.infoLayout)
-        self.titleBarLayout.addSpacerItem(QSpacerItem(
-            1, 1, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        self.titleBarLayout.setContentsMargins(0, 0, 16, 0)
+        self.titleBarLayout.addStretch(1)
         self.titleBarLayout.addWidget(self.copyGameIdButton)
-        self.titleBarLayout.addSpacing(10)
 
     def updateTitleBar(self, game):
         isCherry = game["queueId"] == 1700
 
         self.remake = game['remake']
         self.win = game['win']
+        self.type = resultType(game['win'], game['remake'])
 
-        if game["remake"]:
-            result = self.tr("Remake")
-            self.setType('remake')
-        elif game["win"]:
-            result = self.tr("Win")
-            self.setType('win')
-        else:
-            result = self.tr("Lose")
-            self.setType('lose')
+        result = {'remake': self.tr("Remake"), 'win': self.tr("Victory"),
+                  'lose': self.tr("Defeat")}[self.type]
 
         if isCherry:
             cherryResult = game["cherryResult"]
@@ -1008,22 +1000,73 @@ class GameTitleBar(QFrame, ColorChangeable):
                 result = self.tr("8th")
 
         self.gameId = game['gameId']
-
-        self.mapIcon.setPicture(game['mapIcon'])
-        self.mapIcon.setFixedSize(54, 54)
-        self.resultLabel.setText(result)
-        self.infoLabel.setText(
-            f"{game['mapName']}  ·  {game['modeName']}  ·  {game['gameDuration']}  ·  {game['gameCreation']}  ·  "
-            + self.tr("Game ID: ") + f"{self.gameId}")
+        self.game = game
+        self.resultText = result
+        self.mapPixmap = QPixmap(game['mapIcon']) if game.get('mapIcon') else QPixmap()
 
         self.copyGameIdButton.setVisible(True)
+        self.update()
 
-    def setColor(self, c1: QColor, c2, c3, c4):
-        self.setStyleSheet(f"""
-            GameTitleBar {{
-                background-color: {c1.name(QColor.HexArgb)};
-            }}
-        """)
+    def paintEvent(self, e):
+        if not self.game:
+            return
+
+        game, pal = self.game, palette()
+        ink, muted = pal['ink'], pal['muted']
+        w, h = self.width(), self.HEIGHT
+
+        p = QPainter(self)
+        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform
+                         | QPainter.TextAntialiasing)
+        drawResultCard(p, self.rect(), self.type, pal)
+
+        x = 18
+        if not self.mapPixmap.isNull():
+            p.drawPixmap(QRectF(x, (h - self.MAP) / 2, self.MAP, self.MAP).toRect(),
+                         self.mapPixmap)
+        x += self.MAP + 14
+
+        # 右侧: 对局 ID (复制按钮左边)
+        button = self.copyGameIdButton
+        right = (button.x() if button.isVisible() else w) - 12
+        idFont = numberFont(14, 400)
+        idText = str(self.gameId)
+        idW = max(QFontMetrics(idFont).horizontalAdvance(idText),
+                  QFontMetrics(textFont(12)).horizontalAdvance(self.tr("Game ID")))
+        drawText(p, QRectF(right - idW, 14, idW, 18), self.tr("Game ID"), textFont(12), muted,
+                 Qt.AlignRight | Qt.AlignVCenter)
+        drawText(p, QRectF(right - idW, 34, idW, 22), idText, idFont, ink,
+                 Qt.AlignRight | Qt.AlignVCenter)
+        right -= idW + 24
+
+        # 第一行: 结果 (结果色) + 模式; 同一基线
+        def baselineRuns(x, baseline, runs):
+            for string, font, color in runs:
+                p.setFont(font)
+                p.setPen(color)
+                p.drawText(QPointF(x, baseline), string)
+                x += QFontMetrics(font).horizontalAdvance(string)
+            return x
+
+        baselineRuns(x, 35, ((self.resultText, textFont(20, True), stripeColor(self.type, pal)),
+                             ("   " + game['modeName'], textFont(14, True), ink)))
+
+        # 第二行: 地图 / 时长 / 开始时间, 放不下就从后往前省略
+        segments = [[(game['mapName'], textFont(13), ink)]]
+        duration = durationText(game.get('durationSecs') or 0) or game.get('gameDuration', '')
+        if duration:
+            segments.append([(self.tr("Duration") + "  ", textFont(12), muted),
+                             (duration, numberFont(13, 400), ink)])
+        segments.append([(self.tr("Played") + "  ", textFont(12), muted),
+                         (game['gameCreation'], numberFont(13, 400), ink)])
+        gap = 22
+        while len(segments) > 1 and \
+                sum(runsWidth(s) for s in segments) + gap * (len(segments) - 1) > right - x:
+            segments.pop()
+        for runs in segments:
+            x = baselineRuns(x, 57, runs) + gap
+
+        p.end()
 
     def __connectSignalToSlot(self):
         self.copyGameIdButton.clicked.connect(
@@ -1069,107 +1112,115 @@ class GamesView(QFrame):
         self.stackWidget.setCurrentIndex(index)
 
 
-class GameTab(ColorAnimationFrame):
+class GameTab(QWidget):
+    """
+    左侧对局列表的一行 ("赛后记分表" 风格), 整行自绘:
+
+        ▌(英雄)  Solo/Duo        3h
+        ▌        8 / 13 / 8
+
+    胜负由左侧实色边条 + 浅色底表达; 悬停加深, 选中再加深并描结果色边.
+    选中态沿用外部的 setProperty('selected', ...) 约定, 点击发 signalBus.gameTabClicked.
+    """
+    clicked = Signal()
+
+    HEIGHT = 52
+    ICON = 32
+    STRIPE = 4
+
     def __init__(self, game=None, parent=None):
-        if game['remake']:
-            type = 'remake'
-        elif game['win']:
-            type = 'win'
-        else:
-            type = 'lose'
-
-        super().__init__(type=type, parent=parent)
-
-        self.setFixedHeight(54)
-        # Widened from 141: the KDA labels below size to their content (no longer
-        # fixed at 12px), so the card needs room for the widest realistic row
-        # (all three numbers two digits). macOS renders the substituted SF Pro
-        # font wider than Windows' Segoe UI, which is why the old fixed widths
-        # clipped two-digit KDAs there.
-        self.setFixedWidth(153)
-
+        super().__init__(parent)
+        self.setFixedHeight(self.HEIGHT)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setCursor(Qt.PointingHandCursor)
         self.setProperty("selected", False)
 
-        self.vBoxLayout = QHBoxLayout(self)
-        self.nameTimeKdaLayout = QVBoxLayout()
-        self.infoLayout = QHBoxLayout()
-
+        self.game = game
         self.gameId = game["gameId"]
-        self.championIcon = RoundIcon(game["championIcon"], 32, 2, 2)
-
-        self.modeName = QLabel(
-            game["name"].replace("排位赛 ", "").replace("Ranked ", ""))
-
-        self.kills = QLabel(str(game['kills']))
-        self.slash1 = QLabel("/")
-        self.deaths = DeathsLabel(str(game['deaths']))
-        self.slash2 = QLabel("/")
-        self.assists = QLabel(str(game['assists']))
-
-        self.time = QLabel(game['shortTime'])
-
-        self.resultLabel = QLabel()
-
-        if game["remake"]:
-            self.resultLabel.setText(self.tr("remake"))
-        elif game["win"]:
-            self.resultLabel.setText(self.tr("win"))
-        else:
-            self.resultLabel.setText(self.tr("lose"))
-
         self.remake = game['remake']
         self.win = game['win']
+        self.resultType = resultType(game['win'], game['remake'])
+        self.championPixmap = QPixmap(game["championIcon"])
+        self.modeName = queueShortName(game.get('queueId'), game["name"])
+        self.isHover = False
+        self._cache = self._cacheKey = None
 
-        self.__initWidget()
-        self.__initLayout()
+        self.setToolTip(f"{game['name']}\n{game.get('time', '')}".strip())
 
         self.clicked.connect(lambda: signalBus.gameTabClicked.emit(self))
 
-    def __initWidget(self):
-        self.kills.setObjectName("kills")
-        self.slash1.setObjectName("slash1")
-        self.deaths.setObjectName("deaths")
-        self.slash2.setObjectName("slash2")
-        self.assists.setObjectName("assists")
-        self.kills.setAlignment(Qt.AlignCenter)
-        self.slash1.setAlignment(Qt.AlignCenter)
-        self.deaths.setAlignment(Qt.AlignCenter)
-        self.slash2.setAlignment(Qt.AlignCenter)
-        self.assists.setAlignment(Qt.AlignCenter)
+    # ---------------- 交互 ----------------
 
-        self.time.setObjectName("time")
+    def event(self, e):
+        # 选中 / 取消选中都是外部 setProperty('selected') + polish, 这里负责重绘
+        if e.type() == QEvent.DynamicPropertyChange:
+            self.update()
+        return super().event(e)
 
-        # Minimum (not fixed) width: 12px holds a single digit, but a two-digit
-        # KDA needs ~13-15px in the macOS SF Pro fallback and was being clipped.
-        # An expanding spacer in __initLayout absorbs the slack, so single-digit
-        # numbers still render at ~12px and the row only grows when it must.
-        self.kills.setMinimumWidth(12)
-        self.slash1.setFixedWidth(6)
-        self.deaths.setMinimumWidth(12)
-        self.slash2.setFixedWidth(6)
-        self.assists.setMinimumWidth(12)
+    def enterEvent(self, e):
+        self.isHover = True
+        self.update()
+        super().enterEvent(e)
 
-    def __initLayout(self):
-        self.infoLayout.setContentsMargins(0, 0, 0, 0)
-        self.infoLayout.setSpacing(0)
+    def leaveEvent(self, e):
+        self.isHover = False
+        self.update()
+        super().leaveEvent(e)
 
-        self.infoLayout.addWidget(self.time)
-        self.infoLayout.addSpacing(5)
-        self.infoLayout.addWidget(self.kills)
-        self.infoLayout.addWidget(self.slash1)
-        self.infoLayout.addWidget(self.deaths)
-        self.infoLayout.addWidget(self.slash2)
-        self.infoLayout.addWidget(self.assists)
+    def mousePressEvent(self, e):
+        e.accept()
 
-        self.nameTimeKdaLayout.addWidget(self.modeName)
-        self.nameTimeKdaLayout.addLayout(self.infoLayout)
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton and self.rect().contains(e.position().toPoint()):
+            self.clicked.emit()
+        e.accept()
 
-        self.vBoxLayout.setContentsMargins(7, 7, 7, 7)
-        self.vBoxLayout.addWidget(self.championIcon)
-        self.vBoxLayout.addLayout(self.nameTimeKdaLayout)
+    # ---------------- 绘制 ----------------
 
-        self.vBoxLayout.addSpacerItem(QSpacerItem(
-            1, 1, QSizePolicy.Expanding, QSizePolicy.Minimum))
+    def paintEvent(self, e):
+        pal = palette()
+        selected = bool(self.property("selected"))
+
+        p = QPainter(self)
+        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
+        drawResultCard(p, self.rect(), self.resultType, pal, radius=6, stripe=self.STRIPE,
+                       tintAlpha=46 if selected else (30 if self.isHover else 15))
+        if selected:
+            p.setPen(QPen(stripeColor(self.resultType, pal), 1.5))
+            p.setBrush(Qt.NoBrush)
+            p.drawRoundedRect(QRectF(self.rect()).adjusted(0.75, 0.75, -0.75, -0.75), 6, 6)
+
+        ago = compactAgo(self.game['timeStamp'], self.game.get('shortTime', ''))
+        p.drawPixmap(0, 0, cachedContent(self, self.__draw, (ago,)))
+        p.end()
+
+    def __draw(self, p, pal):
+        game, w, h = self.game, self.width(), self.height()
+        ink, muted = pal['ink'], pal['muted']
+
+        x = self.STRIPE + 8
+        icon = QRectF(x, (h - self.ICON) / 2, self.ICON, self.ICON)
+        drawChampion(p, self.championPixmap, icon, pal['gold'], 1.5, crop=3)
+
+        # 第一行: 模式简称 + 多久前 (右对齐)
+        tx, right = icon.right() + 9, w - 9
+        ago = compactAgo(game['timeStamp'], game.get('shortTime', ''))
+        agoFont = textFont(12)
+        agoW = QFontMetrics(agoFont).horizontalAdvance(ago)
+        drawText(p, QRectF(right - agoW, h / 2 - 21, agoW, 20), ago, agoFont, muted,
+                 Qt.AlignRight | Qt.AlignVCenter)
+        nameFont = textFont(13, True)
+        name = QFontMetrics(nameFont).elidedText(self.modeName, Qt.ElideRight,
+                                                 int(right - agoW - 6 - tx))
+        drawText(p, QRectF(tx, h / 2 - 21, right - tx, 20), name, nameFont, ink)
+
+        # 第二行: K / D / A (记分牌数字)
+        bold, thin = numberFont(15), numberFont(15, 300)
+        drawRuns(p, tx, h / 2 + 1, 20, ((str(game['kills']), bold, ink),
+                                        (" / ", thin, muted),
+                                        (str(game['deaths']), bold, deathsColor()),
+                                        (" / ", thin, muted),
+                                        (str(game['assists']), bold, ink)))
 
 
 class SearchInterface(SeraphineInterface):
