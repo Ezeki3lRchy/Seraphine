@@ -75,6 +75,10 @@ def main():
     app.installTranslator(fluentTranslator)
     app.installTranslator(seraphineTranslator)
 
+    # 高刷新率平滑滚动 (替换 qfluentwidgets 的 60fps 滚动), 须在创建任何滚动区之前
+    from app.common.smooth_scroll import install as installHighRefreshScroll
+    installHighRefreshScroll()
+
     w = MainWindow()
     w.show()
 
