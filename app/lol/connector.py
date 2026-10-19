@@ -268,6 +268,12 @@ class LolClientConnector(QObject):
         self.rcToken = None
         self.rcSess = None
 
+        # Riot 对局服务器 (SGP), 仅用于对局详情 "出装" 视图的完整时间线 (本地 LCU 时间线
+        # 没有购买 / 加点事件). 国服沿用 sgpSess; 其他服按需创建
+        self.matchSgpSess = None
+        self.matchSgpHost = None
+        self.platformId = None
+
         self.manager = None
         self.perksStyleCache = None
         self.listener = None
@@ -373,6 +379,13 @@ class LolClientConnector(QObject):
                     await self.rcSess.close()
                 except Exception:
                     pass
+
+            if self.matchSgpSess:
+                try:
+                    await self.matchSgpSess.close()
+                except Exception:
+                    pass
+                self.matchSgpSess = None
         finally:
             self.__reset()
 
@@ -788,6 +801,76 @@ class LolClientConnector(QObject):
             return None
 
         return data if isinstance(data, dict) and data.get('participants') else None
+
+    async def __matchSgpTarget(self):
+        """
+        (Riot 对局服务器地址, 平台 ID), 取不到为 (None, None). 不硬编码地区表:
+        平台 ID 来自客户端 (/lol-chat/v1/me, 例如 NA1), 服务器分片来自客户端自己的配置
+        (PlayerPreferences 服务地址 player-preferences-<分片>.pp.sgp.pvp.net, 例如 usw2),
+        对局服务器为 https://<分片>-red.pp.sgp.pvp.net
+        """
+        if self.matchSgpHost and self.platformId:
+            return self.matchSgpHost, self.platformId
+
+        try:
+            async with self.semaphore:
+                res = await self.__get("/lol-chat/v1/me")
+                platformId = (await res.json(content_type=None)).get('platformId')
+
+                res = await self.__get("/lol-platform-config/v1/namespaces/PlayerPreferences")
+                prefs = await res.json(content_type=None) if res.status == 200 else {}
+        except Exception as e:
+            logger.warning(f"match SGP target lookup failed: {e!r}", TAG)
+            return None, None
+
+        endpoint = (prefs or {}).get('ServiceEndpoint') or ''
+        match = re.search(r'player-preferences-([a-z0-9]+)\.pp\.sgp\.pvp\.net', endpoint)
+        if not platformId or not match:
+            logger.warning(f"match SGP target not found (platform={platformId!r}, "
+                           f"endpoint={endpoint!r})", TAG)
+            return None, None
+
+        self.platformId = platformId
+        self.matchSgpHost = f"https://{match.group(1)}-red.pp.sgp.pvp.net"
+        return self.matchSgpHost, self.platformId
+
+    async def getGameTimelineViaSgpQuietly(self, gameId):
+        """
+        Riot 对局服务器上的完整时间线 (match-v5 格式, 含 ITEM_* / SKILL_LEVEL_UP 事件与
+        participants 的 puuid), 本地 LCU 时间线缺这些事件时 "出装" 视图用.
+        用客户端自己的登录令牌 (/entitlements/v1/token), 只发给 Riot 的服务器.
+        不重试不弹窗, 任何失败返回 None
+        """
+        try:
+            if self.inTencent and self.sgpSess and self.server:
+                res = await self.__sgp__get(
+                    f"/match-history-query/v1/products/lol/{self.server.upper()}_{gameId}/DETAILS")
+            else:
+                host, platformId = await self.__matchSgpTarget()
+                if not host:
+                    return None
+
+                token = await self.getSGPtoken()
+                if self.matchSgpSess is None:
+                    self.matchSgpSess = aiohttp.ClientSession(
+                        base_url=host, timeout=aiohttp.ClientTimeout(total=15))
+
+                res = await self.matchSgpSess.get(
+                    f"/match-history-query/v1/products/lol/{platformId}_{gameId}/DETAILS",
+                    headers={"Authorization": f"Bearer {token}"})
+
+            if res.status != 200:
+                logger.warning(f"getGameTimelineViaSgpQuietly({gameId}) -> {res.status}", TAG)
+                res.release()
+                return None
+
+            data = await res.json(content_type=None)
+        except Exception as e:
+            logger.warning(f"getGameTimelineViaSgpQuietly({gameId}) failed: {e!r}", TAG)
+            return None
+
+        timeline = data.get('json') if isinstance(data, dict) else None
+        return timeline if isinstance(timeline, dict) and timeline.get('frames') else None
 
     async def getGameTimelineQuietly(self, gameId):
         '''

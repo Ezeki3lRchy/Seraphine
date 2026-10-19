@@ -232,3 +232,40 @@ class GameBuildsTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class RemapTimelineParticipantsTest(unittest.TestCase):
+    """SGP timeline participantIds -> LCU detail participantIds, matched by puuid."""
+
+    detail = {"participantIdentities": [
+        {"participantId": 1, "player": {"puuid": "a"}},
+        {"participantId": 2, "player": {"puuid": "b"}},
+    ]}
+
+    def timeline(self):
+        return {"participants": [{"participantId": 1, "puuid": "b"},
+                                 {"participantId": 2, "puuid": "a"},
+                                 {"participantId": 3, "puuid": "stranger"}],
+                "frames": [{"events": [
+                    {"type": "ITEM_PURCHASED", "participantId": 1, "itemId": 1055, "timestamp": 1},
+                    {"type": "ITEM_PURCHASED", "participantId": 2, "itemId": 1056, "timestamp": 2},
+                    {"type": "ITEM_PURCHASED", "participantId": 3, "itemId": 1057, "timestamp": 3},
+                    {"type": "ITEM_PURCHASED", "participantId": 0, "itemId": 3865, "timestamp": 0},
+                ]}]}
+
+    def test_swaps_ids_by_puuid_and_drops_unmatched(self):
+        original = self.timeline()
+        out = mb.remapTimelineParticipants(original, self.detail)
+        ids = [(e["itemId"], e["participantId"]) for e in out["frames"][0]["events"]]
+        self.assertEqual(ids, [(1055, 2), (1056, 1), (1057, None), (3865, 0)])
+        # input untouched
+        self.assertEqual(original["frames"][0]["events"][0]["participantId"], 1)
+
+    def test_identity_mapping_returns_same_object(self):
+        tl = self.timeline()
+        tl["participants"] = [{"participantId": 1, "puuid": "a"}, {"participantId": 2, "puuid": "b"}]
+        self.assertIs(mb.remapTimelineParticipants(tl, self.detail), tl)
+
+    def test_bad_input(self):
+        self.assertIsNone(mb.remapTimelineParticipants(None, self.detail))
+        tl = self.timeline()
+        self.assertIs(mb.remapTimelineParticipants(tl, None), tl)

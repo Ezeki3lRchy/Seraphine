@@ -8,7 +8,8 @@ from PySide6.QtCore import QObject, QLocale
 
 from .exceptions import SummonerRankInfoNotFound
 from .chat_reveal import mergeHiddenTeammates, revealStats, isHiddenSlot
-from .match_build import parseGameBuilds, buildItemIds, hasBuildEvents
+from .match_build import (parseGameBuilds, buildItemIds, hasBuildEvents,
+                          remapTimelineParticipants)
 from ..common.config import cfg, Language, isChineseText
 from ..common.logger import logger
 from ..lol.connector import connector
@@ -2456,11 +2457,17 @@ async def loadGameBuildData(gameId):
     对局详情 "出装" 视图的数据, 从不抛异常:
         {'builds': {participantId: {'itemGroups', 'skills', 'runes'}},
          'itemIcons': {itemId: 本地图标路径}, 'hasTimeline': 时间线里有出装 / 加点事件}
-    符文来自对局详情的 perk0..5 (总能拿到), 出装 / 加点来自时间线 (LCU 目前不提供这两类事件)
+    符文来自对局详情的 perk0..5 (总能拿到), 出装 / 加点来自时间线 (LCU 的没有时用 Riot 对局服务器的)
     """
     detail, timeline = await asyncio.gather(
         connector.getGameDetailByGameIdQuietly(gameId),
         connector.getGameTimelineQuietly(gameId))
+
+    # LCU 时间线没有购买 / 加点事件时, 改用 Riot 对局服务器的完整时间线
+    if not hasBuildEvents(timeline):
+        sgpTimeline = await connector.getGameTimelineViaSgpQuietly(gameId)
+        if hasBuildEvents(sgpTimeline):
+            timeline = remapTimelineParticipants(sgpTimeline, detail)
 
     manager = connector.manager
     builds = parseGameBuilds(detail, timeline, manager.getPerkStyles() if manager else None)

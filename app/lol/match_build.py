@@ -7,9 +7,10 @@
   副系 3 行, 选中与否; 有 statPerk0..2 时再加属性碎片 3 行).
 
 注意: 目前 LCU 的 /lol-match-history/v1/game-timelines/{gameId} 实测只有 CHAMPION_KILL /
-ELITE_MONSTER_KILL / BUILDING_KILL 事件, 没有 ITEM_* / SKILL_LEVEL_UP; hasBuildEvents() 为 False
-时界面显示 "无出装数据". 事件字段按 match-v5 (ITEM_UNDO 的 beforeId / afterId) 兼容 LCU 旧格式
-(只有 itemId).
+ELITE_MONSTER_KILL / BUILDING_KILL 事件, 没有 ITEM_* / SKILL_LEVEL_UP; 这时改用 Riot 对局服务器
+(SGP) 的完整时间线 (connector.getGameTimelineViaSgpQuietly), 其 participantId 用
+remapTimelineParticipants 按 puuid 对到对局详情的 participantId. 都拿不到时界面显示 "无出装数据".
+事件字段按 match-v5 (ITEM_UNDO 的 beforeId / afterId) 兼容 LCU 旧格式 (只有 itemId).
 """
 
 SKILL_KEYS = {1: 'Q', 2: 'W', 3: 'E', 4: 'R'}
@@ -31,6 +32,43 @@ def timelineEvents(timeline):
 def hasBuildEvents(timeline):
     """时间线里是否有出装 / 加点事件 (LCU 目前的时间线没有)"""
     return any(event.get('type') in BUILD_EVENT_TYPES for event in timelineEvents(timeline))
+
+
+def remapTimelineParticipants(timeline, detail):
+    """
+    SGP 时间线 (participants: [{participantId, puuid}]) 的 participantId 按 puuid 换成 LCU 对局详情
+    (participantIdentities) 里的 participantId; 对不上的事件 (以及 participantId 0 的系统事件)
+    保持原样, 不会被归到任何玩家. 返回新的时间线, 不修改输入
+    """
+    if not isinstance(timeline, dict) or not isinstance(detail, dict):
+        return timeline
+
+    sgpByPuuid = {p.get('puuid'): p.get('participantId')
+                  for p in timeline.get('participants') or [] if isinstance(p, dict)}
+    mapping = {}
+    for identity in detail.get('participantIdentities') or []:
+        puuid = (identity.get('player') or {}).get('puuid')
+        sgpId = sgpByPuuid.get(puuid)
+        if puuid and sgpId:
+            mapping[sgpId] = identity.get('participantId')
+
+    if not mapping or all(k == v for k, v in mapping.items()):
+        return timeline
+
+    frames = []
+    for frame in timeline.get('frames') or []:
+        events = []
+        for event in frame.get('events') or []:
+            pid = event.get('participantId')
+            if pid in mapping:
+                event = dict(event, participantId=mapping[pid])
+            elif pid:
+                # 对不上的玩家: 不能留着原编号, 否则会被算到同号的另一个人身上
+                event = dict(event, participantId=None)
+            events.append(event)
+        frames.append(dict(frame, events=events))
+
+    return dict(timeline, frames=frames)
 
 
 def _participantEvents(timeline, participantId):
