@@ -209,6 +209,9 @@ class GamesTab(QFrame):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
+        # 行高固定; 从上往下等距排列, 多出来的高度留在末尾 (之前每行都带 stretch,
+        # 窗口高时空白被均摊到行与行之间, 间距忽大忽小)
+        layout.setSpacing(8)
 
         begin = self.maxPageNum * 10
 
@@ -225,13 +228,9 @@ class GamesTab(QFrame):
                 self.currentTabSelected = tab
                 self.waitingForSelect = None
 
-            layout.addWidget(tab, stretch=1)
+            layout.addWidget(tab)
 
-        # 如果不够十个就给它填充一下
-        if end - begin < 10:
-            layout.addStretch(10 - (end - begin))
-            spacing = layout.spacing()
-            layout.addSpacing((10 - (end - begin)) * spacing)
+        layout.addStretch(1)
 
         self.stackWidget.addWidget(widget)
         self.maxPageNum += 1
