@@ -229,6 +229,47 @@ class GameBuildsTest(unittest.TestCase):
     def test_nothing(self):
         self.assertEqual(mb.parseGameBuilds(None, None, None), {})
 
+    def test_stat_perks_fill_in_missing_shards(self):
+        builds = mb.parseGameBuilds(self.detail(), LCU_TIMELINE, styles(),
+                                    {1: [5005, 5008, 5011]})
+        self.assertEqual(selected(builds[1]['runes']['shards']), [[5005], [5008], [5011]])
+        self.assertEqual(builds[2]['runes']['shards'], [])
+
+    def test_detail_shards_win_over_stat_perks(self):
+        detail = {'participants': [{'participantId': 1, 'stats': dict(
+            STATS, statPerk0=5007, statPerk1=5010, statPerk2=5013)}]}
+        builds = mb.parseGameBuilds(detail, LCU_TIMELINE, styles(), {1: [5005, 5008, 5011]})
+        self.assertEqual(selected(builds[1]['runes']['shards']), [[5007], [5010], [5013]])
+        # the detail itself is not modified
+        self.assertNotIn('statPerk0', STATS)
+
+
+class StatPerksFromSummaryTest(unittest.TestCase):
+    """SGP SUMMARY perks.statPerks -> statPerk0..2 per LCU participantId (joined by puuid)."""
+
+    detail = {'participantIdentities': [
+        {'participantId': 1, 'player': {'puuid': 'a'}},
+        {'participantId': 2, 'player': {'puuid': 'b'}},
+    ]}
+
+    def test_offense_flex_defense_by_puuid(self):
+        summary = {'participants': [
+            {'puuid': 'b', 'perks': {'statPerks': {'defense': 5011, 'flex': 5008,
+                                                   'offense': 5005}}},
+            {'puuid': 'a', 'perks': {'statPerks': {'defense': 5001, 'flex': 5010,
+                                                   'offense': 5007}}},
+            {'puuid': 'stranger', 'perks': {'statPerks': {'offense': 5008}}},
+        ]}
+        self.assertEqual(mb.statPerksFromSummary(summary, self.detail),
+                         {1: [5007, 5010, 5001], 2: [5005, 5008, 5011]})
+
+    def test_missing_data(self):
+        self.assertEqual(mb.statPerksFromSummary(None, self.detail), {})
+        self.assertEqual(mb.statPerksFromSummary({'participants': [{'puuid': 'a'}]},
+                                                 self.detail), {})
+        self.assertEqual(mb.statPerksFromSummary({'participants': [
+            {'puuid': 'a', 'perks': {'statPerks': {'offense': 5005}}}]}, None), {})
+
 
 if __name__ == '__main__':
     unittest.main()

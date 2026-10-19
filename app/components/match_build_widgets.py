@@ -568,7 +568,7 @@ class RunesCard(BuildCard):
     """符文页: 主系 (基石 + 3 行) | 副系 (3 行) | 属性碎片 (有数据时); 选中全彩, 未选去色变淡"""
 
     HEADER = 26
-    KEY, RUNE, SHARD = 42, 28, 22
+    KEY, RUNE, SHARD = 42, 28, 24
     ROW_GAP = 12
     COL_GAP = 48
 
@@ -603,11 +603,13 @@ class RunesCard(BuildCard):
         # 系别图标 + 名字 (默认在顶部; 副系放在主系基石那一行的位置, 同 OP.GG, 不留空行)
         icon = pixmap(tree.get('icon'))
         top = TITLE_H if headerTop is None else headerTop
+        textX = x
         if not icon.isNull():
             rect = QRectF(x, top + 1, 24, 24)
             p.drawPixmap(rect.toRect(), icon)
             self.hits.append((rect.toRect(), tooltipHtml(tree.get('name', ''))))
-        drawText(p, QRectF(x + 32, top, colW, self.HEADER), tree.get('name', ''),
+            textX = x + 32
+        drawText(p, QRectF(textX, top, colW, self.HEADER), tree.get('name', ''),
                  textFont(13, True), pal['ink'])
 
         ring = STYLE_COLORS.get(tree.get('id'), pal['gold'])
@@ -646,15 +648,15 @@ class RunesCard(BuildCard):
         primarySizes = [(self.KEY, 10), (self.RUNE, 16), (self.RUNE, 16), (self.RUNE, 16)]
         x = PAD
         columns = [(page['primary'], primarySizes, rowTops, None)]
+        # 副系 / 碎片的 3 行与主系的 3 行普通符文对齐; 标题放在基石行的位置
+        keystoneMiddle = rowTops[0] + (self.KEY - self.HEADER) / 2
         if page.get('secondary'):
-            # 副系 3 行与主系的 3 行普通符文对齐; 系别图标 + 名字放在基石行的位置
-            keystoneMiddle = rowTops[0] + (self.KEY - self.HEADER) / 2
             columns.append((page['secondary'], primarySizes[1:], rowTops[1:], keystoneMiddle))
         if page.get('shards'):
             shardTree = {'id': None, 'name': self.tr("Shards"), 'icon': None,
                          'rows': page['shards']}
-            shardTops = [rowTops[1] + i * (self.SHARD + 12) - 2 for i in range(3)]
-            columns.append((shardTree, [(self.SHARD, 10)] * 3, shardTops, None))
+            shardTops = [top + (self.RUNE - self.SHARD) / 2 for top in rowTops[1:]]
+            columns.append((shardTree, [(self.SHARD, 12)] * 3, shardTops, keystoneMiddle))
 
         for i, (tree, sizes, tops, headerTop) in enumerate(columns):
             colW = self.columnWidth(tree, sizes)

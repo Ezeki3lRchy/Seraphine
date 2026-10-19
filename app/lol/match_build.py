@@ -11,12 +11,16 @@ ELITE_MONSTER_KILL / BUILDING_KILL 事件, 没有 ITEM_* / SKILL_LEVEL_UP; 这�
 (SGP) 的完整时间线 (connector.getGameTimelineViaSgpQuietly), 其 participantId 用
 remapTimelineParticipants 按 puuid 对到对局详情的 participantId. 都拿不到时界面显示 "无出装数据".
 事件字段按 match-v5 (ITEM_UNDO 的 beforeId / afterId) 兼容 LCU 旧格式 (只有 itemId).
+LCU 对局详情也没有属性碎片, 碎片取自 Riot 对局服务器的 SUMMARY (statPerksFromSummary).
 """
 
 SKILL_KEYS = {1: 'Q', 2: 'W', 3: 'E', 4: 'R'}
 MAX_LEVEL = 18
 
 BUILD_EVENT_TYPES = ('ITEM_PURCHASED', 'ITEM_SOLD', 'ITEM_UNDO', 'SKILL_LEVEL_UP')
+
+# statPerk0..2 依次对应 perkstyles 的 slots[4:7] (Offense / Flex / Defense)
+SHARD_KEYS = ('offense', 'flex', 'defense')
 
 
 def timelineEvents(timeline):
@@ -34,6 +38,17 @@ def hasBuildEvents(timeline):
     return any(event.get('type') in BUILD_EVENT_TYPES for event in timelineEvents(timeline))
 
 
+def _participantIdsByPuuid(detail):
+    """LCU 对局详情 participantIdentities: {puuid: participantId}"""
+    ids = {}
+    for identity in (detail or {}).get('participantIdentities') or []:
+        if isinstance(identity, dict):
+            puuid = (identity.get('player') or {}).get('puuid')
+            if puuid:
+                ids[puuid] = identity.get('participantId')
+    return ids
+
+
 def remapTimelineParticipants(timeline, detail):
     """
     SGP 时间线 (participants: [{participantId, puuid}]) 的 participantId 按 puuid 换成 LCU 对局详情
@@ -46,11 +61,10 @@ def remapTimelineParticipants(timeline, detail):
     sgpByPuuid = {p.get('puuid'): p.get('participantId')
                   for p in timeline.get('participants') or [] if isinstance(p, dict)}
     mapping = {}
-    for identity in detail.get('participantIdentities') or []:
-        puuid = (identity.get('player') or {}).get('puuid')
+    for puuid, lcuId in _participantIdsByPuuid(detail).items():
         sgpId = sgpByPuuid.get(puuid)
-        if puuid and sgpId:
-            mapping[sgpId] = identity.get('participantId')
+        if sgpId:
+            mapping[sgpId] = lcuId
 
     if not mapping or all(k == v for k, v in mapping.items()):
         return timeline
@@ -69,6 +83,34 @@ def remapTimelineParticipants(timeline, detail):
         frames.append(dict(frame, events=events))
 
     return dict(timeline, frames=frames)
+
+
+def _intOrNone(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def statPerksFromSummary(summary, detail):
+    """
+    Riot 对局服务器 SUMMARY 的 participants[].perks.statPerks ({offense, flex, defense}) 按 puuid
+    对到 LCU 对局详情的 participantId: {participantId: [offense, flex, defense]} (即 statPerk0..2)
+    """
+    if not isinstance(summary, dict):
+        return {}
+
+    ids = _participantIdsByPuuid(detail)
+    result = {}
+    for participant in summary.get('participants') or []:
+        if not isinstance(participant, dict):
+            continue
+        pid = ids.get(participant.get('puuid'))
+        statPerks = (participant.get('perks') or {}).get('statPerks') or {}
+        shards = [statPerks.get(key) for key in SHARD_KEYS]
+        if pid is not None and any(shards):
+            result[pid] = shards
+    return result
 
 
 def _participantEvents(timeline, participantId):
@@ -226,10 +268,11 @@ def parseRunePage(stats, perkStyles):
     return page
 
 
-def parseGameBuilds(detail, timeline, perkStyles):
+def parseGameBuilds(detail, timeline, perkStyles, statPerks=None):
     """
     整局 (按 participantId): {participantId: {'itemGroups', 'skills', 'runes'}}.
-    时间线没有出装 / 加点事件时 itemGroups / skills 为 None; detail 缺失时 runes 为 None
+    时间线没有出装 / 加点事件时 itemGroups / skills 为 None; detail 缺失时 runes 为 None.
+    statPerks 为 statPerksFromSummary 的结果, detail 自己没有 statPerk0..2 时用它补上属性碎片
     """
     hasEvents = hasBuildEvents(timeline)
 
@@ -240,7 +283,13 @@ def parseGameBuilds(detail, timeline, perkStyles):
             pid = participant.get('participantId')
             if pid is not None:
                 participantIds.add(pid)
-                statsById[pid] = participant.get('stats')
+                stats = participant.get('stats')
+                shards = (statPerks or {}).get(pid)
+                if shards and isinstance(stats, dict) and \
+                        not any(stats.get(f'statPerk{i}') for i in range(3)):
+                    stats = dict(stats, **{f'statPerk{i}': shard
+                                           for i, shard in enumerate(shards)})
+                statsById[pid] = stats
 
     if hasEvents:
         participantIds |= {event.get('participantId') for event in timelineEvents(timeline)

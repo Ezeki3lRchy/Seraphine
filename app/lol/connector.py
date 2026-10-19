@@ -834,17 +834,16 @@ class LolClientConnector(QObject):
         self.matchSgpHost = f"https://{match.group(1)}-red.pp.sgp.pvp.net"
         return self.matchSgpHost, self.platformId
 
-    async def getGameTimelineViaSgpQuietly(self, gameId):
+    async def __matchSgpJsonQuietly(self, gameId, kind):
         """
-        Riot 对局服务器上的完整时间线 (match-v5 格式, 含 ITEM_* / SKILL_LEVEL_UP 事件与
-        participants 的 puuid), 本地 LCU 时间线缺这些事件时 "出装" 视图用.
-        用客户端自己的登录令牌 (/entitlements/v1/token), 只发给 Riot 的服务器.
+        Riot 对局服务器上一局的 match-v5 数据 (kind 为 'DETAILS' 时间线 / 'SUMMARY' 对局结果)
+        的 'json' 部分. 用客户端自己的登录令牌 (/entitlements/v1/token), 只发给 Riot 的服务器.
         不重试不弹窗, 任何失败返回 None
         """
         try:
             if self.inTencent and self.sgpSess and self.server:
                 res = await self.__sgp__get(
-                    f"/match-history-query/v1/products/lol/{self.server.upper()}_{gameId}/DETAILS")
+                    f"/match-history-query/v1/products/lol/{self.server.upper()}_{gameId}/{kind}")
             else:
                 host, platformId = await self.__matchSgpTarget()
                 if not host:
@@ -856,21 +855,37 @@ class LolClientConnector(QObject):
                         base_url=host, timeout=aiohttp.ClientTimeout(total=15))
 
                 res = await self.matchSgpSess.get(
-                    f"/match-history-query/v1/products/lol/{platformId}_{gameId}/DETAILS",
+                    f"/match-history-query/v1/products/lol/{platformId}_{gameId}/{kind}",
                     headers={"Authorization": f"Bearer {token}"})
 
             if res.status != 200:
-                logger.warning(f"getGameTimelineViaSgpQuietly({gameId}) -> {res.status}", TAG)
+                logger.warning(f"match SGP {kind}({gameId}) -> {res.status}", TAG)
                 res.release()
                 return None
 
             data = await res.json(content_type=None)
         except Exception as e:
-            logger.warning(f"getGameTimelineViaSgpQuietly({gameId}) failed: {e!r}", TAG)
+            logger.warning(f"match SGP {kind}({gameId}) failed: {e!r}", TAG)
             return None
 
-        timeline = data.get('json') if isinstance(data, dict) else None
-        return timeline if isinstance(timeline, dict) and timeline.get('frames') else None
+        data = data.get('json') if isinstance(data, dict) else None
+        return data if isinstance(data, dict) else None
+
+    async def getGameTimelineViaSgpQuietly(self, gameId):
+        """
+        Riot 对局服务器上的完整时间线 (含 ITEM_* / SKILL_LEVEL_UP 事件与 participants 的 puuid),
+        本地 LCU 时间线缺这些事件时 "出装" 视图用. 任何失败返回 None
+        """
+        timeline = await self.__matchSgpJsonQuietly(gameId, 'DETAILS')
+        return timeline if timeline and timeline.get('frames') else None
+
+    async def getGameSummaryViaSgpQuietly(self, gameId):
+        """
+        Riot 对局服务器上的对局结果 (match-v5 info: participants 带 puuid 与
+        perks.statPerks 属性碎片, LCU 对局详情没有碎片). 任何失败返回 None
+        """
+        summary = await self.__matchSgpJsonQuietly(gameId, 'SUMMARY')
+        return summary if summary and summary.get('participants') else None
 
     async def getGameTimelineQuietly(self, gameId):
         '''
