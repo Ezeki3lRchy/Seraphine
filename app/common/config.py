@@ -7,7 +7,8 @@ from PySide6.QtCore import QLocale, QSize
 
 from .qfluentwidgets import (qconfig, QConfig, ConfigItem, FolderValidator, BoolValidator,
                              OptionsConfigItem, OptionsValidator, ConfigSerializer,
-                             RangeConfigItem, RangeValidator, EnumSerializer, ColorConfigItem)
+                             RangeConfigItem, RangeValidator, EnumSerializer, ColorConfigItem,
+                             Theme)
 from app.common import platform
 
 
@@ -200,6 +201,13 @@ GITHUB_URL = "https://github.com/Ezeki3lRchy/Seraphine"
 LOCAL_PATH = platform.config_dir()
 
 cfg = Config()
+
+# 默认跟随系统深浅色 (qfluentwidgets 默认是 Light); 运行中系统切换时由 MainWindow 的
+# SystemThemeListener 即时跟随. 必须改继承来的同一个配置项: SystemThemeListener 读的是
+# qconfig.themeMode, 子类另建一个配置项它看不到
+cfg.themeMode.defaultValue = Theme.AUTO
+cfg.themeMode.value = Theme.AUTO
+
 qconfig.load(os.path.join(LOCAL_PATH, "config.json"), cfg)
 
 

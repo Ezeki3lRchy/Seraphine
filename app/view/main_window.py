@@ -13,11 +13,13 @@ from aiohttp.client_exceptions import ClientConnectorError
 from qasync import asyncClose, asyncSlot
 from PySide6.QtCore import Qt, Signal, QSize, QEvent, QTimer, QPoint, QRect
 from PySide6.QtGui import QIcon, QImage, QGuiApplication
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QWidget
 
 from app.common.qfluentwidgets import (NavigationItemPosition, InfoBar, InfoBarPosition, Action,
                                        FluentWindow, SplashScreen, MessageBox, SmoothScrollArea,
-                                       ToolTipFilter, FluentIcon, ToolTipPosition, FluentWindowBase)
+                                       ToolTipFilter, FluentIcon, ToolTipPosition, FluentWindowBase,
+                                       SystemThemeListener, qconfig)
+from qfluentwidgets.common.style_sheet import updateStyleSheet
 
 from app.view.start_interface import StartInterface
 from app.view.setting_interface import SettingInterface
@@ -75,6 +77,11 @@ class MainWindow(FluentWindow):
         self.__initConfig()
         self.__initWindow()
         self.__initSystemTray()
+
+        # "跟随系统" 时, Windows 切换深浅色后即时跟随 (不必重启)
+        self.themeListener = SystemThemeListener(self)
+        self.themeListener.systemThemeChanged.connect(self.__onSystemThemeChanged)
+        self.themeListener.start()
 
         # create sub interface
         self.startInterface = StartInterface(self)
@@ -789,7 +796,17 @@ class MainWindow(FluentWindow):
         self.searchInterface.setEnabled(False)
         self.auxiliaryFuncInterface.setEnabled(False)
 
+    def __onSystemThemeChanged(self):
+        # 监听线程已把 qconfig.theme 切到新的系统主题; 这里重新套用样式表, 并让自绘控件
+        # (战绩行 / 段位卡等按主题缓存的内容) 重画
+        updateStyleSheet(lazy=True)
+        qconfig.themeChangedFinished.emit()
+        for window in (self, self.opggWindow):
+            for widget in [window] + window.findChildren(QWidget):
+                widget.update()
+
     def __terminateListeners(self):
+        self.themeListener.terminate()
         self.processListener.terminate()
         self.checkUpdateThread.terminate()
         self.checkNoticeThread.terminate()
