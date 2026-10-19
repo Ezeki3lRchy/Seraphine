@@ -111,7 +111,7 @@ async def getRecentTeammates(games, puuid):
             if p['puuid'] not in summoners:
                 summonerIcon = await connector.getProfileIcon(p['icon'])
                 summoners[p['puuid']] = {
-                    "name": p['name'], 'icon': summonerIcon,
+                    "name": p['name'], 'tagLine': p.get('tagLine', ''), 'icon': summonerIcon,
                     "total": 0, "wins": 0, "losses": 0, "puuid": p["puuid"]}
 
             summoners[p['puuid']]['total'] += 1
@@ -619,17 +619,20 @@ def getTeammates(game, targetPuuid):
         p = player['participantId']
         s = game['participantIdentities'][p - 1]['player']
 
+        # Riot ID 账号的 summonerName 为空, 名字在 gameName (+ tagLine)
+        entry = {'summonerId': s['summonerId'],
+                 'name': s.get('gameName') or s.get('summonerName') or '',
+                 'tagLine': s.get('tagLine') or '',
+                 'puuid': s['puuid'], 'icon': s['profileIcon']}
+
         if cmp == tid:
             if s['puuid'] != targetPuuid:
-                res['summoners'].append(
-                    {'summonerId': s['summonerId'], 'name': s['summonerName'], 'puuid': s['puuid'], 'icon': s['profileIcon']})
+                res['summoners'].append(entry)
             else:
                 # 当前召唤师在该对局使用的英雄, 自定义对局没有该字段
                 res["championId"] = player.get('championId', -1)
         else:
-            res['enemies'].append(
-                {'summonerId': s['summonerId'], 'name': s['summonerName'], 'puuid': s['puuid'],
-                 'icon': s['profileIcon']})
+            res['enemies'].append(entry)
 
     return res
 
@@ -1898,24 +1901,23 @@ def getTeammatesFromSGPGame(game, puuid):
         else:
             cmp = player['subteamPlacement']
 
+        # Riot ID 账号的 summonerName 为空, 名字在 riotIdGameName (+ riotIdTagline)
+        entry = {
+            'summonerId': player['summonerId'],
+            'name': player.get('riotIdGameName') or player.get('summonerName') or '',
+            'tagLine': player.get('riotIdTagline') or '',
+            'puuid': player['puuid'],
+            'icon': player['profileIcon']
+        }
+
         if cmp == tid:
             if player['puuid'] != puuid:
-                res['summoners'].append({
-                    'summonerId': player['summonerId'],
-                    'name': player['summonerName'],
-                    'puuid': player['puuid'],
-                    'icon': player['profileIcon']
-                })
+                res['summoners'].append(entry)
             else:
                 # 当前召唤师在该对局使用的英雄, 自定义对局没有该字段
                 res["championId"] = player.get('championId', -1)
         else:
-            res['enemies'].append({
-                'summonerId': player['summonerId'],
-                'name': player['summonerName'],
-                'puuid': player['puuid'],
-                'icon': player['profileIcon']
-            })
+            res['enemies'].append(entry)
 
     return res
 

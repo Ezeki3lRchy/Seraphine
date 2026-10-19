@@ -684,7 +684,9 @@ class TeammateInfoBar(ColorAnimationFrame):
         self.hBoxLayout = QHBoxLayout(self)
 
         self.icon = RoundIcon(summoner['icon'], 40, 4, 4)
-        self.name = SummonerName(summoner['name'])
+        self.name = SummonerName(summoner['name'] or '?', tagLine=summoner.get('tagLine'))
+        if summoner.get('tagLine'):
+            self.name.setToolTip(f"{summoner['name']}#{summoner['tagLine']}")
 
         self.totalTitle = QLabel(self.tr("Total: "))
         self.totalLabel = QLabel(str(summoner["total"]))
