@@ -1,11 +1,11 @@
 <p align='center'>
-  <!-- 头图暂用上游 Seraphine logo 横幅（已下载进本仓库，非热链）；建议后续替换为 macOS 实机截图，拍摄清单见 docs/screenshots/README.md。 -->
+  <!-- Hero is the upstream Seraphine wordmark, vendored into this repo (not hotlinked). Consider replacing it with a real macOS screenshot later — shot list in docs/screenshots/README.md. -->
   <img src="docs/screenshots/hero.png" alt="Seraphine" width="720">
 </p>
 
 <p align='center'>
-  <b>成熟 · 完整 · 原生 —— 属于 Mac 玩家的英雄联盟助手</b><br>
-  战绩查询 · 选英雄自动化 · 自动查 10 人生涯 · OP.GG 一键符文出装 · ARAM Buff —— Windows 上有的，macOS 上一样有
+  <b>Mature · Complete · Native — the League of Legends assistant for Mac players</b><br>
+  Match history · champ-select automation · auto-scout all 10 players · one-click OP.GG runes &amp; builds · ARAM buffs — everything you get on Windows, now on macOS
 </p>
 
 <div align="center">
@@ -18,247 +18,245 @@
 </div>
 
 <p align='center'>
-  <b>简体中文</b> · <a href="readme.en.md">English</a>
+  <b>English</b> · <a href="readme.zh-CN.md">简体中文</a>
 </p>
 
-> 本仓库是 [Zzaphkiel/Seraphine](https://github.com/Zzaphkiel/Seraphine) 的 **跨平台分支**：在保留原版全部功能的基础上，将界面从 PyQt5 迁移到 **PySide6**，新增了 **原生 macOS 支持**（`.app` / `.dmg` 打包、平台感知的自更新）。Windows 行为与上游保持一致。
+> This repository is a **cross-platform fork** of [Zzaphkiel/Seraphine](https://github.com/Zzaphkiel/Seraphine): it keeps all of the original features, migrates the UI from PyQt5 to **PySide6**, and adds **native macOS support** (`.app` / `.dmg` packaging and a platform-aware self-updater). Windows behavior matches upstream.
 
-## 亮点速览 ✨
-- 🎮 **选英雄全自动**：找到对局自动接受，进入 BP 自动选 / 禁英雄，自动接受换英雄请求。
-- 📊 **自动查 10 人战绩**：进入英雄选择自动查队友，进入游戏自动查对手，同大区召唤师战绩随手查。
-- 🧠 **OP.GG 一键符文出装**：自动显示英雄排行、出装与加点，一键写入符文；大乱斗自动显示英雄 Buff。
-- 🍏 **原生 macOS / Apple Silicon**：`.dmg` 拖入即用，应用内一键「更新并重启」，全程无需任何 Windows 环境。
+## Highlights ✨
+- 🎮 **Champ select on autopilot**: auto-accept matches, auto-pick and auto-ban in champ select, auto-accept champion-swap requests.
+- 📊 **Auto-scout all 10 players**: teammates the moment you enter champ select, opponents once the game starts, plus on-demand lookups for any same-server summoner.
+- 🧠 **One-click OP.GG runes &amp; builds**: auto-show tier lists, builds and skill order, apply runes in one click; ARAM champion buffs shown automatically.
+- 🍏 **Native macOS / Apple Silicon**: drag the `.dmg` and go, in-app **Update and Restart**, no Windows environment required.
 
 <p align='center'>
-  <a href="https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest"><b>⬇️ 下载 macOS / Windows 安装包</b></a>
+  <a href="https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest"><b>⬇️ Download for macOS / Windows</b></a>
 </p>
 
-## 快速上手 🤗
+## Getting started 🤗
 
-### 直接使用打包好的程序
-进入 [**最新发布页**](https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest)，在 Assets 中下载对应平台的安装包：
+### Use a prebuilt package
+Go to the [**latest release page**](https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest) and download the package for your platform from Assets:
 
-| 平台 | 安装包 | 使用方式 |
-|------|--------|----------|
-| **Windows** | `Seraphine.7z` | 解压到任意文件夹，双击运行 `Seraphine.exe` |
-| **macOS** | `Seraphine.dmg` | 打开 `.dmg`，将 `Seraphine.app` 拖入 `Applications` |
+| Platform | Package | How to use |
+|----------|---------|------------|
+| **Windows** | `Seraphine.7z` | Extract anywhere, then double-click `Seraphine.exe` |
+| **macOS** | `Seraphine.dmg` | Open the `.dmg` and drag `Seraphine.app` into `Applications` |
 
-> **macOS 首次启动**：当前 `.app` 为 **未签名**构建，Gatekeeper 会在下载后将其隔离。首次运行前在终端执行一次以解除隔离即可：
+> **First launch on macOS**: the `.app` is currently an **unsigned** build, so Gatekeeper quarantines it after download. Run this once in Terminal to clear the quarantine:
 > ```shell
 > xattr -cr /Applications/Seraphine.app
 > ```
-> 之后正常双击启动；后续版本可直接在应用内「更新并重启」。
+> After that just double-click to launch; later versions can be installed in-app via **Update and Restart**.
 
-### 或从源码运行
-适用于 Windows / macOS / Linux。需要 **Python 3.9 或更新版本**（PySide6 6.9 不再支持 3.8）。
+### Or run from source
+Works on Windows / macOS / Linux. Requires **Python 3.9 or newer** (PySide6 6.9 no longer supports 3.8).
 
 ```shell
 git clone https://github.com/Ezeki3lRchy/Seraphine.git
 cd Seraphine
 ```
 
-创建并激活虚拟环境（任选 `venv` 或 `conda`）：
+Create and activate a virtual environment (either `venv` or `conda`):
 ```shell
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 ```
 
-安装依赖并运行：
+Install dependencies and run:
 ```shell
 pip install -r requirements.txt
 python main.py
 ```
 
-> `python main.py --version` 可在不启动客户端的情况下打印版本号，用于冒烟测试。完整功能需要登录中的英雄联盟客户端（LCU）；国服战绩还额外依赖 CN 客户端会话（SGP token）。
+> `python main.py --version` prints the version without launching the client — handy as a smoke test. Full functionality requires a logged-in League of Legends client (LCU); CN-server match history additionally needs a CN client session (an SGP token).
 
-### 卸载 Seraphine 😑
-删除程序文件夹，并删除对应平台的配置目录：
+### Uninstalling Seraphine 😑
+Delete the program folder, then remove the config directory for your platform:
 
-| 平台 | 配置目录 |
-|------|----------|
+| Platform | Config directory |
+|----------|------------------|
 | Windows | `%AppData%\Seraphine` |
 | macOS | `~/Library/Application Support/Seraphine` |
 | Linux | `~/.config/Seraphine` |
 
-## 功能一览（持续更新中）🥰
-- 战绩查询功能（不支持云顶之弈）
-  - 同大区召唤师战绩查询 ✅
-  - 进入 BP 后自动查队友战绩 ✅
-  - 进入游戏后自动查对手战绩 ✅
+## Feature overview (work in progress) 🥰
+- Match-history lookup (Teamfight Tactics not supported)
+  - Look up summoners on the same server ✅
+  - Auto-look-up teammates after entering champ select ✅
+  - Auto-look-up opponents after the game starts ✅
 
-- 其他辅助功能
-  - 自动 B/P
-    - 找到对局后自动接受对局 ✅
-    - 进入英雄选择后自动选择英雄 ✅
-    - 进入禁用环节时自动禁用英雄（含自动空 ban）✅
-    - 自动接受来自队友的交换英雄 / 楼层请求 ✅
+- Other assistance
+  - Auto B/P
+    - Auto-accept a match once found ✅
+    - Auto-pick your champion in champ select ✅
+    - Auto-ban in the ban phase (including auto empty-ban) ✅
+    - Auto-accept champion-swap / position-swap requests from teammates ✅
 
-  - 外部数据显示
-    - 自动显示大乱斗英雄 Buff 信息 ✅
-    - 自动显示 OPGG 英雄排行 ✅
-    - 自动显示 OPGG 英雄出装加点，一键设置符文 ✅
+  - External data display
+    - Show ARAM champion buff info automatically ✅
+    - Show OPGG champion tier list automatically ✅
+    - Show OPGG builds & skill order, set runes in one click ✅
 
-  - 游戏功能
-    - 创建 5v5 自定义训练模式房间 ✅
-    - 观战同大区玩家正在进行的游戏 ✅
-    - 锁定游戏内设置 ✅
+  - Game features
+    - Create a 5v5 custom practice lobby ✅
+    - Spectate same-server players' live games ✅
+    - Lock in-game settings ✅
 
-  - 客户端功能
-    - 退出后自动重新连接 ✅
-    - 修复客户端结算时无限加载和缩成一块 ✅（Windows）
-    - 热重启客户端 ✅
+  - Client features
+    - Auto-reconnect after a disconnect ✅
+    - Fix the end-of-game infinite-loading / shrunken client ✅ (Windows)
+    - Hot-restart the client ✅
 
-  - 个性化功能
-    - 修改个人主页背景 ✅
-    - 修改个人在线状态 ✅
-    - 修改个人签名 ✅
-    - 修改个人状态卡片中的段位显示 ✅
-    - 一键卸下勋章 ✅
-    - 一键卸下头像框 ✅
+  - Personalization
+    - Change your profile background ✅
+    - Change your online status ✅
+    - Change your status message ✅
+    - Change the rank shown on your status card ✅
+    - Remove all challenge medals in one click ✅
+    - Remove your avatar frame in one click ✅
 
-> 部分依赖 Windows 原生窗口句柄的能力（如修复结算界面缩成一块、OPGG 悬浮窗贴靠客户端窗口）在 macOS 上会优雅降级——这些会在后续打磨阶段逐步补齐。
+> A few capabilities that depend on native Windows window handles (fixing the shrunken end-screen, docking the OPGG overlay to the client window) gracefully degrade on macOS — these will be filled in over later polishing stages.
 
-## 这个分支做了哪些改动 🔧
-> 给关心实现、或来自上游的读者。
-- **原生 macOS 支持**：所有 Windows 专有逻辑（win32 / winreg / 窗口句柄）被收敛进 [`app/common/platform.py`](app/common/platform.py) 的跨平台垫片，macOS 上以 Qt / `open` / 包内路径等原生方式实现，Windows 路径逐字保留。
-- **PySide6 迁移**：界面框架由 PyQt5 切换为 PySide6 + [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets)。
-- **平台感知的自更新**：内置更新器从同一个发布仓库读取版本，并只下载与当前系统匹配的安装包（macOS 取 `.dmg`，Windows 取 `.7z`），不会把另一个平台的包推给你。
-- **一键 macOS 发布脚本**：[`release_mac.sh`](release_mac.sh) 完成「升版本 → 打 `.dmg` → 校验 → 发布到 GitHub Release」全流程。
+## What this fork changes 🔧
+> For readers who care about the internals, or who come from upstream.
+- **Native macOS support**: every Windows-only path (win32 / winreg / window handles) is funneled through a cross-platform shim in [`app/common/platform.py`](app/common/platform.py); on macOS it is implemented natively (Qt, `open`, app-bundle paths), while the Windows path is preserved byte-for-byte.
+- **PySide6 migration**: the UI framework moved from PyQt5 to PySide6 + [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets).
+- **Platform-aware self-update**: the built-in updater reads from a single release repository and downloads only the installer that matches your OS (`.dmg` on macOS, `.7z` on Windows) — it never pushes the other platform's package to you.
+- **One-command macOS release**: [`release_mac.sh`](release_mac.sh) handles the whole flow — bump version → build the `.dmg` → verify → publish a GitHub Release.
 
-## 常见问题 FAQ 🧐
+## FAQ 🧐
 
-### Q：我会因为使用 Seraphine 而被封号吗 😨？
-本程序的功能**完全**基于英雄联盟客户端 API（LCU）实现，**不含任何**对客户端、游戏文件本体、代码或内存的读取与破坏行为（详见下方[套盾环节](#套盾环节-)）。因此仅使用 Seraphine 时极大概率不会被封号，但**并不保证**一定不会。
+### Q: Will using Seraphine get my account banned 😨?
+The app's features are built **entirely** on the League of Legends client API (LCU). It does **not** read or tamper with the client, game files, code, or memory in any way (see the [Disclaimer](#disclaimer-) below). So using only Seraphine is very unlikely to get you banned — but there is **no guarantee**.
 
-### Q：真的被封号了怎么办？
-申诉或等待解封吧 😭
+### Q: What if I really do get banned?
+Appeal, or wait it out 😭
 
-### Q：macOS 上提示「无法打开，因为无法验证开发者」/「已损坏」怎么办？
-这是 Gatekeeper 对未签名应用的隔离。执行 `xattr -cr /Applications/Seraphine.app` 解除隔离即可（见[快速上手](#快速上手-)）。
+### Q: On macOS it says "can't be opened because the developer cannot be verified" / "is damaged" — what now?
+That's Gatekeeper quarantining an unsigned app. Run `xattr -cr /Applications/Seraphine.app` to clear it (see [Getting started](#getting-started-)).
 
-### Q：macOS 上找不到英雄联盟客户端？
-程序会自动扫描 `/Applications/League of Legends.app` 与 `~/Applications/League of Legends.app`。若装在别处，请在设置中手动指定客户端路径（指向 `.app` 包即可）。
+### Q: Seraphine can't find the League of Legends client on macOS?
+It scans `/Applications/League of Legends.app` and `~/Applications/League of Legends.app` automatically. If it's installed elsewhere, set the client path manually in Settings (point it at the `.app` bundle).
 
-### Q：为什么客户端无法连接 / 功能无法使用 / 生涯界面无限转圈 / 战绩更新有延迟？
-战绩相关数据均由英雄联盟客户端接口提供，程序只负责展示。遇到无法使用或更新延迟，原因基本出在英雄联盟服务器本身，与 Seraphine 大概率无关~
+### Q: Why can't the client connect / features don't work / the career page spins forever / match history is delayed?
+All match-history data comes from the League client's own API; Seraphine just displays it. If something doesn't work or is delayed, the cause is almost always the League servers themselves — usually nothing to do with Seraphine.
 
-### Q：为什么不提供某模式 / 某英雄的总场次与总胜率？
-英雄联盟客户端没有提供相关数据接口，我们做不到哇~
+### Q: Why don't you show total games / overall win rate for a specific mode or champion?
+The League client doesn't expose that data — we can't do it 🥲
 
-### Q：客户端为什么有时候会闪退？
-我们怀疑客户端无法承载某些 HTTP 访问（它一碰就碎）。
+### Q: Why does the client crash sometimes?
+We suspect the client can't handle certain HTTP requests (it shatters at a touch).
 
-## 自己打包可执行文件 📂
+## Building it yourself 📂
 
-### Windows（`.7z`）
-> ⚠️ 旧的 `make.ps1`（裸 `pyinstaller` + PyQt5 扁平布局 + 固定 PyInstaller 5.13）是 **迁移前** 的脚本，**无法** 打包当前 PySide6 源码——请勿使用。下面是与 macOS `.spec` 对应的 Windows 路径。
+### Windows (`.7z`)
+> ⚠️ The old `make.ps1` (bare `pyinstaller` + PyQt5 flat layout + pinned PyInstaller 5.13) is the **pre-migration** script and **cannot** package the current PySide6 source — don't use it. The path below is the Windows counterpart of the macOS `.spec`.
 
-PySide6 6.9.3 需要 **PyInstaller 6.x**（不再是过去的 5.13.2）。建一个 PySide6 虚拟环境（Python 3.9+，仓库使用 3.12）：
+PySide6 6.9.3 needs **PyInstaller 6.x** (no longer the old 5.13.2). Create a PySide6 virtual environment (Python 3.9+, the repo uses 3.12):
 ```powershell
 python -m venv .build-venv-win
 .build-venv-win\Scripts\activate
 pip install -r requirements.txt
 pip install pyinstaller==6.21
 ```
-用 [`Seraphine.win.spec`](Seraphine.win.spec) 打包（它对应 macOS 的 [`Seraphine.spec`](Seraphine.spec)：带 `logo.ico` 的 EXE、保留 Windows 专用的 `fix_lcu_window.exe`、把 `app/resource` 作为 datas 打入）：
+Build with [`Seraphine.win.spec`](Seraphine.win.spec) (the counterpart of macOS [`Seraphine.spec`](Seraphine.spec): EXE with `logo.ico`, keeps the Windows-only `fix_lcu_window.exe`, bundles `app/resource` as datas):
 ```powershell
 pyinstaller --noconfirm Seraphine.win.spec
 ```
-产物在 `dist\Seraphine\`。PyInstaller 6.x 会生成 `_internal\` 布局（`Seraphine.exe` 在根，其余依赖在 `_internal\` 下）——这没问题：`main.py` 启动时 `os.chdir` 到 `_MEIPASS`（即 `_internal`），资源也打在那里，相对路径正常解析。
+The output is in `dist\Seraphine\`. PyInstaller 6.x produces an `_internal\` layout (`Seraphine.exe` at the root, the rest under `_internal\`) — that's fine: `main.py` does `os.chdir` to `_MEIPASS` (= `_internal`) at startup and the resources are bundled there, so the relative paths resolve.
 
-最后生成根级 `filelist.txt` 并用 `py7zr` 把 `dist\Seraphine\*` 以 **文件位于压缩包根目录**（不嵌套顶层文件夹）的方式打成 `Seraphine.7z`，以满足 **v1.1.9 在装更新器** 的契约（它按旧 `filelist.txt` 删除旧文件、再就地放入新的根级文件）。这一步由下方的 [`release_win.ps1`](release_win.ps1) 自动完成。
+Finally, generate a root-level `filelist.txt` and use `py7zr` to pack `dist\Seraphine\*` with **files at the archive root** (no nested top folder) into `Seraphine.7z`, satisfying the **v1.1.9 in-place updater** contract (it deletes old files per the old `filelist.txt`, then moves the new root-level files in). This step is automated by [`release_win.ps1`](release_win.ps1) below.
 
-### macOS（`.dmg`）
-在虚拟环境下安装 PyInstaller，然后运行 [`make_mac.sh`](make_mac.sh)：
+### macOS (`.dmg`)
+In your virtual environment install PyInstaller, then run [`make_mac.sh`](make_mac.sh):
 ```shell
 pip install pyinstaller
 ./make_mac.sh
 ```
-脚本使用 [`Seraphine.spec`](Seraphine.spec) 打出 `Seraphine.app`，并制作带 `/Applications` 拖拽目标的 `dist/Seraphine.dmg`（未签名）。
+The script uses [`Seraphine.spec`](Seraphine.spec) to build `Seraphine.app` and produces `dist/Seraphine.dmg` with an `/Applications` drag target (unsigned).
 
-### 一键发布 macOS 版本（维护者）
-[`release_mac.sh`](release_mac.sh) 自动完成：升 `VERSION` → 打 `.dmg` → 校验冻结产物版本号 → 用本地 `gh` 登录发布到 `Ezeki3lRchy/Seraphine-releases`（应用内更新器读取的公共仓库）：
+### One-command macOS release (maintainers)
+[`release_mac.sh`](release_mac.sh) automates: bump `VERSION` → build the `.dmg` → verify the frozen build reports the new version → publish to `Ezeki3lRchy/Seraphine-releases` (the public repo the in-app updater reads), using your local `gh` login:
 ```shell
 ./release_mac.sh 1.2.3 --notes-file NOTES.md --push
 ```
-`--dry-run` 可在不实际改动的情况下预览每一步。
+Use `--dry-run` to preview every step without changing anything.
 
-### 一键发布 Windows 版本（维护者）
-[`release_win.ps1`](release_win.ps1) 是 `release_mac.sh` 的 Windows 对应版：升 `VERSION` → 用 `Seraphine.win.spec` 打包 → 校验冻结产物 `--version` → 生成 `filelist.txt` 并用 `py7zr` 打 `Seraphine.7z` → 用本地 `gh` 登录发布到 `Ezeki3lRchy/Seraphine-releases`：
+### One-command Windows release (maintainers)
+[`release_win.ps1`](release_win.ps1) is the Windows counterpart of `release_mac.sh`: bump `VERSION` → build with `Seraphine.win.spec` → verify the frozen build's `--version` → generate `filelist.txt` and pack `Seraphine.7z` with `py7zr` → publish to `Ezeki3lRchy/Seraphine-releases` using your local `gh` login:
 ```powershell
 .\release_win.ps1 1.2.3 -NotesFile NOTES.md -Push
 ```
-两平台采用 **解耦发布**：同一个版本 tag 的 **一个 Release** 同时挂 `Seraphine.7z`（Windows）与 `Seraphine.dmg`（macOS），更新器只读 `/releases/latest` 并按系统挑选对应资产。因此：
-- 若该版本 Release 已存在（例如 macOS 先发了），脚本会 `gh release upload --clobber` 把 `.7z` **追加** 到既有 Release，并 **跳过** `VERSION` 升级（此时 `config.py` 里已是目标版本）；
-- 若尚不存在，则新建该版本 Release。
+The two platforms use a **decoupled release** model: a **single Release** per version tag carries both `Seraphine.7z` (Windows) and `Seraphine.dmg` (macOS); the updater only reads `/releases/latest` and picks the asset matching the OS. So:
+- if the version's Release already exists (e.g. macOS shipped it first), the script `gh release upload --clobber`s the `.7z` onto the existing Release and **skips** the `VERSION` bump (`config.py` already holds the target version);
+- otherwise it creates the version's Release.
 
-切勿另起 `-win` 之类的独立 tag——那会抢走 “latest”，破坏另一平台的更新。`-DryRun` 可预览每一步。
+Never use a separate `-win`-style tag — it would steal "latest" and break the other platform's updater. Use `-DryRun` to preview every step.
 
-手边没有 Windows 机器？GitHub Actions 工作流 `build-windows`（[`.github/workflows/build_windows.yml`](.github/workflows/build_windows.yml)，`workflow_dispatch` 手动触发）会在托管 runner 上执行同样的打包 / 校验步骤，且不发布任何东西。先升级并推送 `VERSION`，然后：
+No Windows machine at hand? The `build-windows` GitHub Actions workflow ([`.github/workflows/build_windows.yml`](.github/workflows/build_windows.yml), `workflow_dispatch`) runs the same build / pack / verify steps on a hosted runner and publishes nothing. Bump and push `VERSION` first, then:
 ```shell
 gh workflow run build_windows.yml -f version=X.Y.Z
 gh run download <run-id> -n Seraphine-win-X.Y.Z -D /tmp/win
 gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber
 ```
 
-## Riot 声明 📢
+## Riot disclaimer 📢
 Seraphine is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
 
-**参考译文**：Seraphine 未经 Riot Games 认可，也不代表 Riot Games 或任何官方参与制作或管理 Riot Games 产品的人的观点或意见。Riot Games 及其所有相关产物均为 Riot Games, Inc 的商标或注册商标。
+## Disclaimer 🛡️
+This program consists of source code open-sourced on GitHub and the binaries uploaded to Releases or official groups. This section aims to give users a fuller, more detailed understanding of the program and its possible risks, so they can make an informed risk assessment before and during use.
 
-## 套盾环节 🛡️
-本程序为在 GitHub 仓库开源的代码，以及在 Release 或官方群组中上传的二进制文件。本环节旨在让用户更全面详尽地了解本程序及可能风险，以便在使用前及过程中做出充分的风险评估和明智决策。
+1. The program's purpose is to provide **out-of-game** assistance for a better experience. We do not encourage or support anything that violates Riot's or Tencent's rules, or that could make the game environment unfair.
+2. The implementation complies with the [Riot Policies](https://developer.riotgames.com/policies/general), and the features comply with the requirements of the *League of Legends* game-plugin convention.
+3. The program is built on Riot's League Client Update (LCU) API. Its code and behavior contain no intrusive techniques, and in principle do not damage the integrity of the client or game — including, but not limited to, modifying client files or reading/writing game-process memory.
+4. We do our best to keep the program and the game client stable, but during specific game environments and Riot/Tencent service updates (e.g. anti-cheat or other protection updates), using the program may negatively affect your experience, such as client crashes or account bans.
+5. You bear all consequences of using this program. We are not responsible for any direct or indirect loss arising from its use. When deciding to use it, you should fully consider and bear all resulting risks and consequences yourself.
+6. We reserve the right to amend this disclaimer at any time; please check this page periodically for the latest information.
 
-1. 本程序的目的是通过为玩家提供**游戏外**辅助功能，从而提供更好的游戏体验。我们不鼓励、不支持任何违反 Riot 及腾讯规定、或可能导致游戏环境不公平的行为。
-2. 本程序的代码实现遵守 [Riot Policies](https://developer.riotgames.com/policies/general)，提供的功能符合 [《英雄联盟》游戏插件公约](https://lol.qq.com/webplat/info/news_version3/152/4579/4581/m3106/201509/381618.shtml) 的要求。
-3. 本程序基于 Riot 提供的 League Client Update（LCU）API 开发，其代码与行为均不含任何侵入性手段，理论上不会破坏客户端及游戏完整性，包括但不限于客户端文件内容的修改或游戏进程内存的读写等。
-4. 我们尽力保证程序本体及游戏客户端的稳定性，但在具体游戏环境以及 Riot / 腾讯服务更新（如反作弊系统等保护手段更新）的过程中，使用本程序可能对您的游戏体验产生负面影响，如客户端崩溃、账号封禁等。
-5. 使用本程序所产生的一切后果由您自行承担，我们不对任何直接或间接损失负责。用户在决定使用本程序时，应充分考虑并自行承担由此产生的所有风险和后果。
-6. 我们保留随时修改本免责声明的权利，请定期查阅以获取最新信息。
+Before using this program, please make sure you have **read**, **understood**, and **agreed to** the terms above; and please follow the relevant game rules to help keep the environment healthy and fair.
 
-在使用本程序之前，请确保您已详细**阅读**、**理解**并**同意**上述条款；同时请遵守相关游戏规则，共同维护健康公平的游戏环境。
+## References 👀
+- The GUI is built with [PySide6](https://doc.qt.io/qtforpython/) and [zhiyiYo/PyQt-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets); async work is bridged into the Qt event loop via [qasync](https://github.com/CabbageDevelopment/qasync).
 
-## 参考资料 👀
-- GUI 基于 [PySide6](https://doc.qt.io/qtforpython/) 以及 [zhiyiYo/PyQt-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) 实现，异步通过 [qasync](https://github.com/CabbageDevelopment/qasync) 桥接到 Qt 事件循环。
-
-- LCU API 使用方法及汇总详见
+- LCU API usage and references
   - https://riot-api-libraries.readthedocs.io/en/latest/lcu.html#lcu-explorer
   - https://hextechdocs.dev/tag/lcu/
   - https://developer.riotgames.com/docs/lol
   - https://www.mingweisamuel.com/lcu-schema/tool/#/
 
-  以及其他使用 LCU API 的优秀项目
+  and other excellent projects using the LCU API
   - https://github.com/KebsCS/KBotExt
   - https://github.com/XHXIAIEIN/LeagueCustomLobby
   - https://github.com/7rebux/league-tools
 
-- 锁定游戏设置相关请见
+- Locking in-game settings
   - https://www.bilibili.com/video/BV1s84y1x7ub
 
-- 修复客户端无限转圈 / 缩成一块 BUG 请见
+- Fixing the infinite-spinner / shrunken-window bug
   - https://www.bilibili.com/video/BV1Cw41147iS
   - https://github.com/LeagueTavern/fix-lcu-window
 
-- 游戏资源获取请见
+- Game assets
   - https://raw.communitydragon.org/latest/
   - https://github.com/CommunityDragon/Docs/blob/master/assets.md
 
-- Fluent Icons 资源获取请见
+- Fluent Icons
   - https://fluenticons.co/outlined
   - https://github.com/microsoft/fluentui-system-icons/blob/main/icons_regular.md
 
-## 帮助我们改进 Seraphine 😘
-使用过程中遇到任何 BUG 或不符合预期的行为，欢迎提出 [issue](https://github.com/Ezeki3lRchy/Seraphine/issues)（请先善用搜索，看看是否已有相关讨论）。功能上的添加或修改建议同样欢迎，[PR](https://github.com/Ezeki3lRchy/Seraphine/pulls) 大欢迎！
+## Help us improve Seraphine 😘
+If you hit any bug or unexpected behavior, please open an [issue](https://github.com/Ezeki3lRchy/Seraphine/issues) (search first to see whether it's already been discussed). Feature requests and changes are equally welcome — [PRs](https://github.com/Ezeki3lRchy/Seraphine/pulls) are very welcome!
 
-## 致谢 🥳
-- 感谢 [Zzaphkiel/Seraphine](https://github.com/Zzaphkiel/Seraphine) 原项目及其所有贡献者——本分支站在他们的肩膀上完成跨平台移植。
+## Acknowledgments 🥳
+- Thanks to the original [Zzaphkiel/Seraphine](https://github.com/Zzaphkiel/Seraphine) project and all of its contributors — this fork stands on their shoulders to do the cross-platform port.
   <p align='center'>
     <a href="https://github.com/Zzaphkiel/Seraphine/graphs/contributors">
       <img src="https://contrib.rocks/image?repo=Zzaphkiel/Seraphine">
     </a>
   </p>
-- 感谢 [大乱斗之家](http://www.jddld.com) 提供大乱斗 Buff 信息服务支持。
+- Thanks to [大乱斗之家](http://www.jddld.com) for the ARAM buff-info service.
 
-## 许可证 ⚖️
-- 对于非商用行为，Seraphine 使用 [GPLv3](https://github.com/Ezeki3lRchy/Seraphine/blob/main/LICENSE) 许可证。
-- 禁止一切针对代码以及二进制文件的商用行为。
+## License ⚖️
+- For non-commercial use, Seraphine is licensed under [GPLv3](https://github.com/Ezeki3lRchy/Seraphine/blob/main/LICENSE).
+- All commercial use of the code and binaries is prohibited.

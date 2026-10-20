@@ -21,7 +21,7 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 | `sync.py` | Helper script for syncing/updating resources or data |
 | `requirements.txt` | Pinned deps (PySide6 6.9.3 + PySide6-Fluent-Widgets, aiohttp 3.10.10, qasync, py7zr, pywin32 on win32, …) |
 | `Seraphine.pro` | Qt project file for extracting translatable strings (`pylupdate`) |
-| `readme.md` | Upstream project README (Chinese) — features, build via conda |
+| `readme.md` | Project README (English); Chinese version in `readme.zh-CN.md` |
 | `LICENSE` | Upstream license |
 
 ## Subdirectories
