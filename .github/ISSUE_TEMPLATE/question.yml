@@ -17,9 +17,9 @@ body:
     attributes:
       label: Before submitting, please confirm
       options:
-        - label: I have read the [FAQ](https://github.com/Zzaphkiel/Seraphine?tab=readme-ov-file#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98-faq-), and it does not solve my problem
+        - label: I have read the [FAQ](https://github.com/Ezeki3lRchy/Seraphine#faq-), and it does not solve my problem
           required: true
-        - label: I have searched previous [issues](https://github.com/Zzaphkiel/Seraphine/issues?q=is%3Aissue) (including closed ones), and they do not solve my problem
+        - label: I have searched previous [issues](https://github.com/Ezeki3lRchy/Seraphine/issues?q=is%3Aissue) (including closed ones), and they do not solve my problem
           required: true
     validations:
       required: true

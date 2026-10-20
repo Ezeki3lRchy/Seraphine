@@ -18,6 +18,7 @@ body:
       label: System
       description: Which operating system are you using?
       options:
+        - macOS
         - Windows 11
         - Windows 10
         - Windows 7
@@ -30,7 +31,8 @@ body:
       label: How you run it
       description: How do you run Seraphine?
       options:
-        - Double-click the exe
+        - Double-click the exe (Windows)
+        - Open Seraphine.app (macOS)
         - Run the source code in a Python environment
     validations:
       required: true
@@ -63,7 +65,7 @@ body:
     attributes:
       label: Log files
       description: Upload the log files to help us locate the problem
-      placeholder: The log files are in the log folder inside the Seraphine directory
+      placeholder: 'Windows: Seraphine\_internal\log\ — macOS: Seraphine.app/Contents/Frameworks/log/ (right-click the app → Show Package Contents)'
     validations:
       required: false
   - type: input
@@ -93,9 +95,9 @@ body:
     attributes:
       label: Before submitting, please confirm
       options:
-        - label: I have read the [FAQ](https://github.com/Zzaphkiel/Seraphine?tab=readme-ov-file#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98-faq-), and it does not solve my problem
+        - label: I have read the [FAQ](https://github.com/Ezeki3lRchy/Seraphine#faq-), and it does not solve my problem
           required: true
-        - label: I have searched previous [issues](https://github.com/Zzaphkiel/Seraphine/issues?q=is%3Aissue) (including closed ones), and they do not solve my problem
+        - label: I have searched previous [issues](https://github.com/Ezeki3lRchy/Seraphine/issues?q=is%3Aissue) (including closed ones), and they do not solve my problem
           required: true
     validations:
       required: true

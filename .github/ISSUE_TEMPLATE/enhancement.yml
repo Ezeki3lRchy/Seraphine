@@ -17,7 +17,7 @@ body:
     attributes:
       label: Before submitting, please confirm
       options:
-        - label: I have searched previous [issues](https://github.com/Zzaphkiel/Seraphine/issues?q=is%3Aissue) (including closed ones), and none has the same idea
+        - label: I have searched previous [issues](https://github.com/Ezeki3lRchy/Seraphine/issues?q=is%3Aissue) (including closed ones), and none has the same idea
           required: true
     validations:
       required: true
