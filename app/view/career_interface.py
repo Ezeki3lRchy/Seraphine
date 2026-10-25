@@ -15,6 +15,8 @@ from app.components.career_widgets import RankCard, RecentSummaryCard, CareerGam
 from app.components.champion_icon_widget import RoundIcon
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.summoner_name_button import SummonerName
+from app.components.tier_graph_widget import TierGraphCard
+from app.lol import rank_history
 from app.components.color_label import ColorLabel
 from app.components.animation_frame import CardWidget, ColorAnimationFrame
 from app.common.style_sheet import StyleSheet
@@ -79,6 +81,7 @@ class CareerInterface(SeraphineInterface):
         # 5 人排位 (LCU: RANKED_PREMADE_5x5), 有数据才显示, 放在第二行
         self.fivesRankLayout = QHBoxLayout()
         self.fivesCard = RankCard(self.tr("Ranked 5s"))
+        self.tierGraphCard = TierGraphCard()
         self.summaryCard = RecentSummaryCard()
         self.scrollContent = QWidget()
         self.scrollContentLayout = QVBoxLayout(self.scrollContent)
@@ -271,6 +274,7 @@ class CareerInterface(SeraphineInterface):
         self.scrollContentLayout.setSpacing(10)
         self.scrollContentLayout.addLayout(self.rankCardsLayout)
         self.scrollContentLayout.addLayout(self.fivesRankLayout)
+        self.scrollContentLayout.addWidget(self.tierGraphCard)
         self.scrollContentLayout.addWidget(self.summaryCard)
         self.scrollContentLayout.addLayout(self.recentInfoHLayout)
         self.scrollContentLayout.addWidget(self.gameInfoWidget, stretch=1)
@@ -493,6 +497,8 @@ class CareerInterface(SeraphineInterface):
         self.__updateTable()
 
         queueMap = rankInfo.get('queueMap') or {}
+        rank_history.record(puuid, queueMap)
+        self.tierGraphCard.setPuuid(puuid)
         self.soloCard.updateRank(queueMap.get('RANKED_SOLO_5x5'))
         self.flexCard.updateRank(queueMap.get('RANKED_FLEX_SR'))
 
