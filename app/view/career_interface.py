@@ -12,6 +12,8 @@ from ..common.qfluentwidgets import (TableWidget, PushButton, ComboBox,
                                      InfoBarPosition)
 
 from app.components.career_widgets import RankCard, RecentSummaryCard, CareerGameRow, tierText
+from app.components.performance_widget import PerformancePanel
+from app.lol import season_stats
 from app.components.champion_icon_widget import RoundIcon
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.summoner_name_button import SummonerName
@@ -83,6 +85,9 @@ class CareerInterface(SeraphineInterface):
         self.fivesCard = RankCard(self.tr("Ranked 5s"))
         self.tierGraphCard = TierGraphCard()
         self.summaryCard = RecentSummaryCard()
+        # 近期 vs 本赛季 (赛季样本在页面显示后后台翻页拉取)
+        self.performancePanel = PerformancePanel()
+        self.seasonTask = None
         self.scrollContent = QWidget()
         self.scrollContentLayout = QVBoxLayout(self.scrollContent)
 
@@ -276,6 +281,7 @@ class CareerInterface(SeraphineInterface):
         self.scrollContentLayout.addLayout(self.fivesRankLayout)
         self.scrollContentLayout.addWidget(self.tierGraphCard)
         self.scrollContentLayout.addWidget(self.summaryCard)
+        self.scrollContentLayout.addWidget(self.performancePanel)
         self.scrollContentLayout.addLayout(self.recentInfoHLayout)
         self.scrollContentLayout.addWidget(self.gameInfoWidget, stretch=1)
 
@@ -541,8 +547,43 @@ class CareerInterface(SeraphineInterface):
 
         self.setLoadingPageEnabled(False)
 
+        # 换人 / 刷新: 上一位召唤师的赛季样本任务不再需要
+        if self.seasonTask:
+            self.seasonTask.cancel()
+        self.seasonTask = None
+
         if self.games:
             asyncio.create_task(self.__updateRecentTeammates())
+
+        recent = season_stats.aggregate((self.games or {}).get('games'))
+        self.performancePanel.setRecent(recent)
+        if recent:
+            self.seasonTask = asyncio.create_task(
+                self.__updateSeasonPerformance(puuid, rankInfo, self.games['games']))
+
+    async def __updateSeasonPerformance(self, puuid, rankInfo, recentGames):
+        """赛季样本: 战绩翻页 (至多 season_stats.SEASON_CAP 局); 取不到用排位胜负兜底胜率"""
+        try:
+            games, source = await season_stats.fetchSeasonGames(puuid)
+        except Exception:
+            games, source = None, ''
+        if puuid != self.puuid:
+            return
+
+        season = season_stats.aggregate(games)
+        if season is None:
+            self.performancePanel.setSeason(season_stats.rankedSeasonFallback(rankInfo), 'ranked')
+            return
+
+        self.performancePanel.setSeason(season, source)
+        if source == 'lcu':
+            # LCU 战绩列表没有全队击杀: 近期参团率 + 少量补拉完整对局
+            try:
+                await season_stats.fillLcuKp(games, recentGames, puuid)
+            except Exception:
+                return
+            if puuid == self.puuid:
+                self.performancePanel.setSeason(season_stats.aggregate(games), source)
 
     def __updateGameInfo(self):
         while self.gameInfoLayout.count():

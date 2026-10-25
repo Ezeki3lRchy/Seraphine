@@ -802,6 +802,29 @@ class LolClientConnector(QObject):
 
         return data if isinstance(data, dict) and data.get('participants') else None
 
+    async def getSummonerGamesByPuuidQuietly(self, puuid, begIndex=0, endIndex=19):
+        '''
+        与 getSummonerGamesByPuuid 相同, 但给生涯页后台的赛季统计翻页用: 不重试不弹窗,
+        任何失败返回 None, 成功返回 games 列表
+        '''
+        try:
+            async with self.semaphore:
+                res = await self.__get(
+                    f"/lol-match-history/v1/products/lol/{puuid}/matches",
+                    {"begIndex": begIndex, "endIndex": endIndex})
+                if res.status != 200:
+                    res.release()
+                    return None
+
+                data = await res.json()
+        except Exception as e:
+            logger.warning(
+                f"getSummonerGamesByPuuidQuietly({begIndex}-{endIndex}) failed: {e!r}", TAG)
+            return None
+
+        games = (data.get('games') or {}).get('games') if isinstance(data, dict) else None
+        return games if isinstance(games, list) else None
+
     async def __matchSgpTarget(self):
         """
         (Riot 对局服务器地址, 平台 ID), 取不到为 (None, None). 不硬编码地区表:
