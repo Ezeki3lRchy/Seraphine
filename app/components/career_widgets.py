@@ -635,7 +635,10 @@ class CareerGameRow(ColorAnimationFrame):
                         return True
             for rect, player in self.playerRects:
                 if rect.contains(pos):
-                    QToolTip.showText(e.globalPos(), player['name'] or "?", self, rect)
+                    name = player['name'] or "?"
+                    if player.get('tagLine'):
+                        name += f"#{player['tagLine']}"
+                    QToolTip.showText(e.globalPos(), name, self, rect)
                     return True
             if self.statsRect.contains(pos):
                 QToolTip.showText(e.globalPos(), self.statsTip, self, self.statsRect)
@@ -779,10 +782,21 @@ class CareerGameRow(ColorAnimationFrame):
                                       QRectF(px, py + 0.5, 16, 16), 3)
                     isSelf = player.get('puuid') == self.currentPuuid
                     nameFont = textFont(12, isSelf)
-                    name = QFontMetrics(nameFont).elidedText(
-                        player['name'] or "?", Qt.ElideRight, self.CHIP_W - 22)
-                    drawText(p, QRectF(px + 21, py, self.CHIP_W - 21, rowH), name,
+                    # 名字 + #tag (tag 小一号, 名字太长时先省略名字, 保住 tag)
+                    tag = f"#{player['tagLine']}" if player.get('tagLine') else ""
+                    tagFont = textFont(10)
+                    tagW = min(QFontMetrics(tagFont).horizontalAdvance(tag), 44) if tag else 0
+                    nameMetrics = QFontMetrics(nameFont)
+                    name = nameMetrics.elidedText(
+                        player['name'] or "?", Qt.ElideRight, self.CHIP_W - 22 - tagW)
+                    nameX = px + 21
+                    drawText(p, QRectF(nameX, py, self.CHIP_W - 21, rowH), name,
                              nameFont, ink if isSelf else muted)
+                    if tag:
+                        tagX = nameX + nameMetrics.horizontalAdvance(name) + 1
+                        drawText(p, QRectF(tagX, py + 1, tagW, rowH),
+                                 QFontMetrics(tagFont).elidedText(tag, Qt.ElideRight, tagW),
+                                 tagFont, tint(muted, 150))
                     self.playerRects.append(
                         (QRect(int(px), int(py), self.CHIP_W, rowH), player))
             right = playersX - 18

@@ -908,6 +908,26 @@ class LolClientConnector(QObject):
 
         return data if isinstance(data, dict) and data.get('frames') else None
 
+    async def getRankedStatsByPuuidQuietly(self, puuid):
+        '''
+        与 getRankedStatsByPuuid 相同, 但只给可有可无的展示 (对局详情表的段位) 用:
+        不走 @retry (失败不重试, 也不弹 lcuApiExceptionRaised), 任何失败返回 None.
+        '''
+        try:
+            async with self.semaphore:
+                res = await self.__get(f"/lol-ranked/v1/ranked-stats/{puuid}")
+                if res.status != 200:
+                    res.release()
+                    return None
+
+                data = await res.json()
+        except Exception as e:
+            logger.warning(
+                f"getRankedStatsByPuuidQuietly({puuid}) failed: {e!r}", TAG)
+            return None
+
+        return data if isinstance(data, dict) and "errorCode" not in data else None
+
     @retry()
     async def getRankedStatsByPuuid(self, puuid):
         res = await self.__get(f"/lol-ranked/v1/ranked-stats/{puuid}")

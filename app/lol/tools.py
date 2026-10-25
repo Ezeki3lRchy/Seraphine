@@ -324,6 +324,32 @@ async def parseGameData(game):
     }
 
 
+def detailRankInfo(rankStats, queueId):
+    """
+    对局详情表一名玩家的段位 (tierKey, tier, division, lp, rankIcon), 按本局队列取对应段位;
+    数据异常时返回 None (该玩家不显示段位, 不影响整张表)
+    """
+    try:
+        rank = rankStats.get('queueMap') or {}
+
+        if queueId == 1700 and 'CHERRY' in rank:
+            return "", "", "", rank['CHERRY'].get('ratedRating', ''), ""
+
+        rankInfo = rank.get({440: 'RANKED_FLEX_SR', 710: 'RANKED_PREMADE_5x5'}.get(
+            queueId, 'RANKED_SOLO_5x5')) or {}
+        tier = rankInfo.get('tier') or ''
+        division = rankInfo.get('division') or ''
+        lp = rankInfo.get('leaguePoints', '')
+
+        if tier in ('', 'NONE', 'UNRANKED'):
+            return "", "", "", lp, 'app/resource/images/unranked.png'
+
+        return (tier, translateTier(tier, True), '' if division == 'NA' else division, lp,
+                f'app/resource/images/{tier.lower()}.png')
+    except Exception:
+        return None
+
+
 async def parseGameDetailData(puuid, game):
     queueId = game['queueId']
     mapId = game['mapId']
@@ -389,10 +415,18 @@ async def parseGameDetailData(puuid, game):
         teams[teamId]['towerKills'] = team['towerKills']
         teams[teamId]['inhibitorKills'] = team['inhibitorKills']
 
+    # 详情表的段位: 所有玩家并发取 (安静接口, 失败不重试不弹窗), AI 没有段位
+    rankPuuids = [p['player']['puuid'] for p in game['participantIdentities']
+                  if p['player']['puuid'] != '00000000-0000-0000-0000-000000000000']
+    rankResults = await asyncio.gather(
+        *[connector.getRankedStatsByPuuidQuietly(p) for p in rankPuuids])
+    ranks = {p: detailRankInfo(r, queueId) for p, r in zip(rankPuuids, rankResults) if r}
+
     for participant in game['participantIdentities']:
         participantId = participant['participantId']
         summonerName = participant['player'].get(
             'gameName') or participant['player'].get('summonerName')  # 兼容外服
+        tagLine = participant['player'].get('tagLine') or ''
         summonerPuuid = participant['player']['puuid']
         isCurrent = (summonerPuuid == puuid)
 
@@ -463,42 +497,14 @@ async def parseGameDetailData(puuid, game):
                     await connector.getItemIcon(itemId) for itemId in itemIds
                 ]
 
-                getRankInfo = cfg.get(cfg.showTierInGameInfo)
-                tierKey = ""
-
-                tier = division = lp = rankIcon = ""
-                if getRankInfo:
-                    try:
-                        rank = await connector.getRankedStatsByPuuid(
-                            summonerPuuid)
-                    except SummonerRankInfoNotFound:
-                        ...
-                    else:
-                        rank = rank['queueMap']
-
-                        if queueId == 1700 and 'CHERRY' in rank:
-                            rankInfo = rank["CHERRY"]
-                            lp = rankInfo['ratedRating']
-                        else:
-                            rankInfo = rank[
-                                'RANKED_FLEX_SR'] if queueId == 440 else rank['RANKED_SOLO_5x5']
-
-                            tier = rankInfo['tier']
-                            tierKey = tier
-                            division = rankInfo['division']
-                            lp = rankInfo['leaguePoints']
-
-                            if tier == '':
-                                rankIcon = 'app/resource/images/unranked.png'
-                            else:
-                                rankIcon = f'app/resource/images/{tier.lower()}.png'
-                                tier = translateTier(tier, True)
-
-                            if division == 'NA':
-                                division = ''
+                # 详情表总是显示段位 (段位已在循环前并发取好, 取不到就不显示)
+                rankInfo = ranks.get(summonerPuuid)
+                getRankInfo = rankInfo is not None
+                tierKey, tier, division, lp, rankIcon = rankInfo or ("", "", "", "", "")
 
                 item = {
                     'summonerName': summonerName,
+                    'tagLine': tagLine,
                     'puuid': summonerPuuid,
                     'isCurrent': isCurrent,
                     'championIcon': championIcon,
@@ -1110,6 +1116,7 @@ async def gameParticipantsFromLcuDetail(detail):
             'teamId': p.get('teamId') or 0,
             'championIcon': await connector.getChampionIcon(p.get('championId') or 0),
             'name': player.get('gameName') or player.get('summonerName') or '',
+            'tagLine': player.get('tagLine') or '',
             'puuid': player.get('puuid'),
         })
 

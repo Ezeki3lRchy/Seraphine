@@ -157,8 +157,10 @@ class DetailPlayerRow(QWidget):
                         QToolTip.showText(e.globalPos(), html, self, rect)
                         return True
             if self.nameRect.contains(pos):
-                QToolTip.showText(e.globalPos(), self.s.get('summonerName') or '', self,
-                                  self.nameRect)
+                name = self.s.get('summonerName') or ''
+                if self.s.get('tagLine'):
+                    name += f"#{self.s['tagLine']}"
+                QToolTip.showText(e.globalPos(), name, self, self.nameRect)
                 return True
             if self.rankRect.contains(pos) and self.s.get('tierKey'):
                 tip = tierText(self.s['tierKey'], self.s.get('division'))
@@ -237,11 +239,21 @@ class DetailPlayerRow(QWidget):
         rank = tierText(s.get('tierKey'), s.get('division'))
         nameFont = textFont(13, bool(s.get('isCurrent')))
         metrics = QFontMetrics(nameFont)
-        name = metrics.elidedText(s.get('summonerName') or '?', Qt.ElideRight, int(nw - 8))
+        # 名字 + #tag (tag 小一号灰色; 名字太长时先省略名字, 保住 tag)
+        tag = f"#{s['tagLine']}" if s.get('tagLine') else ""
+        tagFont = textFont(11)
+        tagMetrics = QFontMetrics(tagFont)
+        tagW = min(tagMetrics.horizontalAdvance(tag), 56) if tag else 0
+        name = metrics.elidedText(s.get('summonerName') or '?', Qt.ElideRight,
+                                  int(nw - 8 - tagW - (2 if tag else 0)))
         nameBox = QRectF(nx, h / 2 - 20, nw - 8, 20) if rank else QRectF(nx, 0, nw - 8, h)
         drawText(p, nameBox, name, nameFont, ink)
+        nameW = metrics.horizontalAdvance(name)
+        if tag:
+            drawText(p, QRectF(nx + nameW + 2, nameBox.top() + 1, tagW, nameBox.height()),
+                     tagMetrics.elidedText(tag, Qt.ElideRight, tagW), tagFont, muted)
         self.nameRect = QRect(int(nx), int(nameBox.center().y() - 10),
-                              metrics.horizontalAdvance(name) + 2, 20)
+                              nameW + (tagW + 2 if tag else 0) + 2, 20)
         if rank:
             drawRoundedPixmap(p, self.emblem, QRectF(nx - 2, h / 2 + 1, 18, 18), 0)
             drawText(p, QRectF(nx + 18, h / 2 + 1, nw - 26, 18), rank, textFont(12), muted)
