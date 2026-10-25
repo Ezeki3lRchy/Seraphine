@@ -11,7 +11,7 @@ from ..common.qfluentwidgets import (TableWidget, PushButton, ComboBox,
                                      Flyout, FlyoutViewBase, FlyoutAnimationType, InfoBar,
                                      InfoBarPosition)
 
-from app.components.career_widgets import RankCard, RecentSummaryCard, CareerGameRow
+from app.components.career_widgets import RankCard, RecentSummaryCard, CareerGameRow, tierText
 from app.components.champion_icon_widget import RoundIcon
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.summoner_name_button import SummonerName
@@ -76,6 +76,9 @@ class CareerInterface(SeraphineInterface):
         self.rankCardsLayout = QHBoxLayout()
         self.soloCard = RankCard(self.tr("Ranked Solo/Duo"))
         self.flexCard = RankCard(self.tr("Ranked Flex"))
+        # 5 人排位 (LCU: RANKED_PREMADE_5x5), 有数据才显示, 放在第二行
+        self.fivesRankLayout = QHBoxLayout()
+        self.fivesCard = RankCard(self.tr("Ranked 5s"))
         self.summaryCard = RecentSummaryCard()
         self.scrollContent = QWidget()
         self.scrollContentLayout = QVBoxLayout(self.scrollContent)
@@ -137,6 +140,8 @@ class CareerInterface(SeraphineInterface):
         self.scrollContent.setObjectName("gameInfoWidget")
         self.soloCard.setObjectName("careerCard")
         self.flexCard.setObjectName("careerCard")
+        self.fivesCard.setObjectName("careerCard")
+        self.fivesCard.hide()
         self.summaryCard.setObjectName("careerCard")
 
         self.backToMeButton.setEnabled(False)
@@ -257,10 +262,15 @@ class CareerInterface(SeraphineInterface):
         self.rankCardsLayout.setSpacing(12)
         self.rankCardsLayout.addWidget(self.soloCard)
         self.rankCardsLayout.addWidget(self.flexCard)
+        self.fivesRankLayout.setContentsMargins(0, 0, 0, 0)
+        self.fivesRankLayout.setSpacing(12)
+        self.fivesRankLayout.addWidget(self.fivesCard, 1)
+        self.fivesRankLayout.addStretch(1)
 
         self.scrollContentLayout.setContentsMargins(0, 0, 0, 0)
         self.scrollContentLayout.setSpacing(10)
         self.scrollContentLayout.addLayout(self.rankCardsLayout)
+        self.scrollContentLayout.addLayout(self.fivesRankLayout)
         self.scrollContentLayout.addWidget(self.summaryCard)
         self.scrollContentLayout.addLayout(self.recentInfoHLayout)
         self.scrollContentLayout.addWidget(self.gameInfoWidget, stretch=1)
@@ -485,6 +495,11 @@ class CareerInterface(SeraphineInterface):
         queueMap = rankInfo.get('queueMap') or {}
         self.soloCard.updateRank(queueMap.get('RANKED_SOLO_5x5'))
         self.flexCard.updateRank(queueMap.get('RANKED_FLEX_SR'))
+
+        fives = queueMap.get('RANKED_PREMADE_5x5') or {}
+        self.fivesCard.updateRank(fives)
+        self.fivesCard.setVisible(bool(tierText(fives.get('tier'), fives.get('division'))
+                                       or fives.get('wins') or fives.get('losses')))
 
         if 'gameCount' in games:
             self.recent20GamesLabel.setText(

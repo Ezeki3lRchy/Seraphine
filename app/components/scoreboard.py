@@ -23,6 +23,7 @@ QUEUE_SHORT_NAMES = {
     480: "Swiftplay",
     490: "Quickplay",
     700: "Clash",
+    710: "Ranked 5s",
     720: "ARAM Clash",
     900: "ARURF",
     1700: "Arena",
