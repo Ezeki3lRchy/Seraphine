@@ -19,6 +19,7 @@ from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.summoner_name_button import SummonerName
 from app.components.tier_graph_widget import TierGraphCard
 from app.lol import rank_history
+from app.lol.laning import attachLaningScores
 from app.components.color_label import ColorLabel
 from app.components.animation_frame import CardWidget, ColorAnimationFrame
 from app.common.style_sheet import StyleSheet
@@ -88,6 +89,7 @@ class CareerInterface(SeraphineInterface):
         # 近期 vs 本赛季 (赛季样本在页面显示后后台翻页拉取)
         self.performancePanel = PerformancePanel()
         self.seasonTask = None
+        self.laningTask = None
         self.scrollContent = QWidget()
         self.scrollContentLayout = QVBoxLayout(self.scrollContent)
 
@@ -547,13 +549,16 @@ class CareerInterface(SeraphineInterface):
 
         self.setLoadingPageEnabled(False)
 
-        # 换人 / 刷新: 上一位召唤师的赛季样本任务不再需要
-        if self.seasonTask:
-            self.seasonTask.cancel()
-        self.seasonTask = None
+        # 换人 / 刷新: 上一位召唤师的后台任务 (对线得分 / 赛季样本) 不再需要
+        for task in (self.laningTask, self.seasonTask):
+            if task:
+                task.cancel()
+        self.laningTask = self.seasonTask = None
 
         if self.games:
             asyncio.create_task(self.__updateRecentTeammates())
+            self.laningTask = asyncio.create_task(
+                self.__updateLaningScores(puuid, self.games.get('games') or []))
 
         recent = season_stats.aggregate((self.games or {}).get('games'))
         self.performancePanel.setRecent(recent)
@@ -584,6 +589,21 @@ class CareerInterface(SeraphineInterface):
                 return
             if puuid == self.puuid:
                 self.performancePanel.setSeason(season_stats.aggregate(games), source)
+
+    async def __updateLaningScores(self, puuid, games):
+        """战绩行显示后逐局补拉时间线算对线得分, 算完一局就刷新当前显示的那一行"""
+        def onGame(game):
+            if puuid != self.puuid:
+                return
+            for i in range(self.gameInfoLayout.count()):
+                row = self.gameInfoLayout.itemAt(i).widget()
+                if isinstance(row, CareerGameRow) and row.gameId == game['gameId']:
+                    row.refreshLaning()
+
+        try:
+            await attachLaningScores(games, puuid, onGame)
+        except Exception:
+            pass
 
     def __updateGameInfo(self):
         while self.gameInfoLayout.count():

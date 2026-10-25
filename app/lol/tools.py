@@ -1118,6 +1118,7 @@ async def gameParticipantsFromLcuDetail(detail):
             'name': player.get('gameName') or player.get('summonerName') or '',
             'tagLine': player.get('tagLine') or '',
             'puuid': player.get('puuid'),
+            'participantId': p.get('participantId'),  # 对线得分 (laning.py) 用
         })
 
     players.sort(key=lambda x: x['teamId'])

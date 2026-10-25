@@ -608,13 +608,35 @@ class CareerGameRow(ColorAnimationFrame):
         self.itemRects = []
         self.playerRects = []
         self.statsRect = QRect()
+        self.laningRect = QRect()
         self.infoRect = QRect()
 
         self._cache = None
         self._cacheKey = None
 
+        self.laning = None
+        self.laningTip = ""
+        self.refreshLaning()
+
         self.clicked.connect(
             lambda: signalBus.careerGameBarClicked.emit(str(self.gameId)))
+
+    def refreshLaning(self):
+        """game['laning'] (app/lol/laning.py, 战绩行显示后异步补上) 到了就多画一行 "对线 30 : 70" """
+        laning = self.game.get('laning')
+        if laning == self.laning:
+            return
+
+        self.laning = laning
+        if laning:
+            self.laningTip = "\n".join((
+                f"{self.tr('Laning')}: {laning['mine']} : {laning['theirs']}",
+                self.tr("Laning score: your lane advantage over the opponent in the same "
+                        "position during the first 14 minutes."),
+                self.tr("Your share of the two players' gold (50%), XP (30%) and CS (20%) "
+                        "at 14:00; supports: gold 60%, XP 40%.")))
+        self._cacheKey = None
+        self.update()
 
     # ---------------- 命中测试 ----------------
 
@@ -640,6 +662,9 @@ class CareerGameRow(ColorAnimationFrame):
                         name += f"#{player['tagLine']}"
                     QToolTip.showText(e.globalPos(), name, self, rect)
                     return True
+            if self.laning and self.laningRect.contains(pos):
+                QToolTip.showText(e.globalPos(), self.laningTip, self, self.laningRect)
+                return True
             if self.statsRect.contains(pos):
                 QToolTip.showText(e.globalPos(), self.statsTip, self, self.statsRect)
                 return True
@@ -704,7 +729,8 @@ class CareerGameRow(ColorAnimationFrame):
         deathsColor = colorManager.getColor('deaths')[0]
         color = resultColor(self.resultType)
         dpr = self.devicePixelRatioF()
-        key = (self.width(), self.height(), dpr, dark, deathsColor.rgba(), color.rgba())
+        key = (self.width(), self.height(), dpr, dark, deathsColor.rgba(), color.rgba(),
+               resultColor('win').rgba(), resultColor('lose').rgba())
         if key == self._cacheKey:
             return self._cache
 
@@ -802,18 +828,33 @@ class CareerGameRow(ColorAnimationFrame):
             right = playersX - 18
 
         # 参团率 / 补刀 / 金币: 灰色标签 + 墨色数字
+        # 有对线得分时多一行 (对线 30 : 70), 行距收紧
         statsX = min(statsX, right - self.STATS_W)
-        statsTop = h / 2 - 30
+        pitch = 18 if self.laning else 21
+        statsTop = h / 2 - (37 if self.laning else 30)
         for i, (label, value, size) in enumerate((("KP", self.kpValue, 16),
                                                   ("CS", self.csValue, 14),
                                                   (self.tr("Gold"), self.goldValue, 14))):
             if not value:
                 continue
-            y = statsTop + i * 21
+            y = statsTop + i * pitch
             drawText(p, QRectF(statsX, y, 40, 20), label, textFont(12), muted)
             drawText(p, QRectF(statsX + 40, y, self.STATS_W - 40, 20), value,
                      numberFont(size, 600 if i == 0 else 400), ink)
-        self.statsRect = QRect(int(statsX), int(statsTop), self.STATS_W, 62)
+        self.statsRect = QRect(int(statsX), int(statsTop), self.STATS_W, 3 * pitch + 2)
+        self.laningRect = QRect()
+        if self.laning:
+            y = statsTop + 3 * pitch
+            label, labelFont = self.tr("Laning"), textFont(12)
+            labelW = max(40, QFontMetrics(labelFont).horizontalAdvance(label) + 6)
+            drawText(p, QRectF(statsX, y, labelW, 20), label, labelFont, muted)
+            mine = self.laning['mine']
+            mineColor = resultColor('win' if mine >= 50 else 'lose')
+            drawRuns(p, statsX + labelW, y, 20, ((str(mine), numberFont(14, 600), mineColor),
+                                                 (" : ", numberFont(14, 300), muted),
+                                                 (str(self.laning['theirs']), numberFont(14, 400),
+                                                  ink)))
+            self.laningRect = QRect(int(statsX), int(y), self.STATS_W, 20)
 
         # 物品 (空格画发丝线框) + 标签
         self.itemRects = []
