@@ -1,7 +1,14 @@
 # coding:utf-8
 import os
+import sys
 os.environ['QT_API'] = 'pyside6'
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+# --version / -v: 只需要版本号, 不导入界面 (MainWindow 会连带导入整个应用)
+if __name__ == '__main__' and len(sys.argv) == 2 and sys.argv[1] in ['--version', '-v']:
+    from app.common.config import VERSION, BETA
+    print(BETA or VERSION)
+    sys.exit(0)
 
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt, QTranslator
@@ -19,18 +26,12 @@ if not qasync.QtCore.__name__.startswith('PySide6'):
 
 from qasync import QApplication, QEventLoop
 import asyncio
-import sys
-from app.common.config import cfg, VERSION, BETA
+from app.common.config import cfg
 from app.common import platform
 from app.view.main_window import MainWindow
 
 
 def main():
-    args = sys.argv
-    if len(args) == 2 and args[1] in ['--version', '-v']:
-        print(BETA or VERSION)
-        return
-
     if cfg.get(cfg.dpiScale) == "Auto":
         QApplication.setHighDpiScaleFactorRoundingPolicy(
             Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)

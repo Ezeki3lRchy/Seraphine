@@ -98,12 +98,25 @@ def secsToStr(secs):
     return time.strftime("%M:%S", time.gmtime(secs))
 
 
-async def getRecentTeammates(games, puuid):
-    summoners = {}
+async def getRecentTeammates(games, puuid, details=None):
+    """
+    @param details: 与 games 对齐的完整对局 (attachGameScores 的返回值, 失败处为 None);
+        有就直接复用, 只为缺的局补拉
+    """
+    if details is None or len(details) != len(games):
+        details = [None] * len(games)
+    details = list(details)
 
-    for game in games:
-        gameId = game['gameId']
-        game = await connector.getGameDetailByGameId(gameId)
+    missing = [i for i, detail in enumerate(details) if detail is None]
+    fetched = await asyncio.gather(
+        *[connector.getGameDetailByGameId(games[i]['gameId']) for i in missing])
+    for i, detail in zip(missing, fetched):
+        details[i] = detail
+
+    summoners = {}
+    iconIds = {}
+
+    for game in details:
         teammates = getTeammates(game, puuid)
 
         for p in teammates['summoners']:
@@ -111,9 +124,9 @@ async def getRecentTeammates(games, puuid):
                 continue
 
             if p['puuid'] not in summoners:
-                summonerIcon = await connector.getProfileIcon(p['icon'])
+                iconIds[p['puuid']] = p['icon']
                 summoners[p['puuid']] = {
-                    "name": p['name'], 'tagLine': p.get('tagLine', ''), 'icon': summonerIcon,
+                    "name": p['name'], 'tagLine': p.get('tagLine', ''), 'icon': None,
                     "total": 0, "wins": 0, "losses": 0, "puuid": p["puuid"]}
 
             summoners[p['puuid']]['total'] += 1
@@ -130,6 +143,13 @@ async def getRecentTeammates(games, puuid):
     ret['summoners'] = sorted(ret['summoners'],
                               key=lambda x: x['total'], reverse=True)[:5]
 
+    # 只为显示的人取头像, 同一头像只取一次 (getProfileIcon 并发写同一文件会冲突)
+    uniqueIconIds = list(dict.fromkeys(iconIds[s['puuid']] for s in ret['summoners']))
+    icons = dict(zip(uniqueIconIds, await asyncio.gather(
+        *[connector.getProfileIcon(iconId) for iconId in uniqueIconIds])))
+    for s in ret['summoners']:
+        s['icon'] = icons[iconIds[s['puuid']]]
+
     return ret
 
 
@@ -139,6 +159,7 @@ async def parseSummonerData(summoner, rankTask, gameTask):
     level = summoner['summonerLevel']
     xpSinceLastLevel = summoner['xpSinceLastLevel']
     xpUntilNextLevel = summoner['xpUntilNextLevel']
+    details = None
 
     try:
         gamesInfo = await gameTask
@@ -192,6 +213,7 @@ async def parseSummonerData(summoner, rankTask, gameTask):
         'puuid': summoner['puuid'],
         'rankInfo': rankInfo,
         'games': games,
+        'gameDetails': details,  # 与 games['games'] 对齐, 近期队友复用
         'champions': champions,
         'isPublic': summoner['privacy'] == "PUBLIC",
         'tagLine': summoner.get("tagLine"),

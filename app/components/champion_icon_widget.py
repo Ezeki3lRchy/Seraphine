@@ -122,7 +122,31 @@ class RoundIconButton(QFrame):
         self.isPressed = False
         self.isHover = False
 
+        # 裁边 + 平滑缩放后的图缓存, 原因同 RoundIcon; 悬停 / 按下只改不透明度, 不影响缓存
+        self._cache = None
+        self._cacheKey = None
+
         self.setFixedSize(diameter, diameter)
+
+    def __scaledImage(self):
+        dpr = self.devicePixelRatioF()
+        key = (self.image.cacheKey(), self.width(), self.height(), dpr, self.overscaled)
+        if key == self._cacheKey:
+            return self._cache
+
+        width = self.image.width() - 2*self.overscaled
+        height = self.image.height() - 2*self.overscaled
+
+        image = self.image.copy(
+            self.overscaled, self.overscaled, width, height)
+
+        size = self.size() * dpr
+        image = image.scaled(size,
+                             Qt.AspectRatioMode.KeepAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
+
+        self._cache, self._cacheKey = image, key
+        return image
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -132,16 +156,7 @@ class RoundIconButton(QFrame):
         path.addEllipse(0, 0, self.width(), self.height())
         painter.setClipPath(path)
 
-        width = self.image.width() - 2*self.overscaled
-        height = self.image.height() - 2*self.overscaled
-
-        image = self.image.copy(
-            self.overscaled, self.overscaled, width, height)
-
-        size = self.size() * self.devicePixelRatioF()
-        image = image.scaled(size,
-                             Qt.AspectRatioMode.KeepAspectRatio,
-                             Qt.TransformationMode.SmoothTransformation)
+        image = self.__scaledImage()
 
         if self.isPressed:
             painter.setOpacity(0.63)
@@ -192,6 +207,23 @@ class TopRoundedLabel(QLabel):
         self.opacity = QGraphicsOpacityEffect(opacity=1)
         self.setGraphicsEffect(self.opacity)
 
+        # 平滑缩放后的图缓存, 原因同 RoundIcon
+        self._cache = None
+        self._cacheKey = None
+
+    def __scaledPixmap(self):
+        dpr = self.devicePixelRatioF()
+        key = (self.pixmap().cacheKey(), self.width(), self.height(), dpr)
+        if key == self._cacheKey:
+            return self._cache
+
+        pixmap = self.pixmap().scaled(
+            self.size()*dpr,
+            Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+
+        self._cache, self._cacheKey = pixmap, key
+        return pixmap
+
     def paintEvent(self, e):
         if not self.havePic:
             return super().paintEvent(e)
@@ -199,9 +231,7 @@ class TopRoundedLabel(QLabel):
         painter = QPainter(self)
         painter.setRenderHints(QPainter.Antialiasing)
 
-        pixmap = self.pixmap().scaled(
-            self.size()*self.devicePixelRatioF(),
-            Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        pixmap = self.__scaledPixmap()
 
         path = QPainterPath()
 

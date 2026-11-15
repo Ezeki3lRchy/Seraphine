@@ -90,6 +90,7 @@ class CareerInterface(SeraphineInterface):
         self.performancePanel = PerformancePanel()
         self.seasonTask = None
         self.laningTask = None
+        self.teammatesTask = None
         self.scrollContent = QWidget()
         self.scrollContentLayout = QVBoxLayout(self.scrollContent)
 
@@ -427,6 +428,9 @@ class CareerInterface(SeraphineInterface):
 
         self.setLoadingPageEnabled(True)
         self.recentTeammatesInfo = None
+        if self.teammatesTask:  # 否则上一位的结果可能在加载期间写回 recentTeammatesInfo
+            self.teammatesTask.cancel()
+            self.teammatesTask = None
 
         if self.recentTeammatesFlyout:
             self.recentTeammatesFlyout.close()
@@ -549,14 +553,15 @@ class CareerInterface(SeraphineInterface):
 
         self.setLoadingPageEnabled(False)
 
-        # 换人 / 刷新: 上一位召唤师的后台任务 (对线得分 / 赛季样本) 不再需要
-        for task in (self.laningTask, self.seasonTask):
+        # 换人 / 刷新: 上一位召唤师的后台任务 (近期队友 / 对线得分 / 赛季样本) 不再需要
+        for task in (self.teammatesTask, self.laningTask, self.seasonTask):
             if task:
                 task.cancel()
-        self.laningTask = self.seasonTask = None
+        self.teammatesTask = self.laningTask = self.seasonTask = None
 
         if self.games:
-            asyncio.create_task(self.__updateRecentTeammates())
+            self.teammatesTask = asyncio.create_task(
+                self.__updateRecentTeammates(puuid, info.get('gameDetails')))
             self.laningTask = asyncio.create_task(
                 self.__updateLaningScores(puuid, self.games.get('games') or []))
 
@@ -695,8 +700,11 @@ class CareerInterface(SeraphineInterface):
     def __resetRecentTeammatesFlyout(self):
         self.recentTeammatesFlyout = None
 
-    async def __updateRecentTeammates(self):
-        self.recentTeammatesInfo = await getRecentTeammates(self.games['games'], self.puuid)
+    async def __updateRecentTeammates(self, puuid, details):
+        info = await getRecentTeammates(self.games['games'], puuid, details)
+        if puuid != self.puuid:
+            return
+        self.recentTeammatesInfo = info
 
         if self.recentTeammatesFlyout:
             self.recentTeammatesFlyout.close()

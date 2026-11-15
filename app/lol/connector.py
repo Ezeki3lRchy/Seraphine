@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import json
+import logging
 import os
 import re
 import subprocess
@@ -57,24 +58,25 @@ def needLcu():
 
 def retry(count=5, retry_sep=0):
     def decorator(func):
+        # 获取函数的参数信息 (装饰时计算一次, 而非每次调用)
+        all_param_names = list(inspect.signature(func).parameters.keys())
+        has_self = bool(all_param_names) and all_param_names[0] == "self"
+        param_names = all_param_names[1:] if has_self else all_param_names
+
         async def wrapper(*args, **kwargs):
-            logger.info(f"call %s" % func.__name__, TAG)
+            # 默认日志级别为 ERROR: 未启用的级别不拼接日志字符串
+            if logger.logger.isEnabledFor(logging.INFO):
+                logger.info(f"call %s" % func.__name__, TAG)
 
-            # 获取函数的参数信息
-            func_params = inspect.signature(func).parameters
-            param_names = list(func_params.keys())
-
-            tmp_args = args
-            if param_names[0] == "self":
-                # args[0] 是 self(connector) 的实例, 兼容静态方法
-                param_names = param_names[1:]
-                tmp_args = args[1:]
+            # args[0] 是 self(connector) 的实例, 兼容静态方法
+            tmp_args = args[1:] if has_self else args
 
             # 构建参数字典，将参数名与对应的实参值一一对应
             params_dict = {param: arg for param,
                            arg in zip(param_names, tmp_args)}
 
-            logger.debug(f"args = {params_dict}|kwargs = {kwargs}", TAG)
+            if logger.logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"args = {params_dict}|kwargs = {kwargs}", TAG)
             # logger.debug(f"args = {args[1:]}|kwargs = {kwargs}", TAG)
 
             with connector.dqLock:
@@ -130,14 +132,99 @@ def retry(count=5, retry_sep=0):
             with connector.dqLock:
                 req_obj.response = res
 
-            logger.info(f"exit {func.__name__}", TAG)
-            logger.debug(f"result = {res}", TAG)
+            if logger.logger.isEnabledFor(logging.INFO):
+                logger.info(f"exit {func.__name__}", TAG)
+            if logger.logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"result = {res}", TAG)
 
             return res
 
         return wrapper
 
     return decorator
+
+
+def iconFastPath(pathOf):
+    """
+    图标磁盘缓存命中时直接返回路径, 不进入 retry / semaphore (否则命中缓存的图标
+    也要排在慢速的战绩请求后面). 未命中时走原有的 retry 下载路径.
+
+    只查磁盘 (非空文件) 判定, 不做内存缓存: 设置页 "删除缓存" 会在运行时删文件,
+    内存缓存会过期. semaphore 为 None (未连接 / 已 close) 时不走快路径,
+    保持原有的异常行为.
+
+    @param pathOf: 与被装饰函数参数相同, 返回该图标的本地路径
+    """
+    def decorator(func):
+        async def wrapper(self, *args, **kwargs):
+            if self.semaphore is not None:
+                try:
+                    path = pathOf(*args, **kwargs)
+                except Exception:
+                    # 参数异常交给原路径处理 (retry + 异常信号), 行为不变
+                    path = None
+                # getsize > 0: 下载中的文件在 open() 后、写入前 (await res.read())
+                # 是 0 字节; 此时交给原路径, 等持有 semaphore 的下载完成
+                try:
+                    if path is not None and os.path.getsize(path) > 0:
+                        return path
+                except OSError:
+                    pass
+
+            return await func(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+async def _gatherOrCancel(*coros):
+    """
+    asyncio.gather, 但任一失败即取消其余任务: 与原先逐个 await 一致, 首个异常后
+    不再继续请求 (否则剩余的 retry 失败会各自弹一次 lcuApiExceptionRaised)
+    """
+    tasks = [asyncio.ensure_future(c) for c in coros]
+    try:
+        return await asyncio.gather(*tasks)
+    except BaseException:
+        for t in tasks:
+            t.cancel()
+        raise
+
+
+def _runeIconPath(runeId):
+    if runeId == 0:
+        return "app/resource/images/rune-0.png"
+    return f"app/resource/game/rune icons/{runeId}.png"
+
+
+def _profileIconPath(iconId):
+    return f"./app/resource/game/profile icons/{iconId}.jpg"
+
+
+def _itemIconPath(iconId):
+    if iconId == 0:
+        return "app/resource/images/item-0.png"
+    return f"app/resource/game/item icons/{iconId}.png"
+
+
+def _augmentIconPath(augmentId):
+    return f"app/resource/game/augment icons/{augmentId}.png"
+
+
+def _championSplashesPath(skinInfo, isCentered):
+    suffix = "centered" if isCentered else "uncentered"
+    return f"app/resource/game/splashes/{skinInfo['skinId']}_{suffix}.jpg"
+
+
+def _summonerSpellIconPath(spellId):
+    return f"app/resource/game/summoner spell icons/{spellId}.png"
+
+
+def _championIconPath(championId):
+    if championId in [-1, 0]:
+        return "app/resource/images/champion-0.png"
+    return f"app/resource/game/champion icons/{championId}.png"
 
 
 class LcuWebSocket():
@@ -449,16 +536,21 @@ class LolClientConnector(QObject):
                 os.mkdir(p)
 
     async def __initManager(self):
-        items = await self.__json_retry_get("/lol-game-data/assets/v1/items.json")
-        spells = await self.__json_retry_get(
-            "/lol-game-data/assets/v1/summoner-spells.json")
-        runes = await self.__json_retry_get("/lol-game-data/assets/v1/perks.json")
-        perks = await self.__json_retry_get("/lol-game-data/assets/v1/perkstyles.json")
-        queues = await self.__json_retry_get("/lol-game-queues/v1/queues")
-        champions = await self.__json_retry_get(
-            "/lol-game-data/assets/v1/champion-summary.json")
-        skins = await self.__json_retry_get("/lol-game-data/assets/v1/skins.json")
-        augments = await self.__json_retry_get("/lol-game-data/assets/v1/cherry-augments.json")
+        # 互不依赖, 且 __json_retry_get 不经过 semaphore, 并发拉取 (gather 保持结果顺序)
+        (items, spells, runes, perks, queues, champions, skins,
+         augments) = await _gatherOrCancel(
+            self.__json_retry_get("/lol-game-data/assets/v1/items.json"),
+            self.__json_retry_get(
+                "/lol-game-data/assets/v1/summoner-spells.json"),
+            self.__json_retry_get("/lol-game-data/assets/v1/perks.json"),
+            self.__json_retry_get("/lol-game-data/assets/v1/perkstyles.json"),
+            self.__json_retry_get("/lol-game-queues/v1/queues"),
+            self.__json_retry_get(
+                "/lol-game-data/assets/v1/champion-summary.json"),
+            self.__json_retry_get("/lol-game-data/assets/v1/skins.json"),
+            self.__json_retry_get(
+                "/lol-game-data/assets/v1/cherry-augments.json"),
+        )
 
         self.manager = JsonManager(
             items, spells, runes, queues, champions, skins, perks, augments)
@@ -473,6 +565,16 @@ class LolClientConnector(QObject):
     async def __initRuneStyle(self):
         res = {}
 
+        # 先并发取全部图标 (多数命中磁盘缓存走快路径), 再按原顺序组装
+        runeIds = []
+        for item in self.manager.perks['styles']:
+            for s in item['slots']:
+                runeIds.extend(s['perks'])
+            runeIds.append(item['id'])
+        runeIds = list(dict.fromkeys(runeIds))
+        icons = dict(zip(runeIds, await _gatherOrCancel(
+            *[self.getRuneIcon(runeId) for runeId in runeIds])))
+
         for item in self.manager.perks['styles']:
             id = item['id']
             name = item['name']
@@ -482,7 +584,7 @@ class LolClientConnector(QObject):
             for s in item['slots']:
                 perks = [{
                     "runeId": perk,
-                    "icon": await self.getRuneIcon(perk),
+                    "icon": icons[perk],
                     "name": self.manager.getRuneName(perk),
                     "desc": self.manager.getRuneDesc(perk),
                 } for perk in s['perks']
@@ -492,7 +594,7 @@ class LolClientConnector(QObject):
 
             res[id] = {
                 "name": name,
-                "icon": await self.getRuneIcon(id),
+                "icon": icons[id],
                 "slots": slots
             }
 
@@ -536,6 +638,7 @@ class LolClientConnector(QObject):
         # 最大重试次数, 抛异常
         raise RetryMaximumAttempts("Exceeded maximum retry attempts.")
 
+    @iconFastPath(_runeIconPath)
     @retry()
     async def getRuneIcon(self, runeId):
         if runeId == 0:
@@ -566,6 +669,7 @@ class LolClientConnector(QObject):
         res = await self.__get("/data-store/v1/install-dir")
         return await res.json()
 
+    @iconFastPath(_profileIconPath)
     @retry()
     async def getProfileIcon(self, iconId):
         icon = f"./app/resource/game/profile icons/{iconId}.jpg"
@@ -579,6 +683,7 @@ class LolClientConnector(QObject):
 
         return icon
 
+    @iconFastPath(_itemIconPath)
     @retry()
     async def getItemIcon(self, iconId):
         if iconId == 0:
@@ -595,6 +700,7 @@ class LolClientConnector(QObject):
 
         return icon
 
+    @iconFastPath(_augmentIconPath)
     @retry()
     async def getAugmentIcon(self, augmentId):
         icon = f"app/resource/game/augment icons/{augmentId}.png"
@@ -608,6 +714,7 @@ class LolClientConnector(QObject):
 
         return icon
 
+    @iconFastPath(_championSplashesPath)
     @retry()
     async def getChampionSplashes(self, skinInfo, isCentered: bool):
         """
@@ -641,6 +748,7 @@ class LolClientConnector(QObject):
 
         return image
 
+    @iconFastPath(_summonerSpellIconPath)
     @retry()
     async def getSummonerSpellIcon(self, spellId):
         icon = f"app/resource/game/summoner spell icons/{spellId}.png"
@@ -654,6 +762,7 @@ class LolClientConnector(QObject):
 
         return icon
 
+    @iconFastPath(_championIconPath)
     @retry()
     async def getChampionIcon(self, championId) -> str:
         """

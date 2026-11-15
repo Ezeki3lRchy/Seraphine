@@ -5,7 +5,6 @@ import os
 import shutil
 import sys
 import webbrowser
-import py7zr
 
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtWidgets import (QPushButton, QVBoxLayout, QWidget, QLabel, QFileDialog,
@@ -189,6 +188,8 @@ class UpdateMessageBox(MessageBoxBase):
 
         self.infoLabel.setText(
             self.tr("Downloading finished, decompressing..."))
+
+        import py7zr  # 只有更新解压用到, 不拖慢启动
 
         with py7zr.SevenZipFile(zipPath, mode='r') as z:
             z.extractall(dirPath)
