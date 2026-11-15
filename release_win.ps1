@@ -4,8 +4,15 @@
 
     Bumps VERSION (only when needed), builds the .7z via Seraphine.win.spec, verifies
     the frozen build reports the new version, generates filelist.txt + packs Seraphine.7z
-    with py7zr, and publishes to the PUBLIC Seraphine-releases repo that the in-app
-    auto-updater reads. Uses your local `gh` login -- no PAT, no CI minutes.
+    with py7zr, and publishes a GitHub Release on this (public) source repo,
+    Ezeki3lRchy/Seraphine, whose releases the in-app auto-updater reads. Uses your local
+    `gh` login -- no PAT, no CI minutes.
+
+    A newly CREATED release's tag is pinned to the built commit (--target <HEAD sha>), so
+    that commit must be on GitHub first: when a release will be created, -Push is required
+    if a bump commit is made, and the push happens right before the release is created
+    (not at the end). Without a bump, HEAD must already be on GitHub (or pass -Push).
+    Pre-flight fails early, before the build, if that does not hold.
 
     DECOUPLED RELEASE MODEL: one GitHub Release per version tag holds BOTH Seraphine.7z
     (Windows) and Seraphine.dmg (macOS). The updater only reads /releases/latest and
@@ -27,7 +34,8 @@
     Read release notes from a file instead of -Notes.
 
 .PARAMETER Push
-    After committing the bump, push the current branch (git push origin HEAD).
+    Push the current branch (git push origin HEAD) right before publishing. Required when
+    the release is created from a new bump commit (see above).
 
 .PARAMETER Yes
     Skip the confirmation prompt (non-interactive).
@@ -66,7 +74,7 @@ param(
 Set-Location $PSScriptRoot
 
 # ---- config -----------------------------------------------------------------
-$RepoReleases = "Ezeki3lRchy/Seraphine-releases"   # public repo the updater reads
+$RepoReleases = "Ezeki3lRchy/Seraphine"   # this public source repo; the updater reads its releases
 $Config       = "app\common\config.py"
 $Spec         = "Seraphine.win.spec"
 $DistDir      = "dist\Seraphine"
@@ -120,6 +128,20 @@ gh release view "v$Version" --repo $RepoReleases 1>$null 2>$null
 $releaseExists = ($LASTEXITCODE -eq 0)
 if ($releaseExists) { Write-Host "    release v$($Version): EXISTS in $RepoReleases -> will upload .7z onto it" }
 else                { Write-Host "    release v$($Version): not found -> will create it" }
+
+# Creating the release tags the built commit (--target <sha>); GitHub must have that
+# commit by then. Check now, not after a ~10 minute build.
+if (-not $releaseExists -and -not $Push) {
+    if ($bumpNeeded) {
+        Die "creating v$Version tags the new bump commit, which must be pushed first -- rerun with -Push (it pushes right before the release is created)"
+    }
+    $headSha = (git rev-parse HEAD).Trim()
+    gh api "repos/$RepoReleases/commits/$headSha" 1>$null 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Die "HEAD $headSha is not on GitHub ($RepoReleases); the release tag would point at a commit GitHub doesn't have -- push it first or rerun with -Push"
+    }
+    Write-Host "    HEAD $($headSha.Substring(0,7)): on GitHub -> release tag will target it"
+}
 
 # ---- temp helper scripts ----------------------------------------------------
 $bumpPy = @'
@@ -225,11 +247,25 @@ try {
         if ($ans -notmatch '^(y|Y|yes)$') { Die "aborted by user (bump commit, if any, kept locally; not published)" }
     }
 
+    # ---- optional push (before publishing: a created release tags this commit) --
+    if ($Push) {
+        Note "pushing current branch"
+        if ($DryRun) { Write-Host "[dry-run] git push origin HEAD" }
+        else { git push origin HEAD; if ($LASTEXITCODE -ne 0) { Die "git push failed (nothing published)" } }
+    }
+    else {
+        Write-Host "==> note: bump commit (if any) NOT pushed (run with -Push, or push/PR yourself)"
+    }
+    $targetSha = (git rev-parse HEAD).Trim()
+
     # ---- publish ------------------------------------------------------------
     Note "publishing release v$Version to $RepoReleases"
     if ($DryRun) {
         if ($releaseExists) { Write-Host "[dry-run] gh release upload v$Version $SevenZ --repo $RepoReleases --clobber" }
-        else                { Write-Host "[dry-run] gh release create v$Version --repo $RepoReleases --title 'v$Version (Windows)' --notes <notes> $SevenZ" }
+        else {
+            $shaShown = if ($bumpNeeded) { "<sha of the bump commit>" } else { $targetSha }
+            Write-Host "[dry-run] gh release create v$Version --repo $RepoReleases --target $shaShown --title 'v$Version (Windows)' --notes <notes> $SevenZ"
+        }
     }
     else {
         if ($releaseExists) {
@@ -241,21 +277,11 @@ try {
             # BOM-less UTF-8: Set-Content -Encoding UTF8 (PS 5.1) would prepend a BOM that
             # gh carries into the release body (a stray glyph in the in-app updater notes).
             [System.IO.File]::WriteAllText($notesPath, $Notes, (New-Object System.Text.UTF8Encoding($false)))
-            gh release create "v$Version" --repo $RepoReleases --title "v$Version (Windows)" --notes-file $notesPath $SevenZ
+            gh release create "v$Version" --repo $RepoReleases --target $targetSha --title "v$Version (Windows)" --notes-file $notesPath $SevenZ
             $rc = $LASTEXITCODE
             Remove-Item $notesPath -ErrorAction SilentlyContinue
             if ($rc -ne 0) { Die "gh release create failed" }
         }
-    }
-
-    # ---- optional push ------------------------------------------------------
-    if ($Push) {
-        Note "pushing current branch"
-        if ($DryRun) { Write-Host "[dry-run] git push origin HEAD" }
-        else { git push origin HEAD; if ($LASTEXITCODE -ne 0) { Die "git push failed" } }
-    }
-    else {
-        Write-Host "==> note: bump commit (if any) NOT pushed (run with -Push, or push/PR yourself)"
     }
 
     Note "done. v$Version is live; existing Windows users (< $Version) will see Update and Restart."

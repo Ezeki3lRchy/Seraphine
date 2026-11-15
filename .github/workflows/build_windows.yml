@@ -6,7 +6,7 @@ name: build-windows
 # contract, same py7zr packing) but PUBLISHES NOTHING: download the artifact and
 # upload it onto the version's release yourself:
 #   gh run download <run-id> -n Seraphine-win-X.Y.Z -D /tmp/win
-#   gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber
+#   gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine --clobber
 # Prerequisite: VERSION in app/common/config.py on the chosen ref already equals
 # the requested version (bump + push first, like release_win.ps1's decoupled mode).
 #

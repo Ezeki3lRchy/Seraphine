@@ -1,8 +1,14 @@
 #!/bin/bash
 # release_mac.sh — one-command macOS release.
 # Bumps VERSION, builds the .dmg (via make_mac.sh), verifies the frozen build,
-# and publishes a GitHub release to the PUBLIC Seraphine-releases repo that the
-# in-app auto-updater reads. Uses your local `gh` login — no PAT, no CI minutes.
+# and publishes a GitHub release on this (public) source repo, Ezeki3lRchy/Seraphine,
+# whose releases the in-app auto-updater reads. Uses your local `gh` login — no PAT,
+# no CI minutes.
+#
+# The release tag is pinned to the bump commit (--target <sha>), so that commit must
+# be on GitHub when the release is created: --push is required, and the push happens
+# right before `gh release create` (not at the end). Pushing the VERSION bump to main
+# also starts the automatic Windows release (.github/workflows/release_windows.yml).
 #
 # Usage:
 #   ./release_mac.sh <version> [options]
@@ -10,7 +16,7 @@
 # Options:
 #   --notes "<md>"       Release notes (markdown). Shown in the in-app updater.
 #   --notes-file <path>  Read release notes from a file.
-#   --push               After committing the bump, push the current branch.
+#   --push               Push the current branch right before publishing (required).
 #   --yes                Skip the confirmation prompt (non-interactive).
 #   --allow-dirty        Don't abort on an unclean working tree (not recommended).
 #   --dry-run            Print every step without bumping/building/publishing.
@@ -21,7 +27,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # ---- config -----------------------------------------------------------------
-REPO_RELEASES="Ezeki3lRchy/Seraphine-releases"   # public repo the updater reads
+REPO_RELEASES="Ezeki3lRchy/Seraphine"   # this public source repo; the updater reads its releases
 CONFIG="app/common/config.py"
 DMG="dist/Seraphine.dmg"
 APP_BIN="dist/Seraphine.app/Contents/MacOS/Seraphine"
@@ -48,7 +54,7 @@ while [ $# -gt 0 ]; do
     --yes|-y)      ASSUME_YES=1; shift;;
     --allow-dirty) ALLOW_DIRTY=1; shift;;
     --dry-run)     DRY_RUN=1; shift;;
-    -h|--help)     sed -n '2,22p' "$0"; exit 0;;
+    -h|--help)     sed -n '2,25p' "$0"; exit 0;;
     -*)            die "unknown option: $1";;
     *)             [ -z "$VERSION" ] && VERSION="$1" || die "unexpected arg: $1"; shift;;
   esac
@@ -89,6 +95,10 @@ if gh release view "v$VERSION" --repo "$REPO_RELEASES" >/dev/null 2>&1; then
   die "release v$VERSION already exists in $REPO_RELEASES"
 fi
 echo "    tag v$VERSION: free in $REPO_RELEASES"
+
+# The release tags the new bump commit (--target <sha>); GitHub must have it by then.
+# Fail now, not after the build.
+[ "$DO_PUSH" -eq 1 ] || die "the release tags the new bump commit, which must be pushed first — rerun with --push (it pushes right before the release is created)"
 
 # ---- bump + commit ----------------------------------------------------------
 note "bumping VERSION $CURRENT -> $VERSION in $CONFIG"
@@ -133,26 +143,24 @@ if [ "$ASSUME_YES" -eq 0 ] && [ "$DRY_RUN" -eq 0 ]; then
   case "$ans" in y|Y|yes) ;; *) die "aborted by user (bump commit kept locally; not published)";; esac
 fi
 
+# ---- push (before publishing: the release tags this commit) -----------------
+note "pushing current branch"
+run "git push origin HEAD"
+TARGET_SHA="$(git rev-parse HEAD)"
+
 # ---- publish ----------------------------------------------------------------
 note "publishing release v$VERSION to $REPO_RELEASES"
 if [ "$DRY_RUN" -eq 1 ]; then
-  echo "[dry-run] would run: gh release create v$VERSION --repo $REPO_RELEASES --title 'v$VERSION (macOS)' --notes <notes> $DMG"
+  echo "[dry-run] would run: gh release create v$VERSION --repo $REPO_RELEASES --target <sha of the bump commit> --title 'v$VERSION (macOS)' --notes <notes> $DMG"
 else
   printf '%s' "$NOTES" > /tmp/seraphine_release_notes.md
   gh release create "v$VERSION" \
     --repo "$REPO_RELEASES" \
+    --target "$TARGET_SHA" \
     --title "v$VERSION (macOS)" \
     --notes-file /tmp/seraphine_release_notes.md \
     "$DMG"
   rm -f /tmp/seraphine_release_notes.md
-fi
-
-# ---- optional push ----------------------------------------------------------
-if [ "$DO_PUSH" -eq 1 ]; then
-  note "pushing current branch"
-  run "git push origin HEAD"
-else
-  echo "==> note: bump commit NOT pushed (run with --push, or push/PR yourself)"
 fi
 
 note "done. v$VERSION is live; existing users (< $VERSION) will see Update and Restart."

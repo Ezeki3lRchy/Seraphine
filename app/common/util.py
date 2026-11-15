@@ -20,7 +20,7 @@ TAG = "Util"
 
 
 class Github:
-    def __init__(self, user="Ezeki3lRchy", repositories="Seraphine-releases"):
+    def __init__(self, user="Ezeki3lRchy", repositories="Seraphine"):
         self.githubApi = "https://api.github.com"
         self.giteeApi = "https://gitee.com/api"
 
@@ -46,6 +46,15 @@ class Github:
         @return: 有更新 -> info, 无更新 / 当前平台无对应安装包 -> None
         """
         info = self.getReleasesInfo()
+
+        if not info.get("tag_name"):
+            # 仓库还没有任何正式发布时 /releases/latest 返回 404 (message 为
+            # "Not Found"): 视为无更新. 其他情况 (如 403 限流) 仍按检查失败处理.
+            if info.get("message") == "Not Found":
+                logger.info("no published release yet; skipping update", TAG)
+                return None
+            raise RuntimeError(
+                f"unexpected releases response: {info.get('message')}")
 
         ver_info = self.__get_ver_info()
         info["forbidden"] = ver_info.get("forbidden", False)

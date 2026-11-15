@@ -15,9 +15,9 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 |------|-------------|
 | `main.py` | Entry point: sets HiDPI, loads config + translators, launches `MainWindow` under a `qasync` event loop. `--version`/`-v` prints the version and exits |
 | `Seraphine.win.spec` | **Current** Windows PyInstaller spec (PySide6). Build: `pyinstaller --noconfirm Seraphine.win.spec`. Counterpart of macOS `Seraphine.spec` |
-| `release_win.ps1` | One-command Windows release: bump → build via spec → verify frozen `--version` → pack `.7z` (py7zr) → `gh release` to `Ezeki3lRchy/Seraphine-releases`. Mirrors `release_mac.sh` |
-| `.github/workflows/build_windows.yml` | `workflow_dispatch` Windows `.7z` build on a GitHub-hosted runner (build/pack/verify only, same steps as `release_win.ps1`, publishes nothing). Bump + push `VERSION` first, `gh workflow run build_windows.yml -f version=X.Y.Z`, download the artifact, `gh release upload vX.Y.Z Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber`. Lets a macOS maintainer ship both platforms (first used for v1.3.0) |
-| `.github/workflows/release_windows.yml` | **Automatic** Windows release: a push to `main` that changes `VERSION` in `app/common/config.py` builds via `build_windows.yml` and publishes `Seraphine.7z` to `Ezeki3lRchy/Seraphine-releases` (uploads onto the version's release if it exists, else creates it). No-op when that release already has a `Seraphine.7z`. Needs repo secret `RELEASES_TOKEN` (fine-grained PAT, Contents read/write on the releases repo) |
+| `release_win.ps1` | One-command Windows release: bump → build via spec → verify frozen `--version` → pack `.7z` (py7zr) → `gh release` on this repo (`Ezeki3lRchy/Seraphine`; a created release's tag targets HEAD, so `-Push` is required with a new bump commit and runs before publishing). Mirrors `release_mac.sh` |
+| `.github/workflows/build_windows.yml` | `workflow_dispatch` Windows `.7z` build on a GitHub-hosted runner (build/pack/verify only, same steps as `release_win.ps1`, publishes nothing). Bump + push `VERSION` first, `gh workflow run build_windows.yml -f version=X.Y.Z`, download the artifact, `gh release upload vX.Y.Z Seraphine.7z --repo Ezeki3lRchy/Seraphine --clobber`. Lets a macOS maintainer ship both platforms (first used for v1.3.0) |
+| `.github/workflows/release_windows.yml` | **Automatic** Windows release: a push to `main` that changes `VERSION` in `app/common/config.py` builds via `build_windows.yml` and publishes `Seraphine.7z` as a Release of this repo (uploads onto the version's release if it exists, else creates it with the tag on the built commit). No-op when that release already has a `Seraphine.7z`. Uses the built-in `GITHUB_TOKEN` (`contents: write` on the publish job only); no secrets |
 | `make.ps1` | **STALE** — pre-migration PyQt5 packaging script (bare `pyinstaller`, flat layout, PyInstaller 5.13). Cannot build the PySide6 source; use `Seraphine.win.spec` instead |
 | `sync.py` | Helper script for syncing/updating resources or data |
 | `requirements.txt` | Pinned deps (PySide6 6.9.3 + PySide6-Fluent-Widgets, aiohttp 3.10.10, qasync, py7zr, pywin32 on win32, …) |
@@ -45,6 +45,20 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 - `.7z` packing must place files at the **archive root** with a root `filelist.txt` (v1.1.9
   in-place updater contract) — `release_win.ps1` handles this.
 - Version/beta strings come from `app/common/config.py` (`VERSION`, `BETA`).
+- Releases live on this repo (`Ezeki3lRchy/Seraphine`); the in-app updater (`app/common/util.py`
+  `Github`) reads its `/releases/latest`, `document/ver.json` and `document/notice.md`.
+
+### One-time release-repo transition
+Installed copies <= 1.4.0 still read the retired `Ezeki3lRchy/Seraphine-releases`. Once the
+first release made here **above 1.4.0** (vX.Y.Z, built from a commit whose updater reads this
+repo; do not re-release 1.4.0 here) has **both** `Seraphine.7z` and `Seraphine.dmg`, mirror it
+there once so those copies can update to a build that reads the new location (then never again):
+```shell
+gh release download vX.Y.Z --repo Ezeki3lRchy/Seraphine --pattern 'Seraphine.*' --dir /tmp/sr
+gh release view vX.Y.Z --repo Ezeki3lRchy/Seraphine --json body --jq .body > /tmp/sr/notes.md
+gh release create vX.Y.Z /tmp/sr/Seraphine.7z /tmp/sr/Seraphine.dmg --repo Ezeki3lRchy/Seraphine-releases \
+  --title "vX.Y.Z" --notes-file /tmp/sr/notes.md
+```
 
 ### Testing Requirements
 - `python main.py --version` → smoke test (no client needed).

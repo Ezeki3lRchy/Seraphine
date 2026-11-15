@@ -13,7 +13,7 @@
   [![License](https://img.shields.io/github/license/Ezeki3lRchy/Seraphine?style=flat&label=License)](https://github.com/Ezeki3lRchy/Seraphine/blob/main/LICENSE)
   [![Forks](https://img.shields.io/github/forks/Ezeki3lRchy/Seraphine?style=flat&label=Forks)](https://github.com/Ezeki3lRchy/Seraphine/forks)
   [![Stars](https://img.shields.io/github/stars/Ezeki3lRchy/Seraphine?style=flat&label=Stars)](https://github.com/Ezeki3lRchy/Seraphine/stargazers)
-  [![Release](https://img.shields.io/github/v/release/Ezeki3lRchy/Seraphine-releases?style=flat&label=Release)](https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest)
+  [![Release](https://img.shields.io/github/v/release/Ezeki3lRchy/Seraphine?style=flat&label=Release)](https://github.com/Ezeki3lRchy/Seraphine/releases/latest)
 
 </div>
 
@@ -30,13 +30,13 @@
 - 🍏 **Native macOS / Apple Silicon**: drag the `.dmg` and go, in-app **Update and Restart**, no Windows environment required.
 
 <p align='center'>
-  <a href="https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest"><b>⬇️ Download for macOS / Windows</b></a>
+  <a href="https://github.com/Ezeki3lRchy/Seraphine/releases/latest"><b>⬇️ Download for macOS / Windows</b></a>
 </p>
 
 ## Getting started 🤗
 
 ### Use a prebuilt package
-Go to the [**latest release page**](https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest) and download the package for your platform from Assets:
+Go to the [**latest release page**](https://github.com/Ezeki3lRchy/Seraphine/releases/latest) and download the package for your platform from Assets:
 
 | Platform | Package | How to use |
 |----------|---------|------------|
@@ -177,14 +177,14 @@ pip install pyinstaller
 The script uses [`Seraphine.spec`](Seraphine.spec) to build `Seraphine.app` and produces `dist/Seraphine.dmg` with an `/Applications` drag target (unsigned).
 
 ### One-command macOS release (maintainers)
-[`release_mac.sh`](release_mac.sh) automates: bump `VERSION` → build the `.dmg` → verify the frozen build reports the new version → publish to `Ezeki3lRchy/Seraphine-releases` (the public repo the in-app updater reads), using your local `gh` login:
+[`release_mac.sh`](release_mac.sh) automates: bump `VERSION` → build the `.dmg` → verify the frozen build reports the new version → publish to this repo's Releases (`Ezeki3lRchy/Seraphine`, which the in-app updater reads), using your local `gh` login. `--push` is required: the release tag points at the bump commit, so it is pushed right before the release is created:
 ```shell
 ./release_mac.sh 1.2.3 --notes-file NOTES.md --push
 ```
 Use `--dry-run` to preview every step without changing anything.
 
 ### One-command Windows release (maintainers)
-[`release_win.ps1`](release_win.ps1) is the Windows counterpart of `release_mac.sh`: bump `VERSION` → build with `Seraphine.win.spec` → verify the frozen build's `--version` → generate `filelist.txt` and pack `Seraphine.7z` with `py7zr` → publish to `Ezeki3lRchy/Seraphine-releases` using your local `gh` login:
+[`release_win.ps1`](release_win.ps1) is the Windows counterpart of `release_mac.sh`: bump `VERSION` → build with `Seraphine.win.spec` → verify the frozen build's `--version` → generate `filelist.txt` and pack `Seraphine.7z` with `py7zr` → publish to this repo's Releases (`Ezeki3lRchy/Seraphine`) using your local `gh` login. When it creates the release from a new bump commit, `-Push` is required (the tag points at that commit, pushed right before the release is created):
 ```powershell
 .\release_win.ps1 1.2.3 -NotesFile NOTES.md -Push
 ```
@@ -198,7 +198,7 @@ No Windows machine at hand? The `build-windows` GitHub Actions workflow ([`.gith
 ```shell
 gh workflow run build_windows.yml -f version=X.Y.Z
 gh run download <run-id> -n Seraphine-win-X.Y.Z -D /tmp/win
-gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber
+gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine --clobber
 ```
 
 ## Riot disclaimer 📢

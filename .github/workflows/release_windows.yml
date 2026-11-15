@@ -1,9 +1,9 @@
 name: release-windows
 
 # Automatic Windows release: when VERSION in app/common/config.py changes on
-# main, build Seraphine.7z (build_windows.yml) and publish it to the public
-# Ezeki3lRchy/Seraphine-releases repo that the in-app updater reads. Installed
-# copies then offer "Update and Restart" on their next start.
+# main, build Seraphine.7z (build_windows.yml) and publish it as a GitHub
+# Release of THIS repository (Ezeki3lRchy/Seraphine), which the in-app updater
+# reads. Installed copies then offer "Update and Restart" on their next start.
 #
 # Nothing is published when the release vX.Y.Z already has a Seraphine.7z, so
 # pushes that touch config.py without bumping VERSION are no-ops, and a version
@@ -11,11 +11,20 @@ name: release-windows
 #
 # Decoupled release model (see release_win.ps1): one release per version tag
 # holds both Seraphine.7z and Seraphine.dmg. If the release already exists
-# (macOS shipped first) the .7z is uploaded onto it; otherwise it is created.
+# (macOS shipped first) the .7z is uploaded onto it (--clobber); otherwise it is
+# created with its tag pinned to the commit that was built (--target $GITHUB_SHA).
 #
-# Requires the repository secret RELEASES_TOKEN: a fine-grained personal access
-# token with "Contents: Read and write" on Ezeki3lRchy/Seraphine-releases (the
-# default GITHUB_TOKEN cannot write to another repository).
+# Uses the built-in GITHUB_TOKEN (no PAT): contents: read everywhere, contents:
+# write only on the publish job. Note: releases created with GITHUB_TOKEN do not
+# trigger other workflows.
+#
+# The .7z check runs again right before publishing, since a hand release may
+# attach its .7z while this run is building.
+#
+# ONE-TIME TRANSITION: installed copies <= 1.4.0 still read the retired
+# Ezeki3lRchy/Seraphine-releases repo. Mirror the first release ABOVE 1.4.0 made
+# here (built from a commit whose updater reads this repo) there too, once, with
+# both platform assets (see "One-time release-repo transition" in AGENTS.md).
 on:
   push:
     branches: [main]
@@ -26,8 +35,11 @@ concurrency:
   group: release-windows
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 env:
-  RELEASES_REPO: Ezeki3lRchy/Seraphine-releases
+  RELEASES_REPO: ${{ github.repository }}
 
 jobs:
   check:
@@ -42,7 +54,6 @@ jobs:
         name: Read VERSION and decide whether to release
         env:
           GH_TOKEN: ${{ github.token }}
-          HAS_RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN != '' }}
         run: |
           version=$(sed -nE 's/^VERSION = "([^"]+)".*/\1/p' app/common/config.py)
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -56,17 +67,13 @@ jobs:
             echo "publish=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          # Fail before the ~10 minute build, not after it.
-          if [ "$HAS_RELEASES_TOKEN" != "true" ]; then
-            echo "::error::secret RELEASES_TOKEN is not set; cannot publish v$version to $RELEASES_REPO"
-            exit 1
-          fi
           echo "publish=true" >> "$GITHUB_OUTPUT"
 
   build:
     needs: check
     if: needs.check.outputs.publish == 'true'
+    # The called workflow only needs contents: read (checkout); it inherits at
+    # most what this caller grants.
     uses: ./.github/workflows/build_windows.yml
     with:
       version: ${{ needs.check.outputs.version }}
@@ -74,9 +81,11 @@ jobs:
   publish:
     needs: [check, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -106,10 +115,16 @@ jobs:
 
       - name: Publish Seraphine.7z
         run: |
+          # Re-check: a hand release (release_win.ps1 pushes the bump right before it
+          # creates the release) may have attached its .7z while this run was building.
+          if gh release view "v$VERSION" --repo "$RELEASES_REPO" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx 'Seraphine.7z'; then
+            echo "::notice::v$VERSION already has Seraphine.7z in $RELEASES_REPO; not overwriting"
+            exit 0
+          fi
           if gh release view "v$VERSION" --repo "$RELEASES_REPO" >/dev/null 2>&1; then
             gh release upload "v$VERSION" out/Seraphine.7z --repo "$RELEASES_REPO" --clobber
           else
             gh release create "v$VERSION" out/Seraphine.7z --repo "$RELEASES_REPO" \
-              --title "v$VERSION (Windows)" --notes-file notes.md
+              --target "$GITHUB_SHA" --title "v$VERSION (Windows)" --notes-file notes.md
           fi
           echo "::notice::published v$VERSION to $RELEASES_REPO"

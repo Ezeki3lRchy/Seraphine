@@ -13,7 +13,7 @@
   [![License](https://img.shields.io/github/license/Ezeki3lRchy/Seraphine?style=flat&label=License)](https://github.com/Ezeki3lRchy/Seraphine/blob/main/LICENSE)
   [![Forks](https://img.shields.io/github/forks/Ezeki3lRchy/Seraphine?style=flat&label=Forks)](https://github.com/Ezeki3lRchy/Seraphine/forks)
   [![Stars](https://img.shields.io/github/stars/Ezeki3lRchy/Seraphine?style=flat&label=Stars)](https://github.com/Ezeki3lRchy/Seraphine/stargazers)
-  [![Release](https://img.shields.io/github/v/release/Ezeki3lRchy/Seraphine-releases?style=flat&label=Release)](https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest)
+  [![Release](https://img.shields.io/github/v/release/Ezeki3lRchy/Seraphine?style=flat&label=Release)](https://github.com/Ezeki3lRchy/Seraphine/releases/latest)
 
 </div>
 
@@ -30,13 +30,13 @@
 - 🍏 **原生 macOS / Apple Silicon**：`.dmg` 拖入即用，应用内一键「更新并重启」，全程无需任何 Windows 环境。
 
 <p align='center'>
-  <a href="https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest"><b>⬇️ 下载 macOS / Windows 安装包</b></a>
+  <a href="https://github.com/Ezeki3lRchy/Seraphine/releases/latest"><b>⬇️ 下载 macOS / Windows 安装包</b></a>
 </p>
 
 ## 快速上手 🤗
 
 ### 直接使用打包好的程序
-进入 [**最新发布页**](https://github.com/Ezeki3lRchy/Seraphine-releases/releases/latest)，在 Assets 中下载对应平台的安装包：
+进入 [**最新发布页**](https://github.com/Ezeki3lRchy/Seraphine/releases/latest)，在 Assets 中下载对应平台的安装包：
 
 | 平台 | 安装包 | 使用方式 |
 |------|--------|----------|
@@ -177,14 +177,14 @@ pip install pyinstaller
 脚本使用 [`Seraphine.spec`](Seraphine.spec) 打出 `Seraphine.app`，并制作带 `/Applications` 拖拽目标的 `dist/Seraphine.dmg`（未签名）。
 
 ### 一键发布 macOS 版本（维护者）
-[`release_mac.sh`](release_mac.sh) 自动完成：升 `VERSION` → 打 `.dmg` → 校验冻结产物版本号 → 用本地 `gh` 登录发布到 `Ezeki3lRchy/Seraphine-releases`（应用内更新器读取的公共仓库）：
+[`release_mac.sh`](release_mac.sh) 自动完成：升 `VERSION` → 打 `.dmg` → 校验冻结产物版本号 → 用本地 `gh` 登录发布到本仓库的 Releases（`Ezeki3lRchy/Seraphine`，应用内更新器从这里读取）。必须带 `--push`：发布的 tag 指向升版本的提交，因此会在创建 Release 前先推送：
 ```shell
 ./release_mac.sh 1.2.3 --notes-file NOTES.md --push
 ```
 `--dry-run` 可在不实际改动的情况下预览每一步。
 
 ### 一键发布 Windows 版本（维护者）
-[`release_win.ps1`](release_win.ps1) 是 `release_mac.sh` 的 Windows 对应版：升 `VERSION` → 用 `Seraphine.win.spec` 打包 → 校验冻结产物 `--version` → 生成 `filelist.txt` 并用 `py7zr` 打 `Seraphine.7z` → 用本地 `gh` 登录发布到 `Ezeki3lRchy/Seraphine-releases`：
+[`release_win.ps1`](release_win.ps1) 是 `release_mac.sh` 的 Windows 对应版：升 `VERSION` → 用 `Seraphine.win.spec` 打包 → 校验冻结产物 `--version` → 生成 `filelist.txt` 并用 `py7zr` 打 `Seraphine.7z` → 用本地 `gh` 登录发布到本仓库的 Releases（`Ezeki3lRchy/Seraphine`）。若由新的升版本提交创建 Release，必须带 `-Push`（tag 指向该提交，会在创建 Release 前先推送）：
 ```powershell
 .\release_win.ps1 1.2.3 -NotesFile NOTES.md -Push
 ```
@@ -198,7 +198,7 @@ pip install pyinstaller
 ```shell
 gh workflow run build_windows.yml -f version=X.Y.Z
 gh run download <run-id> -n Seraphine-win-X.Y.Z -D /tmp/win
-gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber
+gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine --clobber
 ```
 
 ## Riot 声明 📢
