@@ -96,6 +96,26 @@ def deathsColor():
     return QColor(_cache['deaths'])
 
 
+def opScoreColor(score, dark=None):
+    """
+    OP Score (0 ~ 10) 的颜色, 浅色 / 深色主题各一套 (都保证在纸面上看得清):
+    9 分起海克斯金, 7 分起蓝, 5 分起墨色, 3 分起次要灰, 3 分以下红
+    """
+    if dark is None:
+        dark = isDarkTheme()
+
+    pal = palette(dark)
+    if score >= 9:
+        return pal['gold']
+    if score >= 7:
+        return QColor('#4DA3FF' if dark else '#1F6FD1')
+    if score >= 5:
+        return pal['ink']
+    if score >= 3:
+        return pal['muted']
+    return QColor('#F0727E' if dark else '#C9374A')
+
+
 def tint(color, alpha):
     c = QColor(color)
     c.setAlpha(alpha)

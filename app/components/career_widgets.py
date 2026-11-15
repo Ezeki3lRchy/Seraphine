@@ -6,13 +6,16 @@ import time
 
 from PySide6.QtCore import Qt, QRectF, QRect, QEvent
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QPixmap
-from PySide6.QtWidgets import QFrame, QSizePolicy, QToolTip
+from PySide6.QtWidgets import QFrame, QSizePolicy
+
+from app.components.rich_tooltip import RichToolTip
 
 from app.common.qfluentwidgets import isDarkTheme
 from app.common.signals import signalBus
 from app.common.style_sheet import colorManager
 from app.components.animation_frame import ColorAnimationFrame
-from app.components.design_tokens import palette, numberFont, textFont, resultColor, tint
+from app.components.design_tokens import (palette, numberFont, textFont, resultColor, tint,
+                                          opScoreColor)
 from app.components.match_widgets import rankEmblemPath, gameTags, itemTooltipHtml, TAG_COLORS
 from app.lol.activity import activityByHour, activityByWeekday, winRate
 from app.lol.connector import connector
@@ -302,18 +305,18 @@ class RecentSummaryCard(QFrame):
                     if getattr(connector, 'manager', None) else ""
                 tip = f"{name}  {game['kills']}/{game['deaths']}/{game['assists']}\n" \
                       f"{game['name']}, {timeAgo(game['timeStamp'])}"
-                QToolTip.showText(e.globalPos(), tip.strip(), self)
+                RichToolTip.showText(e.globalPos(), tip.strip(), self)
                 return True
             hit = self.__activityAt(e.pos()) if self.summary else None
             if hit:
-                QToolTip.showText(e.globalPos(), hit[1], self, hit[0])
+                RichToolTip.showText(e.globalPos(), hit[1], self, hit[0])
                 return True
             if self.rolesRect.contains(e.pos()) and self.summary:
                 counts = dict(self.summary['positions'])
-                QToolTip.showText(e.globalPos(), "\n".join(
+                RichToolTip.showText(e.globalPos(), "\n".join(
                     f"{label}: {counts.get(key, 0)}" for key, _, label in self.ROLES), self)
                 return True
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
         return super().event(e)
@@ -538,7 +541,7 @@ class CareerGameRow(ColorAnimationFrame):
     生涯页一局 (记分表一行), 整行自绘:
 
         ▌Ranked Solo/Duo  [英雄][技能][符文]  4 / 10 / 10   [物品 x 7]      KP 50%   玩家1 玩家6
-        ▌34 minutes ago                       1.40:1 KDA    [4th]           CS 346   ...
+        ▌34 minutes ago                       1.40:1 KDA    6.2 [4th]       CS 346   ...
         ▌Defeat  32m 59s                                                    Gold 18,199
 
     胜负由左侧实色边条 + 浅色底表达 (颜色取自设置里的卡片颜色), 数字用 Bahnschrift.
@@ -595,19 +598,29 @@ class CareerGameRow(ColorAnimationFrame):
         self.agoText = timeAgo(game['timeStamp'])
         self.durationText = durationText(secs)
 
-        tips = [f"{self.tr('Damage')}: {game.get('damage', 0):,}",
-                f"{self.tr('Vision')}: {game.get('visionScore', 0)}"]
+        # OP Score (0 ~ 10, app/lol/tools.py opScore); 重开 / 评分没取到时为 None, 不画
+        self.opScore = None if game.get('remake') else game.get('opScore')
+        scoreTips = []
         if game.get('scoreRank'):
-            tips.append(f"{self.tr('Seraphine score')}: "
-                        f"#{game['scoreRank']} / {game['scorePlayers']}")
-            tips.append(self.tr(
+            head = f"{self.tr('Seraphine score')}: "
+            if self.opScore is not None:
+                head += f"{self.opScore:.1f}  "
+            scoreTips.append(head + f"(#{game['scoreRank']} / {game['scorePlayers']})")
+            scoreTips.append(self.tr(
+                "0-10 rating of kill participation, damage, KDA, damage taken, gold and "
+                "vision vs. everyone in the game; an average game is about 5.5."))
+            scoreTips.append(self.tr(
                 "MVP: best score on the winning team, SVP: best on the losing team"))
-        self.statsTip = "\n".join(tips)
+        self.scoreTip = "\n".join(scoreTips)
+        self.statsTip = "\n".join([f"{self.tr('Damage')}: {game.get('damage', 0):,}",
+                                   f"{self.tr('Vision')}: {game.get('visionScore', 0)}"]
+                                  + scoreTips)
 
         # 命中区域, 绘制时按当前宽度算出
         self.itemRects = []
         self.playerRects = []
         self.statsRect = QRect()
+        self.scoreRect = QRect()
         self.laningRect = QRect()
         self.infoRect = QRect()
 
@@ -653,25 +666,28 @@ class CareerGameRow(ColorAnimationFrame):
                 if rect.contains(pos) and itemId:
                     html = itemTooltipHtml(itemId)
                     if html:
-                        QToolTip.showText(e.globalPos(), html, self, rect)
+                        RichToolTip.showText(e.globalPos(), html, self, rect)
                         return True
             for rect, player in self.playerRects:
                 if rect.contains(pos):
                     name = player['name'] or "?"
                     if player.get('tagLine'):
                         name += f"#{player['tagLine']}"
-                    QToolTip.showText(e.globalPos(), name, self, rect)
+                    RichToolTip.showText(e.globalPos(), name, self, rect)
                     return True
             if self.laning and self.laningRect.contains(pos):
-                QToolTip.showText(e.globalPos(), self.laningTip, self, self.laningRect)
+                RichToolTip.showText(e.globalPos(), self.laningTip, self, self.laningRect)
                 return True
             if self.statsRect.contains(pos):
-                QToolTip.showText(e.globalPos(), self.statsTip, self, self.statsRect)
+                RichToolTip.showText(e.globalPos(), self.statsTip, self, self.statsRect)
+                return True
+            if self.scoreTip and self.scoreRect.contains(pos):
+                RichToolTip.showText(e.globalPos(), self.scoreTip, self, self.scoreRect)
                 return True
             if self.infoRect.contains(pos):
-                QToolTip.showText(e.globalPos(), self.game.get('time', ''), self, self.infoRect)
+                RichToolTip.showText(e.globalPos(), self.game.get('time', ''), self, self.infoRect)
                 return True
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
 
@@ -869,11 +885,28 @@ class CareerGameRow(ColorAnimationFrame):
                 p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 5, 5)
             self.itemRects.append((rect.toRect(), itemId))
 
+        # 标签行: [8.7 MVP] 评分 + 名次 / 徽章为一组排最前, 多杀标签在后;
+        # 窄窗口下放不下 (会压到右边数据列) 的标签不画
         tagX, tagY = itemsX, itemsTop + self.ITEM + 8
+        tagLimit = statsX - 10
         pillFont = textFont(12, True)
         metrics = QFontMetrics(pillFont)
-        for string, tagColor in self.tags:
+        tags = sorted(self.tags, key=lambda t: t[1] == TAG_COLORS['multiKill'])
+        self.scoreRect = QRect()
+        if self.opScore is not None:
+            scoreFont = numberFont(20, 700)
+            scoreText = f"{self.opScore:.1f}"
+            scoreW = QFontMetrics(scoreFont).horizontalAdvance(scoreText)
+            drawText(p, QRectF(tagX, tagY - 1, scoreW + 2, 24), scoreText, scoreFont,
+                     opScoreColor(self.opScore, dark))
+            self.scoreRect = QRect(int(tagX), int(tagY), int(scoreW), 22)
+            tagX += scoreW + 6
+        for i, (string, tagColor) in enumerate(tags):
             rect = QRectF(tagX, tagY, metrics.horizontalAdvance(string) + 18, 22)
+            if rect.right() > tagLimit:
+                break
+            if i == 0 and tagColor != TAG_COLORS['multiKill'] and not self.scoreRect.isNull():
+                self.scoreRect = self.scoreRect.united(rect.toRect())
             quiet = tagColor == TAG_COLORS['rank']
             p.setPen(Qt.NoPen)
             # 名次标签低调 (发丝线底 + 墨色字), MVP 用海克斯金

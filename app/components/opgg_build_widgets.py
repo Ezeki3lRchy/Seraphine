@@ -6,7 +6,9 @@ OP.GG 英雄详情页 (出装 / 符文 / 技能 / 克制 / 趋势) 的自绘控�
 """
 from PySide6.QtCore import Qt, QRectF, QPointF, QEvent, Signal, QCoreApplication
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QPixmap, QIcon
-from PySide6.QtWidgets import QFrame, QSizePolicy, QToolTip
+from PySide6.QtWidgets import QFrame, QSizePolicy
+
+from app.components.rich_tooltip import RichToolTip
 
 from app.common.config import qconfig
 from app.common.signals import signalBus
@@ -299,9 +301,9 @@ class PaintedCard(QFrame):
                 if rect.contains(pos):
                     text = tip() if callable(tip) else tip
                     if text:
-                        QToolTip.showText(e.globalPos(), text, self, rect.toRect())
+                        RichToolTip.showText(e.globalPos(), text, self, rect.toRect())
                         return True
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
 

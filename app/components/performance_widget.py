@@ -15,7 +15,9 @@
 """
 from PySide6.QtCore import Qt, QRectF, QRect, QEvent
 from PySide6.QtGui import QColor, QPainter, QPen, QFontMetrics
-from PySide6.QtWidgets import QFrame, QSizePolicy, QToolTip
+from PySide6.QtWidgets import QFrame, QSizePolicy
+
+from app.components.rich_tooltip import RichToolTip
 
 from app.common.qfluentwidgets import isDarkTheme
 from app.components.design_tokens import numberFont, textFont, resultColor, tint
@@ -160,9 +162,9 @@ class PerformancePanel(QFrame):
         if e.type() == QEvent.ToolTip:
             for rect, tip in self.helpRects:
                 if rect.contains(e.pos()):
-                    QToolTip.showText(e.globalPos(), tip, self, rect)
+                    RichToolTip.showText(e.globalPos(), tip, self, rect)
                     return True
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
         return super().event(e)

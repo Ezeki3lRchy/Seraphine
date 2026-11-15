@@ -558,6 +558,7 @@ async def parseGameDetailData(puuid, game):
                 result = scores.get(summoner['participantId'])
                 if result:
                     summoner['score'] = result['score']
+                    summoner['opScore'] = None if remake else result['opScore']
                     summoner['scoreRank'] = result['scoreRank']
                     summoner['kp'] = result['kp']
                     summoner['badge'] = None if remake else result['badge']
@@ -944,6 +945,28 @@ GAME_SCORE_WEIGHTS = {
     'vision': 1,       # 视野得分
 }
 
+# OP Score 换算 (见 opScore)
+OP_SCORE_SLOPE = 1.5
+OP_SCORE_OFFSET = -3.5
+
+
+def opScore(raw):
+    """
+    原始评分 -> OP.GG 风格的 0.0 ~ 10.0 分 (一位小数), 战绩行 / 对局详情显示用.
+
+    原始评分 = Σ 权重 × (本项 / 本局 10 人里该项最大值), 权重和为 10, 所以理论上在 0 ~ 10,
+    但因为每项都按本局最大值归一化, 实际很挤: 模拟 3000 局 (五个分路的典型数据加随机波动)
+    得到 均值 ≈ 6.0, 5% ~ 95% 分位 ≈ 4.2 ~ 7.9, 第 1 名平均 ≈ 7.8, 第 10 名平均 ≈ 4.4.
+    直接显示的话谁都是 "5 点几 ~ 7 点几", 看不出差别, 于是做一次线性拉伸:
+
+        OP Score = clamp(1.5 × raw − 3.5, 0, 10), 保留一位小数
+
+    - 普通一局 (raw ≈ 6) -> 5.5; 第 1 名平均 -> 8.2, 第 10 名平均 -> 3.1
+    - 几项都是全场最高的大爹局 (raw ≈ 8.5 ~ 9) -> 9.3 ~ 10
+    - 单调不减, 名次 / MVP / SVP 仍按原始评分排, 换算不影响排名 (两端截断处可能同分显示)
+    """
+    return round(min(max(OP_SCORE_SLOPE * raw + OP_SCORE_OFFSET, 0.0), 10.0), 1)
+
 
 def scoreGameParticipants(players):
     """
@@ -951,7 +974,8 @@ def scoreGameParticipants(players):
 
     @param players: [{'id', 'teamId', 'win', 'kills', 'deaths', 'assists',
                       'damage', 'damageTaken', 'gold', 'vision'}], id 为 participantId
-    @return: {id: {'score', 'scoreRank', 'kp', 'badge'}}; badge 为 'MVP' / 'SVP' / None.
+    @return: {id: {'score', 'opScore', 'scoreRank', 'kp', 'badge'}}; score 为原始评分,
+             opScore 为换算后的 0 ~ 10 分 (见 opScore); badge 为 'MVP' / 'SVP' / None.
              不是恰好两队且一胜一负时不评徽章 (仍有排名)
     """
     if not players:
@@ -983,7 +1007,7 @@ def scoreGameParticipants(players):
     # 同分时按伤害高者优先, 再按 participantId, 保证同一局在不同玩家的战绩里结果一致
     order = sorted(scores, key=lambda pid: (-scores[pid], -byId[pid]['damage'], pid))
 
-    result = {pid: {'score': scores[pid], 'scoreRank': i + 1,
+    result = {pid: {'score': scores[pid], 'opScore': opScore(scores[pid]), 'scoreRank': i + 1,
                     'kp': raw[pid]['kp'], 'badge': None}
               for i, pid in enumerate(order)}
 
@@ -1009,6 +1033,7 @@ def _pickScore(players, myId, remake):
 
     return {
         'badge': None if remake else result['badge'],
+        'opScore': None if remake else result['opScore'],  # 重开局不显示分数
         'scoreRank': result['scoreRank'],
         'scorePlayers': len(players),
         'kp': result['kp'],

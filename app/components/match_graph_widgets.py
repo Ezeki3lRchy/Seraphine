@@ -14,7 +14,9 @@ import math
 
 from PySide6.QtCore import Qt, QRectF, QPointF, QEvent
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QPixmap
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy, QToolTip
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy
+
+from app.components.rich_tooltip import RichToolTip
 
 from app.common.qfluentwidgets import isDarkTheme
 from app.components.design_tokens import numberFont, textFont, tint, palette
@@ -217,9 +219,9 @@ class GraphCard(QWidget):
             if hit and hit[0] == 'player':
                 for pid, _, name in self.players():
                     if pid == hit[1] and name:
-                        QToolTip.showText(e.globalPos(), name, self)
+                        RichToolTip.showText(e.globalPos(), name, self)
                         return True
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
         return super().event(e)

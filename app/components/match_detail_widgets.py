@@ -7,10 +7,13 @@
 """
 from PySide6.QtCore import Qt, QRect, QRectF, QPointF, QEvent
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QPixmap
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QWidget, QSizePolicy, QToolTip
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QWidget, QSizePolicy
+
+from app.components.rich_tooltip import RichToolTip
 
 from app.common.signals import signalBus
-from app.components.design_tokens import numberFont, textFont, resultColor, tint, deathsColor
+from app.components.design_tokens import (numberFont, textFont, resultColor, tint, deathsColor,
+                                          opScoreColor)
 from app.components.match_widgets import itemTooltipHtml, rankEmblemPath, ordinal, TAG_COLORS
 from app.components.scoreboard import (cachedContent, drawText, drawRuns, runsWidth,
                                        drawRoundedPixmap, drawChampion, drawItemSlot, drawTag,
@@ -154,28 +157,32 @@ class DetailPlayerRow(QWidget):
                 if rect.contains(pos):
                     html = itemTooltipHtml(itemId)
                     if html:
-                        QToolTip.showText(e.globalPos(), html, self, rect)
+                        RichToolTip.showText(e.globalPos(), html, self, rect)
                         return True
             if self.nameRect.contains(pos):
                 name = self.s.get('summonerName') or ''
                 if self.s.get('tagLine'):
                     name += f"#{self.s['tagLine']}"
-                QToolTip.showText(e.globalPos(), name, self, self.nameRect)
+                RichToolTip.showText(e.globalPos(), name, self, self.nameRect)
                 return True
             if self.rankRect.contains(pos) and self.s.get('tierKey'):
                 tip = tierText(self.s['tierKey'], self.s.get('division'))
                 if self.s.get('lp') not in ("", None):
                     tip += f", {self.s['lp']} LP"
-                QToolTip.showText(e.globalPos(), tip, self, self.rankRect)
+                RichToolTip.showText(e.globalPos(), tip, self, self.rankRect)
                 return True
             if self.scoreRect.contains(pos) and self.s.get('scoreRank'):
-                QToolTip.showText(e.globalPos(), self.tr(
+                head = f"{self.tr('Seraphine score')}: "
+                if self.s.get('opScore') is not None:
+                    head += f"{self.s['opScore']:.1f}  "
+                head += f"(#{self.s['scoreRank']})"
+                RichToolTip.showText(e.globalPos(), head + "\n" + self.tr(
                     "Seraphine score (0-10): kill participation, damage, KDA, damage taken, "
                     "gold and vision vs. the other 9 players.\n"
                     "MVP: best on the winning team, SVP: best on the losing team"),
                     self, self.scoreRect)
                 return True
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
 
@@ -264,8 +271,10 @@ class DetailPlayerRow(QWidget):
         # 评分 + 名次 / MVP / SVP (竖排)
         cx, cw = cols['score']
         if s.get('scoreRank'):
-            drawText(p, line(top, cx, cw), f"{s['score']:.1f}", numberFont(15), ink,
-                     Qt.AlignCenter)
+            # OP Score (0 ~ 10, 按分数着色); 重开局没有分数, 只画名次
+            if s.get('opScore') is not None:
+                drawText(p, line(top, cx, cw), f"{s['opScore']:.1f}", numberFont(15, 700),
+                         opScoreColor(s['opScore']), Qt.AlignCenter)
             badge = s.get('badge')
             tag = badge or ordinal(s['scoreRank'])
             tagFont = textFont(11, True)

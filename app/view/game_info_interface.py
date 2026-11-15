@@ -3,7 +3,7 @@ from typing import Dict
 
 from PySide6.QtCore import Qt, QRectF, QRect, QPointF, QEvent
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QFrame, QVBoxLayout,
-                               QSizePolicy, QStackedWidget, QWidget, QToolTip)
+                               QSizePolicy, QStackedWidget, QWidget)
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QFont, QFontMetrics, QPixmap, QPen
 
 from ..common.qfluentwidgets import (SmoothScrollArea, TransparentTogglePushButton,
@@ -14,6 +14,7 @@ from app.common.signals import signalBus
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.animation_frame import ColorAnimationFrame
 from app.components.match_widgets import TagPill, gameTags, itemTooltipHtml, rankEmblemPath
+from app.components.rich_tooltip import RichToolTip
 from app.components.design_tokens import (deathsColor, palette, numberFont, textFont,
                                          resultColor)
 from app.lol.tools import (parseSummonerOrder, summarizeGames, translatePositionKey,
@@ -661,9 +662,9 @@ class PlayerHeader(ComposedCardMixin, ColorAnimationFrame):
         if e.type() == QEvent.ToolTip:
             for rect, text in self.tips:
                 if rect.contains(e.pos()) and text:
-                    QToolTip.showText(e.globalPos(), text, self, rect)
+                    RichToolTip.showText(e.globalPos(), text, self, rect)
                     return True
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
         return super().event(e)
@@ -983,8 +984,9 @@ class GameRow(ComposedCardMixin, ColorAnimationFrame):
         tips.append(f"{self.tr('Gold')}: {shortNumber(game.get('gold', 0))}")
         tips.append(f"{self.tr('Vision')}: {game.get('visionScore', 0)}")
         if game.get('scoreRank'):
-            tips.append(
-                f"{self.tr('Seraphine score')}: #{game['scoreRank']} / {game['scorePlayers']}")
+            score = "" if game.get('opScore') is None else f"{game['opScore']:.1f}  "
+            tips.append(f"{self.tr('Seraphine score')}: {score}"
+                        f"(#{game['scoreRank']} / {game['scorePlayers']})")
             tips.append(self.tr(
                 "MVP: best score on the winning team, SVP: best on the losing team"))
         return "\n".join(t for t in tips if t)
@@ -997,9 +999,9 @@ class GameRow(ComposedCardMixin, ColorAnimationFrame):
                 if rect.contains(pos):
                     html = itemTooltipHtml(itemId)
                     if html:
-                        QToolTip.showText(e.globalPos(), html, self, rect)
+                        RichToolTip.showText(e.globalPos(), html, self, rect)
                         return True
-            QToolTip.showText(e.globalPos(), self.rowTip, self, self.rect())
+            RichToolTip.showText(e.globalPos(), self.rowTip, self, self.rect())
             return True
 
         return super().event(e)

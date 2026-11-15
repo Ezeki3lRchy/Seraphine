@@ -13,7 +13,9 @@ import datetime
 
 from PySide6.QtCore import Qt, QRectF, QPointF, QEvent
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics
-from PySide6.QtWidgets import QWidget, QSizePolicy, QToolTip
+from PySide6.QtWidgets import QWidget, QSizePolicy
+
+from app.components.rich_tooltip import RichToolTip
 
 from app.common.qfluentwidgets import isDarkTheme
 from app.components.design_tokens import numberFont, textFont, tint, palette
@@ -195,10 +197,10 @@ class TierGraphCard(QWidget):
             if i is not None:
                 pt = points[i]
                 date = datetime.datetime.fromtimestamp(pt['timestamp']).strftime('%Y/%m/%d')
-                QToolTip.showText(e.globalPos(), f"{fullTierText(pt['tier'], pt['division'])}"
+                RichToolTip.showText(e.globalPos(), f"{fullTierText(pt['tier'], pt['division'])}"
                                   f"  {pt['lp']} LP\n{date}", self)
                 return True
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
         return super().event(e)

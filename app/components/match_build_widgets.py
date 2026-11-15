@@ -13,7 +13,9 @@ import html
 
 from PySide6.QtCore import Qt, QRectF, QPointF, QEvent, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QPixmap, QImage
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy, QToolTip
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy
+
+from app.components.rich_tooltip import RichToolTip
 
 from app.common.qfluentwidgets import isDarkTheme
 from app.components.design_tokens import numberFont, textFont, deathsColor, tint
@@ -192,9 +194,9 @@ class DetailModeBar(QWidget):
                 for team in self.teams:
                     for pid, _, name in team:
                         if pid == hit[1] and name:
-                            QToolTip.showText(e.globalPos(), name, self)
+                            RichToolTip.showText(e.globalPos(), name, self)
                             return True
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
         return super().event(e)
@@ -322,10 +324,10 @@ class BuildCard(QWidget):
             for rect, tip in self.hits:
                 if rect.contains(e.pos()):
                     if tip:
-                        QToolTip.showText(e.globalPos(), tip, self, rect)
+                        RichToolTip.showText(e.globalPos(), tip, self, rect)
                         return True
                     break
-            QToolTip.hideText()
+            RichToolTip.hideText()
             e.ignore()
             return True
         return super().event(e)

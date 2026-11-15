@@ -47,7 +47,7 @@ def itemDescriptionToHtml(description: str) -> str:
 
 
 def itemTooltipHtml(itemId) -> str:
-    """物品悬浮提示: 名称 (粗) + 总价 + 属性 / 效果描述; 未知物品返回空串"""
+    """物品悬浮提示卡片 (名称 + 金色总价 / 属性 / 被动说明, 跟随主题); 未知物品返回空串"""
     if not itemId:
         return ""
 
@@ -56,19 +56,11 @@ def itemTooltipHtml(itemId) -> str:
     if not info:
         return ""
 
-    name = html.escape(info.get('name') or str(itemId))
-    price = info.get('priceTotal') or 0
-    desc = itemDescriptionToHtml(info.get('description', ''))
+    from app.components.rich_tooltip import itemCardHtml
 
-    head = f"<b style='font-size:14px'>{name}</b>"
-    if price:
-        head += f"&nbsp;&nbsp;<span style='color:#c8aa6e'>{price}g</span>"
-
-    body = f"<br>{desc}" if desc else ""
-
-    # 用定宽表格让长描述在 Fluent ToolTip 的 QLabel 里换行
-    return (f"<table width={TOOLTIP_WIDTH}><tr><td style='font-size:12px'>"
-            f"{head}{body}</td></tr></table>")
+    # 定宽表格让长描述换行 (RichToolTip 与 Fluent ToolTip 的 QLabel 都适用)
+    return itemCardHtml(info.get('name') or str(itemId), info.get('priceTotal') or 0,
+                        info.get('description', ''), TOOLTIP_WIDTH)
 
 
 class ItemIcon(RoundedLabel):
