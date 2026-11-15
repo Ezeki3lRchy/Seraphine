@@ -20,11 +20,6 @@ name: release-windows
 #
 # The .7z check runs again right before publishing, since a hand release may
 # attach its .7z while this run is building.
-#
-# ONE-TIME TRANSITION: installed copies <= 1.4.0 still read the retired
-# Ezeki3lRchy/Seraphine-releases repo. Mirror the first release ABOVE 1.4.0 made
-# here (built from a commit whose updater reads this repo) there too, once, with
-# both platform assets (see "One-time release-repo transition" in AGENTS.md).
 on:
   push:
     branches: [main]

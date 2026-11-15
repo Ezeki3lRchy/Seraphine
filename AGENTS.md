@@ -48,18 +48,6 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 - Releases live on this repo (`Ezeki3lRchy/Seraphine`); the in-app updater (`app/common/util.py`
   `Github`) reads its `/releases/latest`, `document/ver.json` and `document/notice.md`.
 
-### One-time release-repo transition
-Installed copies <= 1.4.0 still read the retired `Ezeki3lRchy/Seraphine-releases`. Once the
-first release made here **above 1.4.0** (vX.Y.Z, built from a commit whose updater reads this
-repo; do not re-release 1.4.0 here) has **both** `Seraphine.7z` and `Seraphine.dmg`, mirror it
-there once so those copies can update to a build that reads the new location (then never again):
-```shell
-gh release download vX.Y.Z --repo Ezeki3lRchy/Seraphine --pattern 'Seraphine.*' --dir /tmp/sr
-gh release view vX.Y.Z --repo Ezeki3lRchy/Seraphine --json body --jq .body > /tmp/sr/notes.md
-gh release create vX.Y.Z /tmp/sr/Seraphine.7z /tmp/sr/Seraphine.dmg --repo Ezeki3lRchy/Seraphine-releases \
-  --title "vX.Y.Z" --notes-file /tmp/sr/notes.md
-```
-
 ### Testing Requirements
 - `python main.py --version` → smoke test (no client needed).
 - Full run needs a logged-in LoL client (LCU). CN match history additionally needs a CN
