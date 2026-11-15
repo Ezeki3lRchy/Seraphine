@@ -9,11 +9,20 @@ name: build-windows
 #   gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine-releases --clobber
 # Prerequisite: VERSION in app/common/config.py on the chosen ref already equals
 # the requested version (bump + push first, like release_win.ps1's decoupled mode).
+#
+# Also callable from release_windows.yml (workflow_call), which publishes the
+# artifact automatically when VERSION changes on main.
 on:
   workflow_dispatch:
     inputs:
       version:
         description: "Version the frozen exe must report (X.Y.Z); must equal VERSION in app/common/config.py on this ref"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        description: "Version the frozen exe must report (X.Y.Z)"
         required: true
         type: string
 
