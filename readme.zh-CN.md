@@ -122,8 +122,12 @@ python main.py
 > 给关心实现、或来自上游的读者。
 - **原生 macOS 支持**：所有 Windows 专有逻辑（win32 / winreg / 窗口句柄）被收敛进 [`app/common/platform.py`](app/common/platform.py) 的跨平台垫片，macOS 上以 Qt / `open` / 包内路径等原生方式实现，Windows 路径逐字保留。
 - **PySide6 迁移**：界面框架由 PyQt5 切换为 PySide6 + [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets)。
-- **平台感知的自更新**：内置更新器从同一个发布仓库读取版本，并只下载与当前系统匹配的安装包（macOS 取 `.dmg`，Windows 取 `.7z`），不会把另一个平台的包推给你。
-- **一键 macOS 发布脚本**：[`release_mac.sh`](release_mac.sh) 完成「升版本 → 打 `.dmg` → 校验 → 发布到 GitHub Release」全流程。
+- **平台感知的自更新**：内置更新器读取本仓库的 [Releases](https://github.com/Ezeki3lRchy/Seraphine/releases)，并只下载与当前系统匹配的安装包（macOS 取 `.dmg`，Windows 取 `.7z`），不会把另一个平台的包推给你。
+- **Windows 自动发版**：把升 `VERSION` 的提交推到 `main`，[GitHub Actions](.github/workflows/release_windows.yml) 就会自动打出 `Seraphine.7z` 并发布为 Release，已安装的程序下次启动即提示更新。
+- **一键发布脚本**：[`release_mac.sh`](release_mac.sh) 与 [`release_win.ps1`](release_win.ps1) 可手动完成「升版本 → 打 `.dmg` / `.7z` → 校验 → 发布到 GitHub Release」全流程。
+- **对局评分**：战绩列表的每一行和对局详情页都会显示类似 OP.GG 的 0–10 评分，位于 MVP / SVP / 名次标记旁。
+- **重新设计的悬浮提示**：装备、符文、评分、图表等悬浮提示改用跟随浅色 / 深色主题的卡片样式，不再是系统原生提示框。
+- **更快的启动与浏览**：已缓存的图标不再排队请求，连接器并行初始化，对局详情只获取一次并复用。
 
 ## 常见问题 FAQ 🧐
 
@@ -193,6 +197,8 @@ pip install pyinstaller
 - 若尚不存在，则新建该版本 Release。
 
 切勿另起 `-win` 之类的独立 tag——那会抢走 “latest”，破坏另一平台的更新。`-DryRun` 可预览每一步。
+
+**自动发版：** 也可以完全不跑脚本。修改 `app/common/config.py` 里的 `VERSION`，提交并推送到 `main`，工作流 `release-windows`（[`.github/workflows/release_windows.yml`](.github/workflows/release_windows.yml)）会自动打出 `Seraphine.7z` 并发布为该版本的 Release（若 Release 已存在则上传到其上）。该 Release 已有 `Seraphine.7z` 时不做任何事。macOS 的 `.dmg` 仍由 `release_mac.sh` 产出。
 
 手边没有 Windows 机器？GitHub Actions 工作流 `build-windows`（[`.github/workflows/build_windows.yml`](.github/workflows/build_windows.yml)，`workflow_dispatch` 手动触发）会在托管 runner 上执行同样的打包 / 校验步骤，且不发布任何东西。先升级并推送 `VERSION`，然后：
 ```shell

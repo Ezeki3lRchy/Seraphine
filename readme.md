@@ -122,8 +122,12 @@ Delete the program folder, then remove the config directory for your platform:
 > For readers who care about the internals, or who come from upstream.
 - **Native macOS support**: every Windows-only path (win32 / winreg / window handles) is funneled through a cross-platform shim in [`app/common/platform.py`](app/common/platform.py); on macOS it is implemented natively (Qt, `open`, app-bundle paths), while the Windows path is preserved byte-for-byte.
 - **PySide6 migration**: the UI framework moved from PyQt5 to PySide6 + [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets).
-- **Platform-aware self-update**: the built-in updater reads from a single release repository and downloads only the installer that matches your OS (`.dmg` on macOS, `.7z` on Windows) — it never pushes the other platform's package to you.
-- **One-command macOS release**: [`release_mac.sh`](release_mac.sh) handles the whole flow — bump version → build the `.dmg` → verify → publish a GitHub Release.
+- **Platform-aware self-update**: the built-in updater reads this repository's [Releases](https://github.com/Ezeki3lRchy/Seraphine/releases) and downloads only the installer that matches your OS (`.dmg` on macOS, `.7z` on Windows) — it never pushes the other platform's package to you.
+- **Automatic Windows release**: pushing a `VERSION` bump to `main` makes [GitHub Actions](.github/workflows/release_windows.yml) build `Seraphine.7z` and publish it as a Release, so installed copies offer the update on their next start.
+- **One-command releases**: [`release_mac.sh`](release_mac.sh) and [`release_win.ps1`](release_win.ps1) handle the whole flow by hand — bump version → build the `.dmg` / `.7z` → verify → publish a GitHub Release.
+- **Match score**: every match row and the match detail page show an OP.GG-style 0–10 score next to the MVP / SVP / rank badge.
+- **Redesigned tooltips**: hover tips (items, runes, scores, charts) use a themed card that follows light / dark mode instead of the plain native tooltip.
+- **Faster start-up and browsing**: cached icons skip the request queue, the connector initialises in parallel, and match details are fetched once and reused.
 
 ## FAQ 🧐
 
@@ -193,6 +197,8 @@ The two platforms use a **decoupled release** model: a **single Release** per ve
 - otherwise it creates the version's Release.
 
 Never use a separate `-win`-style tag — it would steal "latest" and break the other platform's updater. Use `-DryRun` to preview every step.
+
+**Automatic alternative:** you don't have to run the script at all. Change `VERSION` in `app/common/config.py`, commit and push to `main`; the `release-windows` workflow ([`.github/workflows/release_windows.yml`](.github/workflows/release_windows.yml)) builds `Seraphine.7z` and publishes it as that version's Release (or uploads it onto the Release if it already exists). It does nothing when that Release already has a `Seraphine.7z`. The macOS `.dmg` still comes from `release_mac.sh`.
 
 No Windows machine at hand? The `build-windows` GitHub Actions workflow ([`.github/workflows/build_windows.yml`](.github/workflows/build_windows.yml), `workflow_dispatch`) runs the same build / pack / verify steps on a hosted runner and publishes nothing. Bump and push `VERSION` first, then:
 ```shell
