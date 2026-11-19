@@ -6,6 +6,10 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.2
+- History by mode: with *Filter history by mode* on, the lobby / champ select / in-game page only shows games from the mode you are in (Solo/Duo no longer lists Flex).
+- Ranked score: Solo/Duo and Flex games are scored by a model fitted to OP.GG's real scores (about 0.3 average error on held-out games). Other modes keep Seraphine's own formula.
+
 ### v1.4.1
 - Match score: every match row and the match detail page show a 0–10 score next to the MVP / SVP / rank badge.
 - Redesigned hover tooltips: a themed card that follows light / dark mode.
