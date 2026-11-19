@@ -44,7 +44,7 @@ class AllyRevealRefreshTest(unittest.TestCase):
         async def icon(championId):
             return f"icon-{championId}"
 
-        async def fetch(item, isRank, currentSummonerId):
+        async def fetch(item, queueId, currentSummonerId):
             if item.get("nameVisibilityType") == "HIDDEN" or not item.get("summonerId"):
                 return None
             self.fetched.append(item["puuid"])

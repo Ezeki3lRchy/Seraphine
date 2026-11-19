@@ -17,6 +17,7 @@ any player's match history (CN servers via the Tencent SGP gateway).
 | `aram.py` | `AramBuff` — ARAM per-champion balance buffs/nerfs |
 | `opgg.py` | `Opgg` — client for op.gg data (tier lists / builds) |
 | `tools.py` | `ToolsTranslator` + helpers used across the data layer |
+| `opscore.py` | Ranked (420/440) 0-10 score: MLP ensemble fitted to OP.GG, ported from `ignaciomigliaro/lol-friends-ladder` (MIT). Weights in `../resource/opscore/opscore-model.json`. Needs the match-server SUMMARY (LCU detail lacks xp / plates / takedowns / teamPosition); falls back to `tools.scoreGameParticipants`' formula |
 | `exceptions.py` | Domain exceptions (`SummonerNotFound`, …) |
 
 ## For AI Agents

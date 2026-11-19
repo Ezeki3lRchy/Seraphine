@@ -14,6 +14,7 @@ from .match_build import (parseGameBuilds, buildItemIds, hasBuildEvents,
 from ..common.config import cfg, Language, isChineseText
 from ..common.logger import logger
 from ..lol.connector import connector
+from . import opscore as opscoreModel
 from ..common.signals import signalBus
 from ..common import platform
 
@@ -574,7 +575,11 @@ async def parseGameDetailData(puuid, game):
     # 评分 / 名次 / MVP SVP / 参团率 (与战绩页同一套评分); 斗魂竞技场不评
     players = lcuDetailPlayers(game)
     if players and queueId not in (1700, 1710):
-        scores = scoreGameParticipants(players)
+        try:
+            modelScores = await opscoreModel.scoresForLcuDetail(game)
+        except Exception:
+            modelScores = None
+        scores = scoreGameParticipants(players, modelScores)
         for team in teams.values():
             for summoner in team['summoners']:
                 result = scores.get(summoner['participantId'])
@@ -956,7 +961,8 @@ def parseGames(games, targetId=0):
     return hitGames, kills, deaths, assists, wins, losses
 
 
-# 选手评分权重 (Seraphine 自己的评分, 非 OP.GG OP Score; Riot 的 totalPlayerScore 等字段实测全为 0)
+# 选手评分权重: 非排位局 (以及排位局取不到 Riot 对局服务器 SUMMARY 时) 用的手工公式;
+# 排位局优先用拟合 OP.GG 的模型 (见 opscore.py). Riot 的 totalPlayerScore 等字段实测全为 0.
 # 每项都按本局 10 人里的最大值归一化
 GAME_SCORE_WEIGHTS = {
     'kp': 3,           # 参团率 (击杀 + 助攻) / 本队击杀
@@ -990,18 +996,22 @@ def opScore(raw):
     return round(min(max(OP_SCORE_SLOPE * raw + OP_SCORE_OFFSET, 0.0), 10.0), 1)
 
 
-def scoreGameParticipants(players):
+def scoreGameParticipants(players, modelScores=None):
     """
     给一局里的所有玩家打分并排名, 选出 MVP (胜方最高分) 与 SVP (败方最高分)
 
     @param players: [{'id', 'teamId', 'win', 'kills', 'deaths', 'assists',
                       'damage', 'damageTaken', 'gold', 'vision'}], id 为 participantId
+    @param modelScores: {id: 0 ~ 10 分} 拟合 OP.GG 的模型评分 (opscore.py); 覆盖全部玩家时
+                        直接用它评分与排名, 否则用手工公式
     @return: {id: {'score', 'opScore', 'scoreRank', 'kp', 'badge'}}; score 为原始评分,
-             opScore 为换算后的 0 ~ 10 分 (见 opScore); badge 为 'MVP' / 'SVP' / None.
+             opScore 为显示的 0 ~ 10 分 (手工公式时见 opScore); badge 为 'MVP' / 'SVP' / None.
              不是恰好两队且一胜一负时不评徽章 (仍有排名)
     """
     if not players:
         return {}
+
+    useModel = bool(modelScores) and all(p['id'] in modelScores for p in players)
 
     teamKills = {}
     for p in players:
@@ -1018,18 +1028,24 @@ def scoreGameParticipants(players):
             'vision': p['vision'],
         }
 
-    maxes = {k: max(r[k] for r in raw.values()) for k in GAME_SCORE_WEIGHTS}
+    if useModel:
+        scores = {p['id']: modelScores[p['id']] for p in players}
+    else:
+        maxes = {k: max(r[k] for r in raw.values()) for k in GAME_SCORE_WEIGHTS}
 
-    scores = {}
-    for pid, r in raw.items():
-        scores[pid] = sum(w * (r[k] / maxes[k] if maxes[k] else 0)
-                          for k, w in GAME_SCORE_WEIGHTS.items())
+        scores = {}
+        for pid, r in raw.items():
+            scores[pid] = sum(w * (r[k] / maxes[k] if maxes[k] else 0)
+                              for k, w in GAME_SCORE_WEIGHTS.items())
+
+    def shown(score):
+        return round(min(max(score, 0.0), 10.0), 1) if useModel else opScore(score)
 
     byId = {p['id']: p for p in players}
     # 同分时按伤害高者优先, 再按 participantId, 保证同一局在不同玩家的战绩里结果一致
     order = sorted(scores, key=lambda pid: (-scores[pid], -byId[pid]['damage'], pid))
 
-    result = {pid: {'score': scores[pid], 'opScore': opScore(scores[pid]), 'scoreRank': i + 1,
+    result = {pid: {'score': scores[pid], 'opScore': shown(scores[pid]), 'scoreRank': i + 1,
                     'kp': raw[pid]['kp'], 'badge': None}
               for i, pid in enumerate(order)}
 
@@ -1044,12 +1060,12 @@ def scoreGameParticipants(players):
     return result
 
 
-def _pickScore(players, myId, remake):
+def _pickScore(players, myId, remake, modelScores=None):
     """scoreGameParticipants 的结果里取出自己那一项, 转成 gamesInfo 用的字段"""
     if myId is None or len(players) < 2:
         return None
 
-    result = scoreGameParticipants(players).get(myId)
+    result = scoreGameParticipants(players, modelScores).get(myId)
     if not result:
         return None
 
@@ -1087,10 +1103,12 @@ def lcuDetailPlayers(detail):
         return []
 
 
-def getGameScoreFromLcuDetail(detail, puuid):
+def getGameScoreFromLcuDetail(detail, puuid, modelScores=None):
     """
     由 LCU `/lol-match-history/v1/games/{gameId}` 的完整对局算出 puuid 这名玩家的
     MVP / SVP 徽章, 评分排名与参团率. 斗魂竞技场等多小队模式 / 数据不全时返回 None
+
+    @param modelScores: opscore.scoresForLcuDetail 的结果 (排位局的模型评分), 没有为 None
     """
     try:
         if not detail or detail.get('queueId') in (1700, 1710):
@@ -1110,13 +1128,16 @@ def getGameScoreFromLcuDetail(detail, puuid):
                 myId = p['participantId']
                 remake = bool(p['stats'].get('gameEndedInEarlySurrender'))
 
-        return _pickScore(players, myId, remake)
+        return _pickScore(players, myId, remake, modelScores)
     except (KeyError, TypeError, AttributeError):
         return None
 
 
 def getGameScoreFromSgpGame(game, puuid):
-    """与 getGameScoreFromLcuDetail 相同, 数据来自 SGP 战绩 (game 为其中的 'json')"""
+    """
+    与 getGameScoreFromLcuDetail 相同, 数据来自 SGP 战绩 (game 为其中的 'json'). SGP 战绩是
+    match-v5 格式, 排位局字段齐全时直接用模型评分, 不另发请求
+    """
     try:
         if not game or game.get('queueId') in (1700, 1710):
             return None
@@ -1140,7 +1161,7 @@ def getGameScoreFromSgpGame(game, puuid):
                 myId = p['participantId']
                 remake = bool(p.get('gameEndedInEarlySurrender'))
 
-        return _pickScore(players, myId, remake)
+        return _pickScore(players, myId, remake, opscoreModel.scoreSummary(game))
     except (KeyError, TypeError, AttributeError):
         return None
 
@@ -1179,14 +1200,26 @@ async def attachGameScores(gamesInfo, puuid):
 
     @return: 与 gamesInfo 对齐的完整对局列表 (失败处为 None), 供调用方复用
     """
+    # 排位局的模型评分要 Riot 对局服务器的 SUMMARY (LCU 详情缺字段), 与完整对局同时拉
+    # (结果进 opscore 的缓存); 其他局不发请求
+    summaries = asyncio.gather(
+        *[opscoreModel.getSummary(game['gameId']) for game in gamesInfo
+          if game.get('queueId') in opscoreModel.MODEL_QUEUES],
+        return_exceptions=True)
     details = await asyncio.gather(
         *[connector.getGameDetailByGameIdQuietly(game['gameId'])
           for game in gamesInfo],
         return_exceptions=True)
     details = [d if isinstance(d, dict) else None for d in details]
+    await summaries
 
-    for game, detail in zip(gamesInfo, details):
-        score = getGameScoreFromLcuDetail(detail, puuid)
+    modelScores = await asyncio.gather(
+        *[opscoreModel.scoresForLcuDetail(detail) for detail in details],
+        return_exceptions=True)
+
+    for game, detail, model in zip(gamesInfo, details, modelScores):
+        score = getGameScoreFromLcuDetail(
+            detail, puuid, model if isinstance(model, dict) else None)
         if score:
             game.update(score)
 
@@ -1379,16 +1412,17 @@ async def fillRevealedSummonerIds(team):
 
 
 async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuuid=None,
-                            cache=None, onPartial=None):
+                            cache=None, onPartial=None, queueId=None):
     '''
+    @param queueId: 这次选人的队列 (选人 session 里不一定有, 由调用方从 gameflow 取);
+        战绩按它过滤, 见 historyQueueFilter
     @param cache: {puuid: summoner_dict} 同一次选人内复用; 队友陆续进入聊天房后重新解析时
         (见 MainWindow.__refreshHiddenAllies), 只为新揭示的队友发请求
     '''
     if cache is None:
         cache = {}
 
-    # 排位会有预选位
-    isRank = bool(session["myTeam"][0]["assignedPosition"])
+    queueFilter = historyQueueFilter(queueId)
 
     myTeam = session['myTeam']
 
@@ -1409,7 +1443,7 @@ async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuu
                     summoner['icon'] = await connector.getChampionIcon(championId)
                 return summoner
 
-            summoner = await fetch(item, isRank, currentSummonerId)
+            summoner = await fetch(item, queueFilter, currentSummonerId)
             if summoner and summoner.get('puuid'):
                 cache[summoner['puuid']] = summoner
             return summoner
@@ -1463,16 +1497,16 @@ def visibleEnemies(session):
 
 
 async def parseEnemyChampSelectInfo(session, currentSummonerId, useSGP=False, cache=None,
-                                    onPartial=None):
+                                    onPartial=None, queueId=None):
     """
     选人阶段的敌方战绩 (只含能看到身份的敌方, 见 visibleEnemies), 返回值同 parseAllyGameInfo.
     @param cache: {puuid: summoner_dict} 同一次选人内复用, 选人事件反复触发时不重复请求
+    @param queueId: 这次选人的队列, 战绩按它过滤 (见 historyQueueFilter)
     """
     if cache is None:
         cache = {}
 
-    myTeam = session.get('myTeam') or [{}]
-    isRank = bool(myTeam[0].get('assignedPosition'))
+    queueFilter = historyQueueFilter(queueId)
 
     async def resolve(item):
         puuid = item.get('puuid')
@@ -1487,7 +1521,7 @@ async def parseEnemyChampSelectInfo(session, currentSummonerId, useSGP=False, ca
 
         if useSGP and connector.isInTencent() and puuid:
             try:
-                summoner = await getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId)
+                summoner = await getSummonerGamesInfoViaSGP(item, queueFilter, currentSummonerId)
             except Exception:
                 summoner = None
         else:
@@ -1498,7 +1532,7 @@ async def parseEnemyChampSelectInfo(session, currentSummonerId, useSGP=False, ca
                     item = dict(item, summonerId=found.get('summonerId') or 0)
                 except Exception:
                     return None
-            summoner = await parseSummonerGameInfo(item, isRank, currentSummonerId)
+            summoner = await parseSummonerGameInfo(item, queueFilter, currentSummonerId)
 
         if summoner and summoner.get('puuid'):
             cache[summoner['puuid']] = summoner
@@ -1530,7 +1564,7 @@ async def parseLobbyGameInfo(lobby, currentSummonerId, useSGP=False, cache=None,
 
     members = lobby.get('members') or []
     queueId = (lobby.get('gameConfig') or {}).get('queueId', -1)
-    isRank = queueId in (420, 440)
+    queueFilter = historyQueueFilter(queueId)
 
     # 国服优先 SGP, 否则走 LCU
     fetch = getSummonerGamesInfoViaSGP if (
@@ -1553,7 +1587,7 @@ async def parseLobbyGameInfo(lobby, currentSummonerId, useSGP=False, cache=None,
             'cellId': idx,
             'selectedPosition': None,
         }
-        summoner = await fetch(item, isRank, currentSummonerId)
+        summoner = await fetch(item, queueFilter, currentSummonerId)
         if summoner and puuid:
             cache[puuid] = summoner
         return summoner
@@ -1593,6 +1627,7 @@ async def parseGameInfoByGameflowSession(session, currentSummonerId, side, useSG
         return None
 
     isRank = queueId in (420, 440)
+    queueFilter = historyQueueFilter(queueId)
 
     if side == 'enemy':
         _, team = separateTeams(data, currentSummonerId)
@@ -1618,17 +1653,17 @@ async def parseGameInfoByGameflowSession(session, currentSummonerId, side, useSG
         # 如果是国服就优先尝试 SGP
         try:
             summoners = await gatherProgressively(
-                [getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId) for item in team],
+                [getSummonerGamesInfoViaSGP(item, queueFilter, currentSummonerId) for item in team],
                 onPartial, build)
 
         except:
             summoners = await gatherProgressively(
-                [parseSummonerGameInfo(item, isRank, currentSummonerId) for item in team],
+                [parseSummonerGameInfo(item, queueFilter, currentSummonerId) for item in team],
                 onPartial, build)
 
     else:
         summoners = await gatherProgressively(
-            [parseSummonerGameInfo(item, isRank, currentSummonerId) for item in team],
+            [parseSummonerGameInfo(item, queueFilter, currentSummonerId) for item in team],
             onPartial, build)
 
     return build(summoners)
@@ -1730,29 +1765,73 @@ async def parseGamesDataConcurrently(games):
     return await asyncio.gather(*tasks)
 
 
-def mergeRankedPage(games, page, seen, key):
+def historyQueueFilter(queueId):
     """
-    把一页战绩里的排位局 (420 / 440) 追加到 games, 跳过 seen 里已有的 gameId.
+    对局信息页的战绩该按哪个队列过滤: 开关 (cfg.gameInfoFilter) 打开且当前是匹配队列时
+    返回该 queueId (单双只看单双, 灵活只看灵活, 大乱斗只看大乱斗 ...), 否则 None (不过滤).
+    自定义 / 训练模式 (queueId 0 / -1) 不过滤
+    """
+    if not cfg.get(cfg.gameInfoFilter):
+        return None
 
-    @param seen: 已见过的 gameId 集合 (含非排位局), 会被更新
+    return queueId if isinstance(queueId, int) and queueId > 0 else None
+
+
+def mergeQueuePage(games, page, seen, key, queueId):
+    """
+    把一页战绩里属于 queueId 队列的对局追加到 games, 跳过 seen 里已有的 gameId.
+
+    @param seen: 已见过的 gameId 集合 (含其他队列的对局), 会被更新
     @param key: game -> (queueId, gameId)
-    @return: 这一页有没有新的对局 (不论是否排位); 没有说明已翻到历史尽头
+    @return: 这一页有没有新的对局 (不论哪个队列); 没有说明已翻到历史尽头
     """
     fresh = False
     for game in page:
-        queueId, gameId = key(game)
+        gameQueueId, gameId = key(game)
         if gameId in seen:
             continue
 
         seen.add(gameId)
         fresh = True
-        if queueId in (420, 440):
+        if gameQueueId == queueId:
             games.append(game)
 
     return fresh
 
 
-async def parseSummonerGameInfo(item, isRank, currentSummonerId):
+async def collectQueueGames(firstPage, fetchPage, key, queueId, step, want=11):
+    """
+    只留 queueId 队列的对局: 第一页 (最近 15 局) 不够 want 局就继续往前翻, 最多翻到第 95 局.
+
+    @param fetchPage: async (begIdx, endIdx) -> 一页对局
+    @param step: 每页跨度 (LCU 5, SGP 10)
+    @return: 该队列的对局. 排位 (420 / 440) 一局都没有就返回空; 其他队列一局都没有时
+             (比如刚上线的轮换模式) 退回第一页的全部对局, 免得面板全空
+    """
+    games, seen = [], set()
+    mergeQueuePage(games, firstPage, seen, key, queueId)
+
+    begIdx = 15
+    while len(games) < want and begIdx <= 95:
+        endIdx = begIdx + step
+        page = await fetchPage(begIdx, endIdx)
+
+        # 超出历史范围时 LCU 会重复返回已拿到的对局: 去重, 整页都是旧的就停
+        if not mergeQueuePage(games, page, seen, key, queueId):
+            break
+
+        begIdx = endIdx + 1
+
+    if not games and queueId not in (420, 440):
+        return firstPage
+
+    return games
+
+
+async def parseSummonerGameInfo(item, queueId, currentSummonerId):
+    '''
+    @param queueId: 只取这个队列的战绩 (见 historyQueueFilter); None 为不过滤
+    '''
     summonerId = item.get('summonerId', None)
 
     if item.get('nameVisibilityType') == 'HIDDEN':
@@ -1785,25 +1864,15 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
         origGamesInfo = await connector.getSummonerGamesByPuuid(
             puuid, 0, 14)
 
-        if cfg.get(cfg.gameInfoFilter) and isRank:
+        if queueId is not None:
             def lcuKey(game):
                 return game["queueId"], game["gameId"]
 
-            firstPage = origGamesInfo["games"]
-            seen = {lcuKey(game)[1] for game in firstPage}
-            origGamesInfo["games"] = []
-            mergeRankedPage(origGamesInfo["games"], firstPage, set(), lcuKey)
+            async def lcuPage(begIdx, endIdx):
+                return (await connector.getSummonerGamesByPuuid(puuid, begIdx, endIdx))["games"]
 
-            begIdx = 15
-            while len(origGamesInfo["games"]) < 11 and begIdx <= 95:
-                endIdx = begIdx + 5
-                new = (await connector.getSummonerGamesByPuuid(puuid, begIdx, endIdx))["games"]
-
-                # 超出历史范围时 LCU 会重复返回已拿到的对局: 去重, 整页都是旧的就停
-                if not mergeRankedPage(origGamesInfo["games"], new, seen, lcuKey):
-                    break
-
-                begIdx = endIdx + 1
+            origGamesInfo["games"] = await collectQueueGames(
+                origGamesInfo["games"], lcuPage, lcuKey, queueId, 5)
     except:
         gamesInfo = []
     else:
@@ -1848,9 +1917,10 @@ async def parseSummonerGameInfo(item, isRank, currentSummonerId):
     }
 
 
-async def getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId):
+async def getSummonerGamesInfoViaSGP(item, queueId, currentSummonerId):
     '''
     使用 SGP 接口取战绩信息
+    @param queueId: 只取这个队列的战绩 (见 historyQueueFilter); None 为不过滤
     '''
     puuid = item.get('puuid')
 
@@ -1882,25 +1952,16 @@ async def getSummonerGamesInfoViaSGP(item, isRank, currentSummonerId):
     try:
         origGamesInfo = await connector.getSummonerGamesByPuuidViaSGP(puuid, 0, 14)
 
-        if cfg.get(cfg.gameInfoFilter) and isRank:
+        if queueId is not None:
             def sgpKey(game):
                 return game['json']["queueId"], game['json']["gameId"]
 
-            firstPage = origGamesInfo["games"]
-            seen = {sgpKey(game)[1] for game in firstPage}
-            origGamesInfo["games"] = []
-            mergeRankedPage(origGamesInfo["games"], firstPage, set(), sgpKey)
+            async def sgpPage(begIdx, endIdx):
+                return (await connector.getSummonerGamesByPuuidViaSGP(
+                    puuid, begIdx, endIdx))["games"]
 
-            begIdx = 15
-            while len(origGamesInfo["games"]) < 11 and begIdx <= 95:
-                endIdx = begIdx + 10
-                new = (await connector.getSummonerGamesByPuuidViaSGP(puuid, begIdx, endIdx))["games"]
-
-                # 同 LCU: 去重, 整页都是旧的就停
-                if not mergeRankedPage(origGamesInfo["games"], new, seen, sgpKey):
-                    break
-
-                begIdx = endIdx + 1
+            origGamesInfo["games"] = await collectQueueGames(
+                origGamesInfo["games"], sgpPage, sgpKey, queueId, 10)
     except:
         # SGP 拉取失败: 绑定空 origGamesInfo, 否则下方 teammatesInfo 的
         # origGamesInfo['games'][:1] 会 UnboundLocalError

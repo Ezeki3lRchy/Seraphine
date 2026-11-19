@@ -2698,13 +2698,13 @@ If champions set by lane are not available, default settings will be used.</sour
     </message>
     <message>
         <location filename="../../view/setting_interface.py" line="56"/>
-        <source>Rank filter other mode</source>
-        <translation>排位过滤</translation>
+        <source>Filter history by mode</source>
+        <translation>按模式过滤战绩</translation>
     </message>
     <message>
         <location filename="../../view/setting_interface.py" line="56"/>
-        <source>Filter out other modes on the Game Information interface when ranking</source>
-        <translation>打开此选项后，当你在排位时，对局信息界面将只显示排位模式对局战绩</translation>
+        <source>On the Game Information interface, only show games of the mode you are in (Solo/Duo, Flex, ARAM, ...)</source>
+        <translation>打开此选项后，对局信息界面只显示当前模式的对局战绩（单双只看单双，灵活只看灵活，大乱斗只看大乱斗……）</translation>
     </message>
     <message>
         <location filename="../../view/setting_interface.py" line="217"/>

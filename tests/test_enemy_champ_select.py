@@ -42,7 +42,7 @@ class ParseEnemyChampSelectInfoTest(unittest.TestCase):
                       connector.isInTencent, connector.getChampionIcon)
         self.fetched = []
 
-        async def fetch(item, isRank, currentSummonerId):
+        async def fetch(item, queueId, currentSummonerId):
             self.fetched.append(item["puuid"])
             return {"puuid": item["puuid"], "summonerId": item["summonerId"],
                     "championId": item.get("championId") or 0, "icon": "x",

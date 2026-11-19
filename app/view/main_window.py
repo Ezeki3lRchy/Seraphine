@@ -49,7 +49,7 @@ from app.lol.tools import (parseAllyGameInfo, parseLobbyGameInfo, parseGameInfoB
                            getAllyOrderByGameRole, getTeamColor, autoBan, autoPick,
                            autoComplete, autoSwap, autoTrade, ChampionSelection,
                            SERVERS_NAME, SERVERS_SUBSET, showOpggBuild, autoShow,
-                           parseEnemyChampSelectInfo, visibleEnemies)
+                           parseEnemyChampSelectInfo, visibleEnemies, historyQueueFilter)
 from app.lol.aram import AramBuff
 from app.lol.champions import ChampionAlias
 from app.lol.opgg import opgg
@@ -248,6 +248,10 @@ class MainWindow(FluentWindow):
 
         # 组队大厅成员战绩: puuid 缓存 (只查新成员) + 防抖 (合并连续成员变动)
         self._lobbyGameInfoCache = {}
+        # 缓存里的战绩是按哪个队列过滤的 (见 historyQueueFilter); 大厅换模式后要重查
+        self._lobbyQueueFilter = None
+        # 这次选人的队列, 己方 / 敌方战绩都按它过滤
+        self._champSelectQueueId = None
 
         # 选人阶段揭示隐藏队友: 队友是陆续进入选人聊天房的, 开局那一次只能拿到一部分,
         # 之后在选人事件里节流地重读名单, 名单变长就用缓存重新解析 (只为新队友发请求)
@@ -1001,6 +1005,12 @@ class MainWindow(FluentWindow):
         except (TypeError, KeyError):
             return
 
+        # 大厅换了模式 (单双 -> 灵活 ...): 已缓存的战绩是按旧队列过滤的, 全部重查
+        queueFilter = historyQueueFilter((lobby.get('gameConfig') or {}).get('queueId', -1))
+        if queueFilter != self._lobbyQueueFilter:
+            self._lobbyQueueFilter = queueFilter
+            self._lobbyGameInfoCache = {}
+
         info = await parseLobbyGameInfo(
             lobby, currentSummonerId, useSGP=True,
             cache=self._lobbyGameInfoCache,
@@ -1022,6 +1032,7 @@ class MainWindow(FluentWindow):
         self._enemyKey = None
 
         session = await connector.getChampSelectSession()
+        self._champSelectQueueId = await self.__champSelectQueueId(session)
         self.__refreshEnemies(session)
 
         if cfg.get(cfg.autoShowOpgg):
@@ -1042,7 +1053,8 @@ class MainWindow(FluentWindow):
         info = await parseAllyGameInfo(session, currentSummonerId, useSGP=True,
                                        currentPuuid=self.currentSummoner.get('puuid'),
                                        cache=self._allyGameInfoCache,
-                                       onPartial=showPartial)
+                                       onPartial=showPartial,
+                                       queueId=self._champSelectQueueId)
         if epoch != self._champSelectEpoch:
             return
 
@@ -1050,6 +1062,18 @@ class MainWindow(FluentWindow):
         self._champSelectReady = True
 
         self.checkAndSwitchTo(self.gameInfoInterface)
+
+    async def __champSelectQueueId(self, session):
+        """这次选人的队列: 选人 session 里有就用, 没有再问 gameflow; 都拿不到返回 None (不过滤)"""
+        queueId = session.get('queueId') if isinstance(session, dict) else None
+        if queueId:
+            return queueId
+
+        try:
+            gameflow = await connector.getGameflowSession()
+            return gameflow['gameData']['queue']['id']
+        except Exception:
+            return None
 
     async def __refreshHiddenAllies(self, session):
         """
@@ -1084,7 +1108,8 @@ class MainWindow(FluentWindow):
             info = await parseAllyGameInfo(
                 session, self.currentSummoner['summonerId'], useSGP=True,
                 currentPuuid=self.currentSummoner.get('puuid'),
-                cache=self._allyGameInfoCache)
+                cache=self._allyGameInfoCache,
+                queueId=self._champSelectQueueId)
 
             # 解析期间可能已离开这次选人 (秒退 / 进游戏), 结果作废
             if epoch != self._champSelectEpoch or not self._champSelectReady:
@@ -1150,7 +1175,8 @@ class MainWindow(FluentWindow):
             try:
                 info = await parseEnemyChampSelectInfo(
                     session, self.currentSummoner['summonerId'], useSGP=True,
-                    cache=self._enemyGameInfoCache, onPartial=show)
+                    cache=self._enemyGameInfoCache, onPartial=show,
+                    queueId=self._champSelectQueueId)
                 show(info)
             except Exception as e:
                 logger.error(f"load enemies in champ select failed: {e!r}", TAG)

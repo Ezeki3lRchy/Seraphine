@@ -125,7 +125,8 @@ python main.py
 - **平台感知的自更新**：内置更新器读取本仓库的 [Releases](https://github.com/Ezeki3lRchy/Seraphine/releases)，并只下载与当前系统匹配的安装包（macOS 取 `.dmg`，Windows 取 `.7z`），不会把另一个平台的包推给你。
 - **Windows 自动发版**：把升 `VERSION` 的提交推到 `main`，[GitHub Actions](.github/workflows/release_windows.yml) 就会自动打出 `Seraphine.7z` 并发布为 Release，已安装的程序下次启动即提示更新。
 - **一键发布脚本**：[`release_mac.sh`](release_mac.sh) 与 [`release_win.ps1`](release_win.ps1) 可手动完成「升版本 → 打 `.dmg` / `.7z` → 校验 → 发布到 GitHub Release」全流程。
-- **对局评分**：战绩列表的每一行和对局详情页都会显示类似 OP.GG 的 0–10 评分，位于 MVP / SVP / 名次标记旁。
+- **按模式过滤战绩**：打开 *设置 → 按模式过滤战绩* 后，大厅 / 英雄选择 / 对局中的对局信息页只显示每名玩家在当前模式下的对局（单双只看单双，灵活只看灵活，大乱斗只看大乱斗……）。非排位模式下某位玩家近期没有该模式的对局时，退回显示其最近的对局。
+- **对局评分**：战绩列表的每一行和对局详情页都会显示类似 OP.GG 的 0–10 评分，位于 MVP / SVP / 名次标记旁。排位局（单双、灵活）用一个拟合 OP.GG 真实评分的小模型打分（移植自 [lol-friends-ladder](https://github.com/ignaciomigliaro/lol-friends-ladder)，在其留出对局上平均误差约 0.3），需要从 Riot 对局服务器取每局结算数据，每局多一个请求。其他模式，以及取不到结算数据的排位局，用 Seraphine 自己的公式（参团率、伤害、KDA、承伤、金币、视野）。
 - **重新设计的悬浮提示**：装备、符文、评分、图表等悬浮提示改用跟随浅色 / 深色主题的卡片样式，不再是系统原生提示框。
 - **更快的启动与浏览**：已缓存的图标不再排队请求，连接器并行初始化，对局详情只获取一次并复用。
 
@@ -244,6 +245,9 @@ Seraphine is not endorsed by Riot Games and does not reflect the views or opinio
 - 修复客户端无限转圈 / 缩成一块 BUG 请见
   - https://www.bilibili.com/video/BV1Cw41147iS
   - https://github.com/LeagueTavern/fix-lcu-window
+
+- 排位评分模型（特征与权重，MIT）
+  - https://github.com/ignaciomigliaro/lol-friends-ladder
 
 - 游戏资源获取请见
   - https://raw.communitydragon.org/latest/

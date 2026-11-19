@@ -4,6 +4,7 @@ summarizeGames / getPositionKey / translatePositionKey and the season W/L kept b
 parseRankInfo / parseRankInfoFromSGP are pure functions over already-fetched
 data, so they run for real on hand-built inputs.
 """
+import asyncio
 import unittest
 
 from app.lol import tools
@@ -125,32 +126,99 @@ class SeasonRecordTest(unittest.TestCase):
 
 
 
-class MergeRankedPageTest(unittest.TestCase):
-    """Ranked-filter paging: the LCU repeats already-returned games past the end
+class MergeQueuePageTest(unittest.TestCase):
+    """Queue-filter paging: the LCU repeats already-returned games past the end
     of a player's history; those must not be appended again."""
 
     @staticmethod
     def key(game):
         return game["q"], game["id"]
 
-    def test_skips_seen_and_non_ranked(self):
+    def test_skips_seen_and_other_queues(self):
         games, seen = [], {1}
-        page = [{"q": 420, "id": 1}, {"q": 450, "id": 2}, {"q": 440, "id": 3}]
-        self.assertTrue(tools.mergeRankedPage(games, page, seen, self.key))
-        self.assertEqual([g["id"] for g in games], [3])
-        self.assertEqual(seen, {1, 2, 3})
+        page = [{"q": 420, "id": 1}, {"q": 450, "id": 2}, {"q": 440, "id": 3},
+                {"q": 420, "id": 4}]
+        self.assertTrue(tools.mergeQueuePage(games, page, seen, self.key, 420))
+        self.assertEqual([g["id"] for g in games], [4])
+        self.assertEqual(seen, {1, 2, 3, 4})
 
     def test_page_with_only_old_games_reports_no_progress(self):
         games, seen = [], {1, 2}
         page = [{"q": 420, "id": 1}, {"q": 420, "id": 2}]
-        self.assertFalse(tools.mergeRankedPage(games, page, seen, self.key))
+        self.assertFalse(tools.mergeQueuePage(games, page, seen, self.key, 420))
         self.assertEqual(games, [])
 
-    def test_new_non_ranked_page_still_counts_as_progress(self):
+    def test_new_page_of_other_queues_still_counts_as_progress(self):
         games, seen = [], set()
-        self.assertTrue(tools.mergeRankedPage(
-            games, [{"q": 450, "id": 9}], seen, self.key))
+        self.assertTrue(tools.mergeQueuePage(
+            games, [{"q": 450, "id": 9}], seen, self.key, 420))
         self.assertEqual(games, [])
+
+
+class CollectQueueGamesTest(unittest.TestCase):
+    """Only the current queue's games are kept (Solo/Duo must not show Flex)."""
+
+    key = staticmethod(MergeQueuePageTest.key)
+
+    def collect(self, firstPage, pages, queueId, want=11):
+        calls = []
+
+        async def fetchPage(begIdx, endIdx):
+            calls.append((begIdx, endIdx))
+            return pages.pop(0) if pages else []
+
+        games = asyncio.run(tools.collectQueueGames(
+            firstPage, fetchPage, self.key, queueId, 5, want))
+        return games, calls
+
+    def test_solo_drops_flex_and_pages_until_enough(self):
+        first = [{"q": 420, "id": 1}, {"q": 440, "id": 2}, {"q": 420, "id": 3}]
+        pages = [[{"q": 440, "id": 4}, {"q": 420, "id": 5}]]
+        games, calls = self.collect(first, pages, 420, want=3)
+        self.assertEqual([g["id"] for g in games], [1, 3, 5])
+        self.assertEqual(calls, [(15, 20)])
+
+    def test_enough_on_first_page_fetches_nothing(self):
+        first = [{"q": 440, "id": 1}, {"q": 440, "id": 2}]
+        games, calls = self.collect(first, [], 440, want=2)
+        self.assertEqual([g["id"] for g in games], [1, 2])
+        self.assertEqual(calls, [])
+
+    def test_stops_when_history_runs_out(self):
+        first = [{"q": 420, "id": 1}]
+        games, calls = self.collect(first, [[{"q": 420, "id": 1}]], 420)
+        self.assertEqual([g["id"] for g in games], [1])
+        self.assertEqual(len(calls), 1)
+
+    def test_ranked_with_no_games_stays_empty(self):
+        first = [{"q": 440, "id": 1}, {"q": 450, "id": 2}]
+        games, _ = self.collect(first, [], 420)
+        self.assertEqual(games, [])
+
+    def test_other_queue_with_no_games_falls_back_to_recent(self):
+        first = [{"q": 420, "id": 1}, {"q": 440, "id": 2}]
+        games, _ = self.collect(first, [], 450)
+        self.assertEqual(games, first)
+
+
+class HistoryQueueFilterTest(unittest.TestCase):
+
+    def setUp(self):
+        self._orig = tools.cfg.get(tools.cfg.gameInfoFilter)
+
+    def tearDown(self):
+        tools.cfg.gameInfoFilter.value = self._orig
+
+    def test_on_filters_matchmade_queues_only(self):
+        tools.cfg.gameInfoFilter.value = True
+        self.assertEqual(tools.historyQueueFilter(420), 420)
+        self.assertEqual(tools.historyQueueFilter(450), 450)
+        for queueId in (0, -1, None):
+            self.assertIsNone(tools.historyQueueFilter(queueId))
+
+    def test_off_never_filters(self):
+        tools.cfg.gameInfoFilter.value = False
+        self.assertIsNone(tools.historyQueueFilter(420))
 
 
 if __name__ == "__main__":

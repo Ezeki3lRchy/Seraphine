@@ -125,7 +125,8 @@ Delete the program folder, then remove the config directory for your platform:
 - **Platform-aware self-update**: the built-in updater reads this repository's [Releases](https://github.com/Ezeki3lRchy/Seraphine/releases) and downloads only the installer that matches your OS (`.dmg` on macOS, `.7z` on Windows) — it never pushes the other platform's package to you.
 - **Automatic Windows release**: pushing a `VERSION` bump to `main` makes [GitHub Actions](.github/workflows/release_windows.yml) build `Seraphine.7z` and publish it as a Release, so installed copies offer the update on their next start.
 - **One-command releases**: [`release_mac.sh`](release_mac.sh) and [`release_win.ps1`](release_win.ps1) handle the whole flow by hand — bump version → build the `.dmg` / `.7z` → verify → publish a GitHub Release.
-- **Match score**: every match row and the match detail page show an OP.GG-style 0–10 score next to the MVP / SVP / rank badge.
+- **History by mode**: with *Settings → Filter history by mode* on, the lobby / champ select / in-game page only shows each player's games in the mode you are in (Solo/Duo shows Solo/Duo only, Flex shows Flex only, ARAM shows ARAM only, ...). A non-ranked mode a player has no recent games in falls back to their latest games.
+- **Match score**: every match row and the match detail page show an OP.GG-style 0–10 score next to the MVP / SVP / rank badge. Ranked games (Solo/Duo, Flex) are scored by a small model fitted to OP.GG's real scores (ported from [lol-friends-ladder](https://github.com/ignaciomigliaro/lol-friends-ladder); about 0.3 average error on its held-out games). It needs each game's result from Riot's match server, one extra request per game. Other modes, and ranked games whose result can't be fetched, use Seraphine's own formula (kill participation, damage, KDA, damage taken, gold, vision).
 - **Redesigned tooltips**: hover tips (items, runes, scores, charts) use a themed card that follows light / dark mode instead of the plain native tooltip.
 - **Faster start-up and browsing**: cached icons skip the request queue, the connector initialises in parallel, and match details are fetched once and reused.
 
@@ -242,6 +243,9 @@ Before using this program, please make sure you have **read**, **understood**, a
 - Fixing the infinite-spinner / shrunken-window bug
   - https://www.bilibili.com/video/BV1Cw41147iS
   - https://github.com/LeagueTavern/fix-lcu-window
+
+- Ranked match score model (features and weights, MIT)
+  - https://github.com/ignaciomigliaro/lol-friends-ladder
 
 - Game assets
   - https://raw.communitydragon.org/latest/

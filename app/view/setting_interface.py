@@ -54,9 +54,9 @@ class SettingInterface(SeraphineInterface):
             self.functionGroup)
 
         self.gameInfoFilterCard = SwitchSettingCard(
-            Icon.FILTER, self.tr("Rank filter other mode"),
+            Icon.FILTER, self.tr("Filter history by mode"),
             self.tr(
-                "Filter out other modes on the Game Information interface when ranking"),
+                "On the Game Information interface, only show games of the mode you are in (Solo/Duo, Flex, ARAM, ...)"),
             cfg.gameInfoFilter
         )
 
