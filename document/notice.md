@@ -6,6 +6,10 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.3
+- Performance card: the (?) help icons show their explanation as soon as you hover them, and light up on hover.
+- Match rows: player names are larger and less truncated; the #TAG moved to the hover tooltip.
+
 ### v1.4.2
 - History by mode: with *Filter history by mode* on, the lobby / champ select / in-game page only shows games from the mode you are in (Solo/Duo no longer lists Flex).
 - Ranked score: Solo/Duo and Flex games are scored by a model fitted to OP.GG's real scores (about 0.3 average error on held-out games). Other modes keep Seraphine's own formula.
