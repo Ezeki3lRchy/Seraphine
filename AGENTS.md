@@ -18,7 +18,8 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 | `release_win.ps1` | One-command Windows release: bump → build via spec → verify frozen `--version` → pack `.7z` (py7zr) → `gh release` on this repo (`Ezeki3lRchy/Seraphine`; a created release's tag targets HEAD, so `-Push` is required with a new bump commit and runs before publishing). Mirrors `release_mac.sh` |
 | `.github/workflows/build_windows.yml` | `workflow_dispatch` Windows `.7z` build on a GitHub-hosted runner (build/pack/verify only, same steps as `release_win.ps1`, publishes nothing). Bump + push `VERSION` first, `gh workflow run build_windows.yml -f version=X.Y.Z`, download the artifact, `gh release upload vX.Y.Z Seraphine.7z --repo Ezeki3lRchy/Seraphine --clobber`. Lets a macOS maintainer ship both platforms (first used for v1.3.0) |
 | `.github/workflows/build_macos.yml` | `workflow_dispatch` macOS `.dmg` build on a GitHub-hosted Apple Silicon runner: creates `venv/` and runs `make_mac.sh` unchanged, verifies frozen `--version`, uploads artifact `Seraphine-mac-X.Y.Z`; publishes nothing. Unsigned, like the local build |
-| `.github/workflows/release.yml` | **Automatic** release for both platforms: a push to `main` that changes `VERSION` in `app/common/config.py` builds via `build_windows.yml` and `build_macos.yml` and publishes `Seraphine.7z` + `Seraphine.dmg` as one Release of this repo (uploads onto the version's release if it exists, else creates it with the tag on the built commit). Each platform is skipped when the release already has its file; a failed build on one platform still publishes the other. `workflow_dispatch` fills in what the current version's release is missing. Uses the built-in `GITHUB_TOKEN` (`contents: write` on the publish job only); no secrets |
+| `.github/workflows/test.yml` | Unit tests (`python -m unittest discover -s tests`, Qt offscreen) on `windows-latest` + `macos-latest`: runs on push to `main` and on pull requests, and is called by `release.yml` with an `os` input (one runner) so each platform is gated on its own result |
+| `.github/workflows/release.yml` | **Automatic** release for both platforms: a push to `main` that changes `VERSION` in `app/common/config.py` runs `test.yml` per platform (a platform whose own tests fail is not built or published; the other still is), then builds via `build_windows.yml` and `build_macos.yml` and publishes `Seraphine.7z` + `Seraphine.dmg` as one Release of this repo (uploads onto the version's release if it exists, else creates it with the tag on the built commit). Each platform is skipped when the release already has its file; a failed build on one platform still publishes the other. `workflow_dispatch` fills in what the current version's release is missing. Uses the built-in `GITHUB_TOKEN` (`contents: write` on the publish job only); no secrets |
 | `requirements.txt` | Pinned deps (PySide6 6.9.3 + PySide6-Fluent-Widgets, aiohttp 3.10.10, qasync, py7zr, pywin32 on win32, …) |
 | `readme.md` | Project README (English); Chinese version in `readme.zh-CN.md` |
 | `LICENSE` | Upstream license |
@@ -53,6 +54,11 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 
 ### Testing Requirements
 - `python main.py --version` → smoke test (no client needed).
+- `python main.py --selftest` (hidden) → import smoke test: imports the whole app graph, creates a
+  QApplication (offscreen by default), loads the zh_CN translator and checks bundled resources,
+  prints `selftest OK <version>`; builds no window and starts no loop. The build workflows and
+  release scripts run it on the frozen build right after the `--version` check (after packing, since
+  it may create `log/` in the bundle). Unit tests: `QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests`.
 - Full run needs a logged-in LoL client (LCU). CN match history additionally needs a CN
   client session (SGP token).
 

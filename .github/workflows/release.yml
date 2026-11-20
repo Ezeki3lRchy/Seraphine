@@ -18,6 +18,10 @@ name: release
 # commit that was built (--target $GITHUB_SHA). If one platform's build fails, the
 # other platform's file is still published (the failed build job marks the run failed).
 #
+# Each platform's build also waits for its own test run (test.yml, one runner per
+# platform): failing tests skip that platform's build, so nothing is published for it,
+# while the other platform is unaffected.
+#
 # Uses the built-in GITHUB_TOKEN (no PAT): contents: read everywhere, contents:
 # write only on the publish job. Note: releases created with GITHUB_TOKEN do not
 # trigger other workflows.
@@ -74,8 +78,25 @@ jobs:
             fi
           done
 
-  build-win:
+  # Each platform is gated on its own test run (test.yml with that one runner). A
+  # failed test job leaves its build job skipped, and publish treats a skipped build
+  # like a failed one: that platform is not published, the other one still is.
+  test-win:
     needs: check
+    if: needs.check.outputs.need_win == 'true'
+    uses: ./.github/workflows/test.yml
+    with:
+      os: windows-latest
+
+  test-mac:
+    needs: check
+    if: needs.check.outputs.need_mac == 'true'
+    uses: ./.github/workflows/test.yml
+    with:
+      os: macos-latest
+
+  build-win:
+    needs: [check, test-win]
     if: needs.check.outputs.need_win == 'true'
     # The called workflow only needs contents: read (checkout); it inherits at
     # most what this caller grants.
@@ -84,7 +105,7 @@ jobs:
       version: ${{ needs.check.outputs.version }}
 
   build-mac:
-    needs: check
+    needs: [check, test-mac]
     if: needs.check.outputs.need_mac == 'true'
     uses: ./.github/workflows/build_macos.yml
     with:

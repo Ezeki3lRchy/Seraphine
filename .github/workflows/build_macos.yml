@@ -67,6 +67,13 @@ jobs:
           fi
           echo "frozen app reports $reported OK"
 
+      # After make_mac.sh: the self-test may create log/ inside the bundle, which must
+      # not end up in the .dmg (already created above).
+      - name: Self-test the frozen app (full import graph, translator, bundled resources)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: dist/Seraphine.app/Contents/MacOS/Seraphine --selftest
+
       - uses: actions/upload-artifact@v4
         with:
           name: Seraphine-mac-${{ inputs.version }}

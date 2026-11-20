@@ -238,6 +238,20 @@ try {
         Write-Host "    frozen exe reports: $reported  OK   ($sizeMB .7z)"
     }
 
+    # ---- self-test the frozen exe (after the pack: it may create log\ in the build dir,
+    #      which must not end up in the .7z) ------------------------------------------
+    Note "self-testing the frozen exe (--selftest)"
+    if ($DryRun) {
+        Write-Host "[dry-run] would run: $ExeBin --selftest  (offscreen)"
+    }
+    else {
+        $env:QT_QPA_PLATFORM = "offscreen"
+        try { $selftestOut = (& $ExeBin --selftest | Out-String).Trim(); $selftestRc = $LASTEXITCODE }
+        finally { Remove-Item Env:\QT_QPA_PLATFORM -ErrorAction SilentlyContinue }
+        if ($selftestRc -ne 0) { Die "frozen exe --selftest failed (exit $selftestRc): $selftestOut -- aborting before publish" }
+        Write-Host "    $selftestOut"
+    }
+
     # ---- confirm ------------------------------------------------------------
     if (-not $Yes -and -not $DryRun) {
         $verb = if ($releaseExists) { "UPLOAD onto existing release" } else { "CREATE release" }

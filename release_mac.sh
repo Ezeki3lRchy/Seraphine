@@ -136,6 +136,16 @@ else
   echo "    frozen app reports: $REPORTED  ✓   ($(du -h "$DMG" | cut -f1) dmg)"
 fi
 
+# ---- self-test the frozen app (after the dmg is built: it may create log/ inside the
+#      bundle, which must not end up in the .dmg) ----------------------------------
+note "self-testing the frozen app (--selftest)"
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo "[dry-run] would run: $APP_BIN --selftest  (offscreen)"
+else
+  SELFTEST="$(QT_QPA_PLATFORM=offscreen "$APP_BIN" --selftest 2>&1)" || die "frozen app --selftest failed: $SELFTEST — aborting before publish"
+  echo "    $SELFTEST"
+fi
+
 # ---- confirm ----------------------------------------------------------------
 if [ "$ASSUME_YES" -eq 0 ] && [ "$DRY_RUN" -eq 0 ]; then
   echo

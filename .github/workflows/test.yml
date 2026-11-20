@@ -1,0 +1,48 @@
+name: test
+
+# Runs the unit-test suite (tests/, stdlib unittest, Qt offscreen) on Windows and
+# macOS. Runs on every push to main and every pull request, and is called by
+# release.yml (workflow_call) before each platform's build: the release only builds
+# and publishes a platform whose own test run passed. When called with `os`, only
+# that runner is used, so each platform is gated on its own result.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      os:
+        description: "Run on this runner only (windows-latest or macos-latest); empty runs both"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.os != '' && format('["{0}"]', inputs.os) || '["windows-latest","macos-latest"]') }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install requirements
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run the unit tests
+        run: python -m unittest discover -s tests

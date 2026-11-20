@@ -6,9 +6,24 @@ never write into log/Seraphine_<date>_ERROR.log. That real log is what the
 task-4 acceptance greps for 'reveal-hidden', so it must only ever contain
 lines from actual client sessions. Tests read LOG_RECORDS to assert on output.
 """
+import atexit
 import logging
+import os
+import shutil
+import sys
+import tempfile
 
-import app.common.logger  # noqa: F401 — instantiates the "Seraphine" logger
+# The app reads its config from %APPDATA%\Seraphine at import time. Point that at
+# an empty temp dir before any app module is imported, so a test run never reads
+# (or writes) the developer's real config and behaves the same as on a CI runner,
+# where no config exists. Windows only: on macOS the location derives from HOME,
+# which is not safe to redirect for a whole process.
+if sys.platform == 'win32':
+    _appdata = tempfile.mkdtemp(prefix='seraphine-tests-appdata-')
+    os.environ['APPDATA'] = _appdata
+    atexit.register(shutil.rmtree, _appdata, ignore_errors=True)
+
+import app.common.logger  # noqa: E402,F401 — instantiates the "Seraphine" logger
 
 LOG_RECORDS = []
 

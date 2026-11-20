@@ -99,6 +99,17 @@ jobs:
           if ($reported -ne $env:TARGET_VERSION) { throw "frozen exe reports '$reported', expected '$env:TARGET_VERSION'" }
           Write-Host "frozen exe reports $reported OK"
 
+      # After the pack: the self-test may create log/ next to the exe, which must not
+      # end up in the .7z (already written above).
+      - name: Self-test the frozen exe (full import graph, translator, bundled resources)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $out = & dist\Seraphine\Seraphine.exe --selftest 2>&1 | Out-String
+          Write-Host $out
+          if ($LASTEXITCODE -ne 0) { throw "frozen exe --selftest failed (exit $LASTEXITCODE)" }
+
       - uses: actions/upload-artifact@v4
         with:
           name: Seraphine-win-${{ inputs.version }}

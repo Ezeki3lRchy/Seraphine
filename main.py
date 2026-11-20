@@ -10,6 +10,83 @@ if __name__ == '__main__' and len(sys.argv) == 2 and sys.argv[1] in ['--version'
     print(BETA or VERSION)
     sys.exit(0)
 
+
+def _selftest():
+    """Release smoke test (hidden --selftest): import the whole app graph, create a
+    QApplication, load the zh_CN translator and check bundled resources. Builds no
+    window, starts no thread/timer/event loop, makes no request, writes no config.
+    Exit code 0 on success, 1 on any failure (traceback printed)."""
+    try:
+        os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+        from PySide6.QtCore import QLocale, QTranslator
+        import qasync
+        from qasync import QApplication
+        from app.common.qfluentwidgets import FluentTranslator
+        from app.common.config import cfg, VERSION, BETA
+        from app.common import platform
+        from app.view.main_window import MainWindow  # noqa: F401
+        from app.common import smooth_scroll  # noqa: F401  (imported lazily by main())
+
+        if not qasync.QtCore.__name__.startswith('PySide6'):
+            raise RuntimeError('qasync is not bound to PySide6')
+
+        # Modules the app imports lazily inside functions (found by an AST scan of
+        # app/); PyInstaller only bundles them via hiddenimports/analysis, so a
+        # missing one would pass everything above and fail at runtime.
+        #   qfluentwidgets smooth_scroll/scroll_bar: smooth_scroll.install()
+        #   py7zr: update_stage._extract, used only for the Windows .7z update
+        #       (macOS updates via .dmg and never imports it)
+        #   win32api/win32gui/win32con/winreg: app.common.platform (Windows only,
+        #       pywin32 is installed only on win32)
+        # Left out: PySide6.QtGui / os / pathlib (already loaded or stdlib).
+        import importlib
+        lazy = ['qfluentwidgets.common.smooth_scroll',
+                'qfluentwidgets.components.widgets.scroll_bar']
+        if platform.IS_WINDOWS:
+            lazy += ['py7zr', 'win32api', 'win32gui', 'win32con', 'winreg']
+        for name in lazy:
+            importlib.import_module(name)
+
+        app = QApplication([sys.argv[0]])
+
+        locale = QLocale(QLocale.Chinese, QLocale.China)
+        translator = QTranslator()
+        if not translator.load(locale, "Seraphine", ".", "./app/resource/i18n"):
+            raise RuntimeError('could not load the zh_CN translation '
+                               '(app/resource/i18n/Seraphine.zh_CN.qm)')
+        FluentTranslator(locale)
+
+        resources = [
+            'app/resource/i18n/Seraphine.zh_CN.qm',
+            'app/resource/i18n/gamemodes.json',
+            'app/resource/images/logo.png',
+            'app/resource/images/avatar.jpg',
+            'app/resource/icons/Alert_black.svg',
+            'app/resource/qss',
+        ]
+        if platform.IS_WINDOWS:
+            resources.append('app/resource/bin/fix_lcu_window.exe')
+        missing = [r for r in resources if not os.path.exists(r)]
+        if missing:
+            raise RuntimeError('missing bundled resources: ' + ', '.join(missing))
+
+        del app
+        print(f'selftest OK {BETA or VERSION}')
+        sys.exit(0)
+    except SystemExit:
+        raise
+    except BaseException:
+        import traceback
+        text = traceback.format_exc()
+        stream = sys.stderr or sys.stdout
+        if stream is not None:
+            stream.write(text)
+        sys.exit(1)
+
+
+if __name__ == '__main__' and len(sys.argv) == 2 and sys.argv[1] == '--selftest':
+    _selftest()
+
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt, QTranslator
 from app.common.qfluentwidgets import FluentTranslator
