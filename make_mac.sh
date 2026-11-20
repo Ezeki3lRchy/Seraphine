@@ -1,6 +1,6 @@
 #!/bin/bash
 # make_mac.sh — build Seraphine.app + Seraphine.dmg on macOS (run from repo root).
-# Mirrors make.ps1 for Windows. Produces dist/Seraphine.dmg.
+# Produces dist/Seraphine.dmg.
 # NOTE: the build is UNSIGNED (no Apple Developer ID). Gatekeeper will quarantine
 # it on download; first launch needs:  xattr -cr /Applications/Seraphine.app
 set -euo pipefail

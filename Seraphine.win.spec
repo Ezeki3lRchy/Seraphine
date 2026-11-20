@@ -28,7 +28,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 block_cipher = None
 
 # --- Bundle the app/resource tree, excluding runtime-downloaded / source-only files ---
-# Mirrors make.ps1 deletions:
+# Excluded from the bundle:
 #   - app/resource/game*        (runtime-downloaded)
 #   - *.ts source translations  (only the compiled *.qm is needed)
 #   - bin/fix_lcu_window.c, bin/readme.md

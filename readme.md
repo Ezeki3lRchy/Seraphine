@@ -161,8 +161,6 @@ We suspect the client can't handle certain HTTP requests (it shatters at a touch
 ## Building it yourself 📂
 
 ### Windows (`.7z`)
-> ⚠️ The old `make.ps1` (bare `pyinstaller` + PyQt5 flat layout + pinned PyInstaller 5.13) is the **pre-migration** script and **cannot** package the current PySide6 source — don't use it. The path below is the Windows counterpart of the macOS `.spec`.
-
 PySide6 6.9.3 needs **PyInstaller 6.x** (no longer the old 5.13.2). Create a PySide6 virtual environment (Python 3.9+, the repo uses 3.12):
 ```powershell
 python -m venv .build-venv-win
@@ -185,6 +183,13 @@ pip install pyinstaller
 ./make_mac.sh
 ```
 The script uses [`Seraphine.spec`](Seraphine.spec) to build `Seraphine.app` and produces `dist/Seraphine.dmg` with an `/Applications` drag target (unsigned).
+
+### Updating the Chinese translation
+After adding or changing interface text, collect it from every code file into the translation file, fill in the Chinese with Qt Linguist (`pyside6-linguist`), then compile the `.qm` file the app loads:
+```shell
+pyside6-lupdate $(git ls-files 'app/*.py') -ts app/resource/i18n/Seraphine.zh_CN.ts
+pyside6-lrelease app/resource/i18n/Seraphine.zh_CN.ts
+```
 
 ### One-command macOS release (maintainers)
 [`release_mac.sh`](release_mac.sh) automates: bump `VERSION` → build the `.dmg` → verify the frozen build reports the new version → publish to this repo's Releases (`Ezeki3lRchy/Seraphine`, which the in-app updater reads), using your local `gh` login. `--push` is required: the release tag points at the bump commit, so it is pushed right before the release is created:

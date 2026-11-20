@@ -19,10 +19,7 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 | `.github/workflows/build_windows.yml` | `workflow_dispatch` Windows `.7z` build on a GitHub-hosted runner (build/pack/verify only, same steps as `release_win.ps1`, publishes nothing). Bump + push `VERSION` first, `gh workflow run build_windows.yml -f version=X.Y.Z`, download the artifact, `gh release upload vX.Y.Z Seraphine.7z --repo Ezeki3lRchy/Seraphine --clobber`. Lets a macOS maintainer ship both platforms (first used for v1.3.0) |
 | `.github/workflows/build_macos.yml` | `workflow_dispatch` macOS `.dmg` build on a GitHub-hosted Apple Silicon runner: creates `venv/` and runs `make_mac.sh` unchanged, verifies frozen `--version`, uploads artifact `Seraphine-mac-X.Y.Z`; publishes nothing. Unsigned, like the local build |
 | `.github/workflows/release.yml` | **Automatic** release for both platforms: a push to `main` that changes `VERSION` in `app/common/config.py` builds via `build_windows.yml` and `build_macos.yml` and publishes `Seraphine.7z` + `Seraphine.dmg` as one Release of this repo (uploads onto the version's release if it exists, else creates it with the tag on the built commit). Each platform is skipped when the release already has its file; a failed build on one platform still publishes the other. `workflow_dispatch` fills in what the current version's release is missing. Uses the built-in `GITHUB_TOKEN` (`contents: write` on the publish job only); no secrets |
-| `make.ps1` | **STALE** — pre-migration PyQt5 packaging script (bare `pyinstaller`, flat layout, PyInstaller 5.13). Cannot build the PySide6 source; use `Seraphine.win.spec` instead |
-| `sync.py` | Helper script for syncing/updating resources or data |
 | `requirements.txt` | Pinned deps (PySide6 6.9.3 + PySide6-Fluent-Widgets, aiohttp 3.10.10, qasync, py7zr, pywin32 on win32, …) |
-| `Seraphine.pro` | Qt project file for extracting translatable strings (`pylupdate`) |
 | `readme.md` | Project README (English); Chinese version in `readme.zh-CN.md` |
 | `LICENSE` | Upstream license |
 

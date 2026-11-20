@@ -17,8 +17,6 @@ etc.) with no top-level window logic of its own.
 | `multi_champion_select.py` | Multi-champion picker |
 | `profile_level_icon_widget.py` | Summoner level badge |
 | `summoner_name_button.py` | Clickable summoner-name button (jumps to career) |
-| `game_infobar_widget.py` | Per-game info bar (KDA / result row) |
-| `mode_filter_widget.py` | Game-mode filter control |
 | `multi_lol_path_setting.py` | Multi-client LoL install-path setting |
 | `setting_cards.py` | Fluent setting cards for the settings interface |
 | `search_line_edit.py` | Search input with completion |

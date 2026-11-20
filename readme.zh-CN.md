@@ -161,8 +161,6 @@ python main.py
 ## 自己打包可执行文件 📂
 
 ### Windows（`.7z`）
-> ⚠️ 旧的 `make.ps1`（裸 `pyinstaller` + PyQt5 扁平布局 + 固定 PyInstaller 5.13）是 **迁移前** 的脚本，**无法** 打包当前 PySide6 源码——请勿使用。下面是与 macOS `.spec` 对应的 Windows 路径。
-
 PySide6 6.9.3 需要 **PyInstaller 6.x**（不再是过去的 5.13.2）。建一个 PySide6 虚拟环境（Python 3.9+，仓库使用 3.12）：
 ```powershell
 python -m venv .build-venv-win
@@ -185,6 +183,13 @@ pip install pyinstaller
 ./make_mac.sh
 ```
 脚本使用 [`Seraphine.spec`](Seraphine.spec) 打出 `Seraphine.app`，并制作带 `/Applications` 拖拽目标的 `dist/Seraphine.dmg`（未签名）。
+
+### 更新中文翻译
+新增或修改界面文字后，先从所有代码文件中收集这些文字到翻译文件，再用 Qt Linguist（`pyside6-linguist`）填写中文，最后生成 app 实际加载的 `.qm` 文件：
+```shell
+pyside6-lupdate $(git ls-files 'app/*.py') -ts app/resource/i18n/Seraphine.zh_CN.ts
+pyside6-lrelease app/resource/i18n/Seraphine.zh_CN.ts
+```
 
 ### 一键发布 macOS 版本（维护者）
 [`release_mac.sh`](release_mac.sh) 自动完成：升 `VERSION` → 打 `.dmg` → 校验冻结产物版本号 → 用本地 `gh` 登录发布到本仓库的 Releases（`Ezeki3lRchy/Seraphine`，应用内更新器从这里读取）。必须带 `--push`：发布的 tag 指向升版本的提交，因此会在创建 Release 前先推送：

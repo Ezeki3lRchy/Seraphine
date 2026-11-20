@@ -2,7 +2,7 @@
 """
 PyInstaller spec for Seraphine (macOS .app bundle).
 
-Mirrors the Windows make.ps1 packaging logic, adapted for macOS:
+Counterpart of Seraphine.win.spec, adapted for macOS:
   - Windowed app named "Seraphine", entry point main.py.
   - The runtime loads resources via RELATIVE paths (e.g. "app/resource/qss/...").
     main.py does os.chdir(dirname(abspath(__file__))) at startup; in a frozen
@@ -19,7 +19,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 block_cipher = None
 
 # --- Bundle the app/resource tree, excluding runtime-downloaded / source-only files ---
-# Mirrors make.ps1 deletions:
+# Excluded from the bundle:
 #   - app/resource/game*        (runtime-downloaded)
 #   - *.ts source translations  (only the compiled *.qm is needed)
 #   - bin/fix_lcu_window.c, bin/readme.md

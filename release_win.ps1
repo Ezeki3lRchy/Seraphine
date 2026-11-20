@@ -158,7 +158,7 @@ open(p, "w", encoding="utf-8", newline="").write(s2)
 # Pack dist\Seraphine\* with files at the ARCHIVE ROOT (no nested top folder), matching
 # the v1.1.9 in-place updater contract. filelist.txt is generated (in PowerShell, UTF-8
 # BOM + CRLF + backslash paths) BEFORE this runs, so it ships at the root but is absent
-# from its own listing -- exactly like the original make.ps1.
+# from its own listing.
 $packPy = @'
 import os, sys, py7zr
 dist = sys.argv[1]
