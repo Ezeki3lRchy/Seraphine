@@ -26,7 +26,11 @@ from .connector import connector
 TAG = "opscore"
 
 MODEL_QUEUES = (420, 440)
-MODEL_PATH = os.path.join('app', 'resource', 'opscore', 'opscore-model.json')
+# next to this package, not the working directory (other code chdirs while running).
+# Frozen (PyInstaller onedir) __file__ is <_MEIPASS>/app/lol/opscore.pyc and the spec bundles
+# app/resource under <_MEIPASS>/app/resource, so this resolves there too
+MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          'resource', 'opscore', 'opscore-model.json')
 POSITIONS = ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')
 
 # 这些字段 LCU 对局详情没有; SUMMARY 也缺时不用模型
@@ -177,9 +181,11 @@ def predict(x):
     return min(max(y, 0.0), 10.0)
 
 
-def scoreSummary(info, queueId=None):
+def scoreSummary(info, queueId=None, only=None):
     """
-    SUMMARY -> {participantId: 未取整的 0 ~ 10 分}; 不适用 (非排位 / 缺字段 / 重开) 返回 None
+    SUMMARY -> {participantId: 未取整的 0 ~ 10 分}; 不适用 (非排位 / 缺字段 / 重开) 返回 None.
+    only: score just this participantId (features still use all ten players; ~1 ms instead of
+    ~10 ms per game, for the season sample's 200 games)
     """
     if not isinstance(info, dict):
         return None
@@ -192,8 +198,11 @@ def scoreSummary(info, queueId=None):
     if not states or duration <= 0:
         return None
 
+    if only is not None and only not in states:
+        return None
     try:
-        return {pid: predict(x) for pid, x in features(states, duration / 60).items()}
+        return {pid: predict(x) for pid, x in features(states, duration / 60).items()
+                if only is None or pid == only}
     except Exception as e:
         logger.warning(f"opscore predict failed: {e!r}", TAG)
         return None

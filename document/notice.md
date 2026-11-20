@@ -6,6 +6,12 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.6
+- Updates now download in the background (never during a game) and only ask you to restart. If an update cannot be applied, the previous version is restored and you are told. **Versions up to 1.4.5 cannot update themselves on Windows: download this release once by hand (Manually Download), after that it is automatic.**
+- Champions: a third view on the Career page with this season's numbers per champion, expandable into lane matchups.
+- Career season statistics (Performance, Play style, Champions) now cover the whole season on non-CN servers instead of the last ~20 games.
+- Match detail rows and the Flex line use the small rank icons.
+
 ### v1.4.5
 - Play style: the Career page has an **Overview / Play style** switch with season statistics — positions, champion focus, blue / red side, classes, activity by weekday and hour, and per-minute numbers.
 - Live item value: during a game the game info page shows each lane's and each team's item value. An optional on-top overlay is under *Settings → Item value overlay* (borderless or windowed mode).

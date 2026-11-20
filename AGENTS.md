@@ -40,8 +40,13 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 - `main.py` `os.chdir`s to `_MEIPASS` at startup. PyInstaller 6.x ships an `_internal\`
   onedir layout (`Seraphine.exe` at root, deps under `_internal\`); resources are bundled
   there too, so relative `app/resource/...` loads resolve. No flat layout required.
-- `.7z` packing must place files at the **archive root** with a root `filelist.txt` (v1.1.9
-  in-place updater contract) — `release_win.ps1` handles this.
+- `.7z` packing must place files at the **archive root** with a root `filelist.txt` (in-place
+  updater contract) — `release_win.ps1` handles this.
+- Self-update (`app/common/update_stage.py` + `update.py`): packaged builds download, verify and
+  stage a newer release in the background (not during a game) under `<config>/update/`, then
+  only ask to restart; the Windows updater script gets the install dir (dir of
+  `sys.executable`, since the CWD is `_internal\`) as a parameter and does not depend on the
+  CWD. Builds <= 1.4.5 cannot self-update (button disabled) and need one manual download.
 - Version/beta strings come from `app/common/config.py` (`VERSION`, `BETA`).
 - Releases live on this repo (`Ezeki3lRchy/Seraphine`); the in-app updater (`app/common/util.py`
   `Github`) reads its `/releases/latest`, `document/ver.json` and `document/notice.md`.

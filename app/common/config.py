@@ -168,6 +168,11 @@ class Config(QConfig):
                                    "EnableCheckUpdate", True,
                                    BoolValidator())
 
+    # Packaged builds: download + stage a newer release in the background and only
+    # ask for a restart (off -> the update dialog)
+    autoDownloadUpdate = ConfigItem("General", "AutoDownloadUpdate", True,
+                                    BoolValidator())
+
     logLevel = OptionsConfigItem(
         "General", "LogLevel", 40, OptionsValidator([10, 20, 30, 40]), restart=True)
 

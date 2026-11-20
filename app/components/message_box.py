@@ -1,8 +1,4 @@
 from qasync import asyncSlot
-import aiohttp
-import asyncio
-import os
-import shutil
 import sys
 import webbrowser
 
@@ -17,21 +13,26 @@ from app.common.qfluentwidgets import (MessageBoxBase, SmoothScrollArea,
                                        PipsScrollButtonDisplayMode, HorizontalPipsPager,
                                        FlyoutViewBase, PushButton)
 
-from app.common.config import VERSION, cfg, LOCAL_PATH, BETA
-from app.common.util import getLolClientPidSlowly, selectReleaseAsset, verifyAssetDigest
+from app.common.config import VERSION, cfg, BETA
+from app.common.util import getLolClientPidSlowly, selectReleaseAsset
 from app.common.signals import signalBus
-from app.common.update import runUpdater, runUpdaterMac
+from app.common.update_stage import (stageRelease, applyStagedUpdate, StageError,
+                                     installWritable)
+from app.common.logger import logger
 from app.common import platform
 from app.lol.connector import connector
 from app.components.multi_champion_select import MultiChampionSelectWidget
 from app.components.multi_lol_path_setting import PathDraggableWidget
 from app.components.champion_icon_widget import RoundedLabel
 
+TAG = "MessageBox"
 
-def _isPackaged():
+
+def isPackaged():
     """是否为打包发行版 (而非源码运行).
 
-    Windows: 旧逻辑不变, 以工作目录下是否存在 Seraphine.exe 判断.
+    Windows: frozen build with Seraphine.exe at the install root (the directory
+    of sys.executable, not the working directory, which is _internal).
     macOS: 判断是否为 PyInstaller 冻结的 .app (sys.frozen 且可执行文件位于
     .app/Contents/MacOS).
     """
@@ -39,7 +40,7 @@ def _isPackaged():
         return getattr(sys, 'frozen', False) and \
             '.app/Contents/MacOS' in sys.executable
 
-    return os.path.exists("Seraphine.exe")
+    return platform.is_packaged_windows_build()
 
 
 class UpdateMessageBox(MessageBoxBase):
@@ -77,7 +78,7 @@ class UpdateMessageBox(MessageBoxBase):
         self.titleLabel.setContentsMargins(5, 0, 5, 0)
 
         self.content.setText(self.tr("current: v") + (BETA or VERSION) + self.tr(", ")
-                             + self.tr("new: v") + self.info.get("tag_name")[1:])
+                             + self.tr("new: v") + self.info.get("tag_name").lstrip("vV"))
         self.content.setContentsMargins(8, 0, 5, 0)
 
         self.textEdit.setFixedWidth(int(self.width() * .6))
@@ -93,10 +94,16 @@ class UpdateMessageBox(MessageBoxBase):
         self.myCancelButton.clicked.connect(self.__onCancelButtonClicked)
 
         # 简单判断下打开方式 (Windows: Seraphine.exe; macOS: 冻结的 .app)
-        if not _isPackaged():
+        if not isPackaged():
             self.infoLabel.setVisible(True)
             self.infoLabel.setText(
                 self.tr("Updating is only available on releases version"))
+
+            self.myYesButton.setEnabled(False)
+        elif not installWritable():
+            self.infoLabel.setVisible(True)
+            self.infoLabel.setText(self.tr(
+                "Seraphine cannot write to its install folder; please use Manually Download"))
 
             self.myYesButton.setEnabled(False)
 
@@ -113,30 +120,22 @@ class UpdateMessageBox(MessageBoxBase):
     @asyncSlot()
     async def __onYesButtonClicked(self):
         '''
-        该函数负责
-        1. 删除 `LOCAL_PATH` 中之前可能下载过的文件
-        2. 重新下载新版本压缩包
-        3. 解压缩，并删除压缩包
-        4. 释放并运行 bat 文件，关闭自己
-        5. 删除当前文件夹下的自己，并将解压好的新版本拷贝进来
-        6. 重新运行自己
+        Download, verify and stage the release (reusing an already staged one),
+        then start the platform updater and exit. See app/common/update_stage.py.
         '''
-
-        if platform.IS_MACOS:
-            await self.__onYesButtonClickedMac()
+        # one run at a time (set before any await; cleared only if it aborts)
+        if getattr(self, '_applying', False):
             return
+        self._applying = True
 
-        # Windows: 选取本次发布中的 .7z 安装包 (而非盲取 assets[0]); 仅含 macOS
-        # .dmg 的版本会返回 None, 此时给出提示并中止 — 否则会把 .dmg 当成 .7z
-        # 解压而失败. 直接使用 GitHub 原始下载地址 (旧的 Gitee 重写指向已迁移失效
-        # 的上游仓库, 已移除).
-        asset = selectReleaseAsset(self.info['assets'])
-        if asset is None:
+        # 选取当前平台的安装包 (而非盲取 assets[0]); 没有时给出提示并中止
+        if selectReleaseAsset(self.info['assets']) is None:
+            self._applying = False
             self.infoLabel.setVisible(True)
             self.infoLabel.setText(
-                self.tr("No Windows build (.7z) in this release"))
+                self.tr("No macOS build (.dmg) in this release") if platform.IS_MACOS
+                else self.tr("No Windows build (.7z) in this release"))
             return
-        url: str = asset['browser_download_url']
 
         self.myYesButton.setEnabled(False)
         self.myCancelButton.setEnabled(False)
@@ -145,133 +144,55 @@ class UpdateMessageBox(MessageBoxBase):
         self.infoLabel.setVisible(True)
         self.bar.setVisible(True)
 
-        zipPath = f'{LOCAL_PATH}/Seraphine.7z'
-        if os.path.exists(zipPath):
-            os.remove(zipPath)
-
-        dirPath = f'{LOCAL_PATH}/temp'
-        if os.path.exists(dirPath):
-            shutil.rmtree(dirPath, ignore_errors=True)
-
-        async with aiohttp.ClientSession() as sess:
-            resp = await sess.get(url)
-            # content-length 可能缺失(分块传输)或为 0; 缺失时进度条走忙碌态并避免除零
-            length = int(resp.headers.get('content-length') or 0)
-            self.bar.setMaximum(length)
-            cur = 0
-
-            with open(zipPath, 'wb') as f:
-                async for chunk in resp.content.iter_chunked(1024*1024):
-                    f.write(chunk)
-
-                    cur += len(chunk)
-                    self.bar.setValue(cur)
-                    if length:
-                        self.infoLabel.setText(
-                            f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
-                    else:
-                        self.infoLabel.setText(f"{cur / (1024*1024):.2f} MB")
-
-        # 解压前校验 SHA-256 (在 executor 里算哈希, 避免读 ~160MB 文件阻塞 UI 线程)
-        self.infoLabel.setText(self.tr("Verifying download..."))
-        ok, detail = await asyncio.get_running_loop().run_in_executor(
-            None, verifyAssetDigest, zipPath, asset)
-        if not ok:
-            os.remove(zipPath)
-            self.infoLabel.setText(
-                self.tr("Update verification failed, aborting: ") + detail)
-            self.myYesButton.setEnabled(True)
-            self.myCancelButton.setEnabled(not self.info["forbidden"])
-            self.manuallyButton.setEnabled(True)
-            self.bar.setVisible(False)
+        try:
+            marker = await stageRelease(self.info, onProgress=self.__onStageProgress)
+        except Exception as e:
+            logger.warning(f"update from dialog failed: {e!r}", TAG)
+            detail = str(e) or type(e).__name__
+            if isinstance(e, StageError) and detail.startswith("verification failed"):
+                text = self.tr("Update verification failed, aborting: ") + detail
+            else:
+                text = self.tr("Update download failed: ") + detail
+            self.__onUpdateAborted(text)
             return
 
-        self.infoLabel.setText(
-            self.tr("Downloading finished, decompressing..."))
-
-        import py7zr  # 只有更新解压用到, 不拖慢启动
-
-        with py7zr.SevenZipFile(zipPath, mode='r') as z:
-            z.extractall(dirPath)
-
-        os.remove(zipPath)
-        self.infoLabel.setText("Waiting for restart...")
-
-        # 覆盖自己
-        runUpdater()
+        self.infoLabel.setText(self.tr("Starting the updater..."))
+        # an older release is only installed when the running version is forbidden
+        if not await applyStagedUpdate(marker,
+                                       allowDowngrade=bool(self.info["forbidden"])):
+            # the updater never started: stay running rather than exit into nothing
+            self.__onUpdateAborted(self.tr("Could not start the updater."))
+            return
 
         # 关掉 QThread 之后退出
         signalBus.terminateListeners.emit()
         sys.exit()
 
-    async def __onYesButtonClickedMac(self):
-        '''macOS 更新流程: 下载 .dmg -> runUpdaterMac 覆盖安装 -> 退出自己.'''
+    def __onUpdateAborted(self, text):
+        self._applying = False
+        self.infoLabel.setText(text)
+        self.myYesButton.setEnabled(True)
+        self.myCancelButton.setEnabled(not self.info["forbidden"])
+        self.manuallyButton.setEnabled(True)
+        self.bar.setVisible(False)
 
-        # 直接用 GitHub 原始下载地址 (不做 Windows 的 Gitee 重写)
-        asset = selectReleaseAsset(self.info['assets'])
-        if asset is None:
-            self.infoLabel.setVisible(True)
-            self.infoLabel.setText(
-                self.tr("No macOS build (.dmg) in this release"))
+    def __onStageProgress(self, phase, cur, length):
+        if phase == 'verify':
+            self.infoLabel.setText(self.tr("Verifying download..."))
             return
-        url: str = asset['browser_download_url']
-
-        self.myYesButton.setEnabled(False)
-        self.myCancelButton.setEnabled(False)
-        self.manuallyButton.setEnabled(False)
-
-        self.infoLabel.setVisible(True)
-        self.bar.setVisible(True)
-
-        dmgPath = f'{LOCAL_PATH}/Seraphine-update.dmg'
-        if os.path.exists(dmgPath):
-            os.remove(dmgPath)
-
-        async with aiohttp.ClientSession() as sess:
-            resp = await sess.get(url)
-            # content-length 可能缺失(分块传输)或为 0; 缺失时进度条走忙碌态并避免除零
-            length = int(resp.headers.get('content-length') or 0)
-            self.bar.setMaximum(length)
-            cur = 0
-
-            with open(dmgPath, 'wb') as f:
-                async for chunk in resp.content.iter_chunked(1024*1024):
-                    f.write(chunk)
-
-                    cur += len(chunk)
-                    self.bar.setValue(cur)
-                    if length:
-                        self.infoLabel.setText(
-                            f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
-                    else:
-                        self.infoLabel.setText(f"{cur / (1024*1024):.2f} MB")
-
-        # 安装前校验 SHA-256 (在 executor 里算哈希, 避免读 ~220MB dmg 阻塞 UI 线程)
-        self.infoLabel.setText(self.tr("Verifying download..."))
-        ok, detail = await asyncio.get_running_loop().run_in_executor(
-            None, verifyAssetDigest, dmgPath, asset)
-        if not ok:
-            os.remove(dmgPath)
+        if phase == 'extract':
             self.infoLabel.setText(
-                self.tr("Update verification failed, aborting: ") + detail)
-            self.myYesButton.setEnabled(True)
-            self.myCancelButton.setEnabled(not self.info["forbidden"])
-            self.manuallyButton.setEnabled(True)
-            self.bar.setVisible(False)
+                self.tr("Downloading finished, decompressing..."))
             return
 
-        self.infoLabel.setText("Waiting for restart...")
-
-        # 从 sys.executable 推出已安装的 .app bundle 路径 (取到 '.app' 为止)
-        executable = sys.executable
-        idx = executable.find('.app')
-        appPath = executable[:idx + len('.app')] if idx != -1 else executable
-
-        runUpdaterMac(dmgPath, appPath)
-
-        # 关掉 QThread 之后退出
-        signalBus.terminateListeners.emit()
-        sys.exit()
+        # content-length 可能缺失(分块传输)或为 0; 缺失时只显示已下载大小
+        self.bar.setMaximum(length)
+        self.bar.setValue(cur)
+        if length:
+            self.infoLabel.setText(
+                f"{cur / (1024*1024):.2f} MB / {length / (1024*1024):.2f} MB ({cur * 100 / length:.2f}%)")
+        else:
+            self.infoLabel.setText(f"{cur / (1024*1024):.2f} MB")
 
     def __onCancelButtonClicked(self):
         self.reject()

@@ -59,7 +59,12 @@ class Github:
         ver_info = self.__get_ver_info()
         info["forbidden"] = ver_info.get("forbidden", False)
 
-        if info.get("tag_name")[1:] != VERSION:
+        latest = info.get("tag_name").lstrip("vV")
+        # Only a strictly newer release is an update; an older one only when the
+        # running version is flagged forbidden (emergency downgrade). Equal / older
+        # otherwise (e.g. a dev build) -> up to date.
+        if parseVersion(latest) > parseVersion(VERSION) or \
+                (info["forbidden"] and latest != VERSION):
             # 跳过当前平台没有对应安装包的发布: 例如 Windows 客户端不应被仅含
             # macOS .dmg 的版本提示更新 (反之亦然), 否则会下载到错误平台的安装包.
             if selectReleaseAsset(info.get("assets", [])) is None:
@@ -128,6 +133,11 @@ def checkUpdateOutcome(check=None, lock=None, lockTimeout=15):
     if info:
         return "update", info
     return "latest", None
+
+
+def parseVersion(text):
+    """'v1.4.10' -> (1, 4, 10), for ordering release versions."""
+    return tuple(int(n) for n in re.findall(r'\d+', str(text or '')))
 
 
 def platformAssetSuffix() -> str:

@@ -121,6 +121,30 @@ def config_dir():
     return os.path.expanduser('~/.config/Seraphine')
 
 
+def install_dir():
+    """Install root of a packaged (PyInstaller-frozen) build, or None from source.
+
+    The install root is the directory holding the executable (``Seraphine.exe``
+    on Windows, ``Seraphine.app/Contents/MacOS`` on macOS). It is NOT the
+    working directory: main.py chdirs to ``_MEIPASS``, which in the PyInstaller 6
+    onedir build is ``<install>\\_internal``.
+    """
+    import os
+
+    if not getattr(sys, 'frozen', False):
+        return None
+
+    return os.path.dirname(os.path.abspath(sys.executable))
+
+
+def is_packaged_windows_build():
+    """Windows: frozen build whose install root holds Seraphine.exe."""
+    import os
+
+    root = install_dir()
+    return bool(root) and os.path.isfile(os.path.join(root, 'Seraphine.exe'))
+
+
 def get_lol_path_by_registry():
     """Windows: read the Tencent (CN) LoL install path from the registry.
     Non-Windows: return "" (no registry; caller treats empty as "not found").

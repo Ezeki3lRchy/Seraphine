@@ -236,6 +236,11 @@ class SettingInterface(SeraphineInterface):
                 "Automatically check for updates when software starts"),
             cfg.enableCheckUpdate
         )
+        self.autoDownloadUpdateCard = SwitchSettingCard(
+            Icon.UPDATE, self.tr("Download updates automatically"),
+            self.tr("Download new versions in the background, then only ask to restart"),
+            cfg.autoDownloadUpdate
+        )
         self.manualCheckUpdateCard = PushSettingCard(
             self.tr("Check now"), Icon.UPDATE,
             self.tr("Check for updates now"),
@@ -321,6 +326,7 @@ class SettingInterface(SeraphineInterface):
         self.personalizationGroup.addSettingCard(self.languageCard)
 
         self.updateGroup.addSettingCard(self.checkUpdateCard)
+        self.updateGroup.addSettingCard(self.autoDownloadUpdateCard)
         self.updateGroup.addSettingCard(self.manualCheckUpdateCard)
         self.updateGroup.addSettingCard(self.httpProxyCard)
 

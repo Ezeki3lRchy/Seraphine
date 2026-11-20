@@ -4,6 +4,7 @@ import subprocess
 import traceback
 import time
 import copy
+import webbrowser
 from pathlib import Path
 
 import pyperclip
@@ -13,12 +14,13 @@ from aiohttp.client_exceptions import ClientConnectorError
 from qasync import asyncClose, asyncSlot
 from PySide6.QtCore import Qt, Signal, QSize, QEvent, QTimer, QPoint, QRect
 from PySide6.QtGui import QIcon, QImage, QGuiApplication
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QWidget
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QHBoxLayout
 
 from app.common.qfluentwidgets import (NavigationItemPosition, InfoBar, InfoBarPosition, Action,
                                        FluentWindow, SplashScreen, MessageBox, SmoothScrollArea,
                                        ToolTipFilter, FluentIcon, ToolTipPosition, FluentWindowBase,
-                                       SystemThemeListener, qconfig)
+                                       SystemThemeListener, qconfig, PushButton,
+                                       PrimaryPushButton)
 from qfluentwidgets.common.style_sheet import updateStyleSheet
 
 from app.view.start_interface import StartInterface
@@ -35,12 +37,15 @@ from app.common import platform
 from app.components.avatar_widget import NavigationAvatarWidget
 from app.components.temp_system_tray_menu import TmpSystemTrayMenu
 from app.common.icons import Icon
-from app.common.config import cfg, VERSION, BETA
+from app.common.config import cfg, VERSION, BETA, GITHUB_URL
 from app.common.logger import logger
 from app.common.signals import signalBus
 from app.components.message_box import (UpdateMessageBox, NoticeMessageBox,
                                         WaitingForLolMessageBox, ExceptionMessageBox,
-                                        ChangeDpiMessageBox)
+                                        ChangeDpiMessageBox, isPackaged)
+from app.common.update_stage import (BackgroundUpdater, GAME_PHASES, stagedUpdateAsync,
+                                     stagedFor, applyStagedUpdate, markerApplicable,
+                                     isNewer, hasDigest, installWritable)
 from app.lol.exceptions import (SummonerGamesNotFound, RetryMaximumAttempts,
                                 SummonerNotFound, SummonerNotInGame, SummonerRankInfoNotFound)
 from app.lol.listener import (LolProcessExistenceListener, StoppableThread)
@@ -111,6 +116,13 @@ class MainWindow(FluentWindow):
         self.manualCheckBusy = False
         self.updateBoxOpen = False
         self.checkUpdateLock = threading.Lock()
+        # Background download + "ready, restart now" prompt (UI thread only)
+        self.backgroundUpdater = BackgroundUpdater(
+            self.__onUpdateReady, onStarting=self.__onUpdateStaging)
+        self._updateReadyBar = None
+        self._updateReadyMarker = None
+        self._updateReadyButton = None  # (button, its normal text)
+        self._applyingUpdate = False
         self.checkNoticeThread = StoppableThread(
             target=lambda: self.checkNotice(False), parent=self)
 
@@ -138,6 +150,8 @@ class MainWindow(FluentWindow):
         self.goldOverlay = GoldOverlay()
 
         logger.critical("Seraphine initialized", TAG)
+
+        QTimer.singleShot(0, self.__offerStagedUpdate)
 
         self.__silentStart()
 
@@ -249,6 +263,7 @@ class MainWindow(FluentWindow):
         signalBus.lolClientStarted.connect(self.__onLolClientStarted)
         signalBus.lolClientEnded.connect(self.__onLolClientEnded)
         signalBus.lolClientChanged.connect(self.__onLolClientChanged)
+        signalBus.lolClientAbsent.connect(self.__onLolClientAbsent)
         signalBus.terminateListeners.connect(self.__terminateListeners)
 
         # From connector
@@ -314,7 +329,7 @@ class MainWindow(FluentWindow):
             self.__cascadeSetMicaEffect)
 
         # From main_window
-        self.showUpdateMessageBox.connect(self.__onShowUpdateMessageBox)
+        self.showUpdateMessageBox.connect(self.__onUpdateAvailable)
         self.showNoticeMessageBox.connect(self.__onShowNoticeMessageBox)
         self.checkUpdateFailed.connect(self.__onCheckUpdateFailed)
         self.showUpToDateInfo.connect(self.__onShowUpToDateInfo)
@@ -544,6 +559,229 @@ class MainWindow(FluentWindow):
         finally:
             self.updateBoxOpen = False
 
+    def __backgroundUpdateEligible(self, info):
+        # Silent path only for a strictly newer release with a sha256 digest, in a
+        # packaged build that can write its install dir; everything else -> dialog
+        return bool(cfg.get(cfg.autoDownloadUpdate) and isPackaged()
+                    and not info.get("forbidden") and isNewer(info, VERSION)
+                    and hasDigest(info) and installWritable())
+
+    def __onUpdateAvailable(self, info):
+        if not self.__backgroundUpdateEligible(info):
+            self.__onShowUpdateMessageBox(info)
+            return
+
+        # A manual "Check now" should say something while the download runs / waits
+        if self.manualCheckBusy and stagedFor(info) is None:
+            version = info.get("tag_name", "").lstrip("vV")
+            if self.backgroundUpdater.gaming is False:
+                content = self.tr("Seraphine v{} is downloading in the background; you "
+                                  "will be asked to restart when it is ready.").format(version)
+            else:
+                content = self.tr("Seraphine v{} will be downloaded after the current "
+                                  "game.").format(version)
+            InfoBar.info(
+                self.tr("Update found"),
+                content,
+                duration=5000,
+                orient=Qt.Vertical,
+                parent=self,
+                position=InfoBarPosition.BOTTOM_RIGHT
+            )
+
+        self.backgroundUpdater.offer(info)
+
+    @asyncSlot()
+    async def __offerStagedUpdate(self):
+        # Start-up: an update staged by an earlier run (or one whose updater run
+        # failed) is offered at once. Clean-up of stale data runs off the UI thread.
+        if not isPackaged():
+            return
+        try:
+            marker = await stagedUpdateAsync(VERSION)
+        except Exception as e:
+            logger.exception("reading staged update failed", e, TAG)
+            return
+        # switch off: keep a ready stage for the dialog to reuse and offer nothing,
+        # but always say when the last update run did not complete
+        if marker and (cfg.get(cfg.autoDownloadUpdate) or marker.get("lastResult")):
+            self.backgroundUpdater.notifyReady(marker)
+
+    def __onLolClientAbsent(self):
+        # no LoL client at start-up: known not to be in a game
+        if not self.isClientProcessRunning:
+            self.__syncUpdaterGameStatus(None)
+
+    def __onUpdateStaging(self, info):
+        # A different release is about to replace the stage: the old bar is stale
+        if self._updateReadyBar is not None and stagedFor(info) is None:
+            self.__closeUpdateReadyBar()
+
+    def __onUpdateReady(self, marker):
+        version = marker.get("version", "")
+        if self._updateReadyBar is not None:
+            if self._updateReadyMarker == marker:
+                return
+            self._updateReadyBar.close()
+
+        result = marker.get("lastResult") or {}
+        logPath = os.path.join(platform.config_dir(), "updater.log")
+        if result.get("status") == "restore-failed" and result.get("code") == 8:
+            # even finishing the earlier rollback failed: no retry, download by hand
+            bar = InfoBar.error(
+                self.tr("Update did not complete"),
+                self.tr("Seraphine could not repair a failed update. Please download the "
+                        "latest release manually. See the log: {}").format(logPath),
+                duration=-1,
+                orient=Qt.Vertical,
+                isClosable=True,
+                parent=self,
+                position=InfoBarPosition.BOTTOM_RIGHT
+            )
+            downloadButton = PrimaryPushButton(self.tr("Download"), bar)
+            downloadButton.clicked.connect(
+                lambda: webbrowser.open(GITHUB_URL + "/releases/latest"))
+            bar.addWidget(downloadButton)
+            bar.closedSignal.connect(lambda b=bar: self.__onUpdateReadyBarClosed(b))
+            self._updateReadyBar = bar
+            self._updateReadyMarker = marker
+            self._updateReadyButton = None
+            return
+
+        if result:
+            if result.get("status") == "restore-failed":
+                content = self.tr("Updating to v{} failed and could not be fully rolled "
+                                  "back. See the log: {}").format(version, logPath)
+            else:
+                content = self.tr("Updating to v{} failed; the previous version was "
+                                  "kept. See the log: {}").format(version, logPath)
+            bar = InfoBar.warning(
+                self.tr("Update did not complete"),
+                content,
+                duration=-1,
+                orient=Qt.Vertical,
+                isClosable=True,
+                parent=self,
+                position=InfoBarPosition.BOTTOM_RIGHT
+            )
+            restartText = self.tr("Retry")
+        else:
+            bar = InfoBar.success(
+                self.tr("Update ready"),
+                self.tr("Seraphine v{} is ready. Restart to finish updating.").format(version),
+                duration=-1,
+                orient=Qt.Vertical,
+                isClosable=True,
+                parent=self,
+                position=InfoBarPosition.BOTTOM_RIGHT
+            )
+            restartText = self.tr("Restart now")
+
+        buttons = QWidget(bar)
+        layout = QHBoxLayout(buttons)
+        layout.setContentsMargins(0, 0, 0, 0)
+        restartButton = PrimaryPushButton(restartText, buttons)
+        laterButton = PushButton(self.tr("Later"), buttons)
+        layout.addWidget(restartButton)
+        layout.addWidget(laterButton)
+        layout.addStretch(1)
+        bar.addWidget(buttons)
+
+        restartButton.clicked.connect(lambda: self.__restartToUpdate(marker))
+        laterButton.clicked.connect(bar.close)
+        bar.closedSignal.connect(lambda b=bar: self.__onUpdateReadyBarClosed(b))
+
+        self._updateReadyBar = bar
+        self._updateReadyMarker = marker
+        self._updateReadyButton = (restartButton, restartText)
+
+    def __onUpdateReadyBarClosed(self, bar):
+        if self._updateReadyBar is bar:
+            self._updateReadyBar = None
+            self._updateReadyMarker = None
+            self._updateReadyButton = None
+
+    def __setRestartButtonBusy(self, busy):
+        # the bar's button shows "Starting the updater..." and is disabled meanwhile
+        if not self._updateReadyButton:
+            return
+        button, text = self._updateReadyButton
+        try:
+            button.setEnabled(not busy)
+            button.setText(self.tr("Starting the updater...") if busy else text)
+        except RuntimeError:  # the bar was already deleted
+            self._updateReadyButton = None
+
+    def __syncUpdaterGameStatus(self, status):
+        # A game is starting: hide the restart prompt until it ends (the updater
+        # holds it and offers it again), and pause any download
+        if status in GAME_PHASES and self._updateReadyBar is not None:
+            marker = self._updateReadyMarker
+            bar, self._updateReadyBar, self._updateReadyMarker = \
+                self._updateReadyBar, None, None
+            bar.close()
+            self.backgroundUpdater.heldMarker = marker
+        self.backgroundUpdater.setGameStatus(status)
+
+    def __showUpdateError(self, content):
+        InfoBar.error(
+            self.tr("Update failed"),
+            content,
+            duration=8000,
+            orient=Qt.Vertical,
+            parent=self,
+            position=InfoBarPosition.BOTTOM_RIGHT
+        )
+
+    def __closeUpdateReadyBar(self):
+        if self._updateReadyBar is not None:
+            bar, self._updateReadyBar, self._updateReadyMarker = \
+                self._updateReadyBar, None, None
+            self._updateReadyButton = None
+            bar.close()
+
+    @asyncSlot()
+    async def __restartToUpdate(self, marker):
+        # "Restart now" and "Retry": one apply at a time (set before any await)
+        if self._applyingUpdate:
+            return
+        self._applyingUpdate = True
+        busy = started = False
+        try:
+            # Only apply exactly what the bar was created for, with nothing in flight
+            if self.backgroundUpdater.isBusy():
+                self.__showUpdateError(self.tr(
+                    "An update is still being downloaded; you will be asked again when it is ready."))
+                self.__closeUpdateReadyBar()
+                return
+            if not markerApplicable(marker):
+                self.__showUpdateError(self.tr(
+                    "This update is no longer available; please check for updates again."))
+                self.__closeUpdateReadyBar()
+                return
+
+            self.__setRestartButtonBusy(True)
+            busy = True
+            try:
+                started = await applyStagedUpdate(marker)
+            except Exception as e:
+                logger.exception("starting the updater failed", e, TAG)
+                started = False
+
+            if not started:
+                self.__showUpdateError(self.tr("Could not start the updater. See the log: {}").format(
+                    os.path.join(platform.config_dir(), "updater.log")))
+                return
+
+            # Same final step as the update dialog: stop the QThreads, then exit
+            signalBus.terminateListeners.emit()
+            sys.exit()
+        finally:
+            # also on cancellation (CancelledError is not an Exception)
+            if busy and not started:
+                self.__setRestartButtonBusy(False)
+            self._applyingUpdate = False
+
     def __onShowNoticeMessageBox(self, msg):
         msgBox = NoticeMessageBox(msg, self.window())
         msgBox.exec()
@@ -639,6 +877,8 @@ class MainWindow(FluentWindow):
     @asyncSlot(int)
     async def __onLolClientStarted(self, pid):
         logger.info(f"League of Legends client started: {pid}", TAG)
+        # game state unknown until fetched below: no update download / prompt meanwhile
+        self.backgroundUpdater.setGameStatusUnknown()
         res = await self.__startConnector(pid)
         if not res:
             return
@@ -654,6 +894,8 @@ class MainWindow(FluentWindow):
 
         folder, status = await asyncio.gather(connector.getInstallFolder(),
                                               connector.getGameStatus())
+        # as soon as it is known (the full __onGameStatusChanged runs much later)
+        self.__syncUpdaterGameStatus(status)
 
         self.__setLolInstallFolder(folder)
 
@@ -739,6 +981,8 @@ class MainWindow(FluentWindow):
         self.isClientProcessRunning = False
         self.currentSummoner = None
         self.careerInterface.setLoginSummonerPuuid(None)
+        # no client, no game: a paused update download may resume
+        self.__syncUpdaterGameStatus(None)
 
         await self.__updateAvatarIconName()
 
@@ -969,6 +1213,8 @@ class MainWindow(FluentWindow):
     @asyncSlot(str)
     async def __onGameStatusChanged(self, status):
         self._gameStatus = status  # read by __doLobbyRefresh (LOBBY_REFRESH_STATUSES)
+        # first, before any await: a starting game must pause the update download
+        self.__syncUpdaterGameStatus(status)
         title = None
         isGaming = False
 

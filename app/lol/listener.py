@@ -37,9 +37,15 @@ class LolProcessExistenceListener(QThread):
             signalBus.tasklistNotFound.emit()
             return
 
+        firstPass = True
         while True:
             # 取一下当前运行中的所有客户端 pid
             pids = getLolClientPids(path)
+
+            # no client AND no game (the client may be closed during a game)
+            if firstPass and len(pids) == 0 and not isLolGameProcessExist(path):
+                signalBus.lolClientAbsent.emit()
+            firstPass = False
 
             # 如果有客户端正在运行
             if len(pids) != 0:
@@ -67,8 +73,14 @@ class LolProcessExistenceListener(QThread):
         # 与 Windows 循环行为等价, 但用 psutil 替代 tasklist:
         #  - getLolClientPidsSlowly() 匹配 LeagueClientUx (无 .exe) 做 started/changed;
         #  - isLolGameProcessExistMac() 匹配 "League of Legends" (无 .exe) 做 ended。
+        firstPass = True
         while True:
             pids = getLolClientPidsSlowly()
+
+            # no client AND no game (the client may be closed during a game)
+            if firstPass and len(pids) == 0 and not isLolGameProcessExistMac():
+                signalBus.lolClientAbsent.emit()
+            firstPass = False
 
             if len(pids) != 0:
                 if self.runningPid == 0:

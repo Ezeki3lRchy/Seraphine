@@ -589,7 +589,7 @@ class PlayStyleView(QFrame):
                        f"{r['vision']:.2f}", perGame('vision', lambda v: f"{v:.0f}"), True),
             'damageShare': (self.tr("Team damage share"),
                             self.tr("Your damage to champions / your team's, averaged over "
-                                    "%1 games. Only the CN match data has all ten players.")
+                                    "%1 games.")
                             .replace("%1", str(r['damageShareGames'])),
                             pct(r['damageShare']),
                             self.tr("sample: %1 games").replace(

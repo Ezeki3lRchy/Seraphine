@@ -60,7 +60,9 @@ class GameListTextTest(unittest.TestCase):
 
     def test_compact_ago(self):
         now = time.time()
-        stamp = lambda secs: (now - secs) * 1000
+        # one second past each boundary: (now - secs) * 1000 / 1000 can land a hair under an
+        # exact multiple of a minute / hour / day (float rounding of the ms timestamp)
+        stamp = lambda secs: (now - secs - 1) * 1000
         self.assertEqual(sb.compactAgo(stamp(20), "10/19", now), "now")
         self.assertEqual(sb.compactAgo(stamp(5 * 60), "10/19", now), "5m")
         self.assertEqual(sb.compactAgo(stamp(3 * 3600 + 5), "10/19", now), "3h")

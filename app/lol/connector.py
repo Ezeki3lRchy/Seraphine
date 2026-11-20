@@ -56,7 +56,16 @@ def needLcu():
     return decorator
 
 
-def retry(count=5, retry_sep=0):
+REDACTED = '<redacted>'
+# LCU events whose payload is a credential: never logged
+SECRET_URIS = ('/entitlements/v1/token',)
+
+
+def retry(count=5, retry_sep=0, secret=False):
+    """
+    secret: the result is a credential (e.g. getSGPtoken); it is neither kept in callStack
+    (the crash report dumps it) nor written to the debug log
+    """
     def decorator(func):
         # 获取函数的参数信息 (装饰时计算一次, 而非每次调用)
         all_param_names = list(inspect.signature(func).parameters.keys())
@@ -130,12 +139,12 @@ def retry(count=5, retry_sep=0):
                 raise exce
 
             with connector.dqLock:
-                req_obj.response = res
+                req_obj.response = REDACTED if secret else res
 
             if logger.logger.isEnabledFor(logging.INFO):
                 logger.info(f"exit {func.__name__}", TAG)
             if logger.logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"result = {res}", TAG)
+                logger.debug(f"result = {REDACTED if secret else res}", TAG)
 
             return res
 
@@ -257,7 +266,7 @@ class LcuWebSocket():
             if not (s.get('uri') or s.get('type')) or (
                     data.get('uri') == s['uri'] and data.get('eventType') in s['type']):
                 logger.info(s['uri'], TAG)
-                logger.debug(data, TAG)
+                logger.debug(REDACTED if data.get('uri') in SECRET_URIS else data, TAG)
                 # 保存 task 引用并捕获回调异常: 否则单个回调报错会被静默丢弃,
                 # 且无引用的 task 可能被 GC 提前回收
                 task = asyncio.create_task(self.__runCallback(s['callable'], data))
@@ -360,6 +369,8 @@ class LolClientConnector(QObject):
         self.matchSgpSess = None
         self.matchSgpHost = None
         self.platformId = None
+        # the client's access token for those requests: cached until a 401 / token event
+        self.matchSgpToken = None
 
         self.manager = None
         self.perksStyleCache = None
@@ -426,6 +437,8 @@ class LolClientConnector(QObject):
                                  type=("Update",))
         async def onSGPTokenChanged(event):
             self.sgpToken = event['data']['accessToken']
+            # the match server path fetches it again on its next request
+            self.matchSgpToken = None
 
         @self.listener.subscribe(event="OnJsonApiEvent_lol-lobby_v2_lobby",
                                  uri='/lol-lobby/v2/lobby',
@@ -966,6 +979,45 @@ class LolClientConnector(QObject):
         self.matchSgpHost = f"https://{match.group(1)}-red.pp.sgp.pvp.net"
         return self.matchSgpHost, self.platformId
 
+    async def getSGPtokenQuietly(self, fresh=False):
+        """
+        The client's access token for Riot's match server paths: no retry, no error popup, not
+        recorded in callStack and never logged. Cached until fresh=True (after a 401) or the
+        client's token event; None on any failure (client closed, not logged in ...)
+        """
+        if self.matchSgpToken and not fresh:
+            return self.matchSgpToken
+        if self.semaphore is None or self.lcuSess is None:
+            return None
+        try:
+            async with self.semaphore:
+                res = await self.__get("/entitlements/v1/token")
+                data = await res.json(content_type=None)
+        except Exception as e:
+            logger.warning(f"match SGP: no client token ({type(e).__name__})", TAG)
+            return None
+        token = data.get('accessToken') if isinstance(data, dict) else None
+        self.matchSgpToken = token if isinstance(token, str) and token else None
+        return self.matchSgpToken
+
+    async def __matchSgpGet(self, host, path, **kwargs):
+        """
+        GET on Riot's match server with the cached token; after a 401 the token is fetched
+        again and the request sent once more. None when there is no token
+        """
+        for fresh in (False, True):
+            token = await self.getSGPtokenQuietly(fresh)
+            if not token:
+                return None
+            if self.matchSgpSess is None:
+                self.matchSgpSess = aiohttp.ClientSession(
+                    base_url=host, timeout=aiohttp.ClientTimeout(total=15))
+            res = await self.matchSgpSess.get(
+                path, headers={"Authorization": f"Bearer {token}"}, **kwargs)
+            if res.status != 401 or fresh:
+                return res
+            res.release()
+
     async def __matchSgpJsonQuietly(self, gameId, kind):
         """
         Riot 对局服务器上一局的 match-v5 数据 (kind 为 'DETAILS' 时间线 / 'SUMMARY' 对局结果)
@@ -981,14 +1033,10 @@ class LolClientConnector(QObject):
                 if not host:
                     return None
 
-                token = await self.getSGPtoken()
-                if self.matchSgpSess is None:
-                    self.matchSgpSess = aiohttp.ClientSession(
-                        base_url=host, timeout=aiohttp.ClientTimeout(total=15))
-
-                res = await self.matchSgpSess.get(
-                    f"/match-history-query/v1/products/lol/{platformId}_{gameId}/{kind}",
-                    headers={"Authorization": f"Bearer {token}"})
+                res = await self.__matchSgpGet(
+                    host, f"/match-history-query/v1/products/lol/{platformId}_{gameId}/{kind}")
+                if res is None:
+                    return None
 
             if res.status != 200:
                 logger.warning(f"match SGP {kind}({gameId}) -> {res.status}", TAG)
@@ -1018,6 +1066,43 @@ class LolClientConnector(QObject):
         """
         summary = await self.__matchSgpJsonQuietly(gameId, 'SUMMARY')
         return summary if summary and summary.get('participants') else None
+
+    async def getMatchHistoryViaSgpQuietly(self, puuid, startIndex=0, count=50):
+        """
+        Non-CN servers: one page of a player's history from Riot's match server
+        (/match-history-query/v1/products/lol/player/{puuid}/SUMMARY), the same service as
+        getGameSummaryViaSgpQuietly. Newest first, each game {'metadata', 'json'} where 'json'
+        is the full match-v5 info (all participants). Same token discipline: the client's own
+        token only goes to Riot's server. No retry, no LCU semaphore for the page itself;
+        any failure (CN, no target, non-200, bad body) returns None, an empty list past the end
+        """
+        if self.inTencent:
+            return None
+        try:
+            host, _ = await self.__matchSgpTarget()
+            if not host:
+                return None
+
+            # cached token (one fetch per season sample, not per page), refreshed on a 401
+            res = await self.__matchSgpGet(
+                host, f"/match-history-query/v1/products/lol/player/{puuid}/SUMMARY",
+                params={'startIndex': startIndex, 'count': count},
+                timeout=aiohttp.ClientTimeout(total=30))
+            if res is None:
+                return None
+            if res.status != 200:
+                logger.warning(f"match SGP history({startIndex}+{count}) -> {res.status}", TAG)
+                res.release()
+                return None
+
+            # ~120 KB per game: parse off the Qt event loop
+            data = await asyncio.to_thread(json.loads, await res.read())
+        except Exception as e:
+            logger.warning(f"match SGP history({startIndex}+{count}) failed: {e!r}", TAG)
+            return None
+
+        games = data.get('games') if isinstance(data, dict) else None
+        return games if isinstance(games, list) else None
 
     async def getGameTimelineQuietly(self, gameId):
         '''
@@ -1602,7 +1687,7 @@ class LolClientConnector(QObject):
 
         return await res.json()
 
-    @retry()
+    @retry(secret=True)
     async def getSGPtoken(self):
         res = await self.__json_retry_get("/entitlements/v1/token")
 

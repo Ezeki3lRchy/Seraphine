@@ -64,13 +64,18 @@ class PerformancePanel(QFrame):
         self.season = None
         self.state = 'loading' if loadingSeason and recent else 'unavailable'
         self.seasonSource = ""
+        self.newestOnly = False
         self._dirty()
 
-    def setSeason(self, season, source=""):
-        """season: aggregate() 结果或 rankedSeasonFallback() 结果; None 表示取不到"""
+    def setSeason(self, season, source="", newestOnly=False):
+        """
+        season: aggregate() 结果或 rankedSeasonFallback() 结果; None 表示取不到.
+        newestOnly: the sample is only the newest season games (cap reached / a page failed)
+        """
         self.season = season
         self.state = 'ready' if season else 'unavailable'
         self.seasonSource = source
+        self.newestOnly = newestOnly
         self._dirty()
 
     def _dirty(self):
@@ -87,6 +92,9 @@ class PerformancePanel(QFrame):
         if self.state == 'ready':
             if self.season.get('rankedOnly'):
                 return text + " " + self.tr("vs season %1 ranked games").replace(
+                    "%1", str(self.season['games']))
+            if getattr(self, 'newestOnly', False):
+                return text + " " + self.tr("vs the newest %1 season games").replace(
                     "%1", str(self.season['games']))
             return text + " " + self.tr("vs season %1 games").replace(
                 "%1", str(self.season['games']))

@@ -6,12 +6,18 @@
   (原始战绩里有 gameVersion 时); 取不到版本就只按日期.
 - 参团率需要全队击杀: 国服 SGP 战绩自带 10 人数据; LCU 战绩列表只有自己, 只能用近期对局已有的
   参团率, 再为少量 (KP_DETAIL_CAP) 赛季对局补拉完整对局, 样本数单独记 (kpGames).
+- Non-CN servers first try Riot's match server player history (same SUMMARY shape as CN,
+  all ten players), falling back to the LCU list when it fails.
+- Full-game sources ('match' / 'sgp') also give the Champions view the lane opponent, the
+  ahead-after-laning flag and the ranked model score; the LCU list has none of those.
 数据层, 不引用 view.
 """
+import asyncio
 import time
 from datetime import datetime
 
 from app.common.logger import logger
+from app.lol import opscore
 from app.lol.connector import connector
 
 TAG = "SeasonStats"
@@ -19,6 +25,15 @@ TAG = "SeasonStats"
 SEASON_CAP = 150
 PAGE_SIZE = 20
 KP_DETAIL_CAP = 30
+# Non-CN Riot match server (source 'match'): pages of full games (~120 KB each, ~2 s per
+# page of 50), so at most MATCH_SEASON_CAP / MATCH_PAGE_SIZE = 4 requests per season sample
+MATCH_SEASON_CAP = 200
+MATCH_PAGE_SIZE = 50
+
+
+def seasonCap(source):
+    """the cap fetchSeasonGames used for this source (for the 'capped' note)"""
+    return MATCH_SEASON_CAP if source == 'match' else SEASON_CAP
 
 
 def aggregate(games):
@@ -56,7 +71,10 @@ def _versionMajor(version):
 
 
 def _playStyleFields(me, stats):
-    """Play style fields shared by both payloads (match-v4 stats / match-v5 participant)"""
+    """
+    Play style / Champions fields shared by both payloads (match-v4 stats / match-v5
+    participant); a field the payload lacks is None
+    """
     return {
         'championId': me.get('championId'),
         'teamId': me.get('teamId'),
@@ -65,6 +83,36 @@ def _playStyleFields(me, stats):
         'cs': (stats.get('totalMinionsKilled') or 0) + (stats.get('neutralMinionsKilled') or 0)
         if 'totalMinionsKilled' in stats else None,
         'vision': stats.get('visionScore'),
+        'doubleKills': stats.get('doubleKills'),
+        'tripleKills': stats.get('tripleKills'),
+        'quadraKills': stats.get('quadraKills'),
+        'pentaKills': stats.get('pentaKills'),
+        'wardsPlaced': stats.get('wardsPlaced'),
+        'wardsKilled': stats.get('wardsKilled'),
+        'controlWards': stats.get('visionWardsBoughtInGame'),
+    }
+
+
+def _laneFields(game, me, index):
+    """
+    match-v5 info: the lane opponent's championId (the one other-team player with the same
+    teamPosition, None when there is no position or it is not unique), the ahead-after-laning
+    flag (challenges.laningPhaseGoldExpAdvantage, optional) and the 0-10 model score (ranked
+    only, see opscore.scoreSummary)
+    """
+    opponent = None
+    pos = me.get('teamPosition')
+    if pos and not me.get('playerSubteamId'):
+        foes = [p for p in game['participants']
+                if p.get('teamId') != me.get('teamId') and p.get('teamPosition') == pos]
+        if len(foes) == 1:
+            opponent = foes[0].get('championId')
+    lead = (me.get('challenges') or {}).get('laningPhaseGoldExpAdvantage')
+    scores = opscore.scoreSummary(game, only=me.get('participantId') or index + 1)
+    return {
+        'opponentId': opponent,
+        'laneLead': bool(lead) if lead is not None and opponent is not None else None,
+        'score': next(iter(scores.values())) if scores else None,
     }
 
 
@@ -86,6 +134,11 @@ def rawLcuGameStats(game):
             **_playStyleFields(me, stats),
             'position': position,
             'custom': game.get('gameType') == 'CUSTOM_GAME',
+            'mapId': game.get('mapId'),
+            # only the viewed player is in the LCU list: no lane opponent / lane flag / score
+            'opponentId': None,
+            'laneLead': None,
+            'score': None,
             'damageShare': None,
             'gameId': game['gameId'],
             'queueId': game.get('queueId'),
@@ -107,7 +160,8 @@ def rawSgpGameStats(game, puuid):
     """SGP SUMMARY 战绩的一局 (含 'json', 全部 10 人) -> 统计字段, 参团率直接算出"""
     try:
         game = game['json']
-        me = next(p for p in game['participants'] if p.get('puuid') == puuid)
+        index, me = next((i, p) for i, p in enumerate(game['participants'])
+                         if p.get('puuid') == puuid)
         kp = None
         if not me.get('playerSubteamId') and game.get('queueId') not in (1700, 1710):
             teamKills = sum(p['kills'] for p in game['participants']
@@ -122,6 +176,8 @@ def rawSgpGameStats(game, puuid):
             **_playStyleFields(me, me),
             'position': me.get('teamPosition') or None,
             'custom': game.get('gameType') == 'CUSTOM_GAME',
+            'mapId': game.get('mapId'),
+            **_laneFields(game, me, index),
             'damageShare': damageShare,
             'gameId': game['gameId'],
             'queueId': game.get('queueId'),
@@ -168,51 +224,107 @@ def mergePage(games, page, seen):
     return fresh
 
 
-async def _fetchPages(fetch, start, cap):
-    """fetch(begIdx, endIdx) -> 统计字段列表或 None (失败); 翻到赛季前 / cap / 尽头为止"""
+async def _fetchPages(fetch, start, cap, pageSize=PAGE_SIZE, shortPageEnds=False):
+    """
+    fetch(begIdx, endIdx) -> 统计字段列表或 None (失败); 翻到赛季前 / cap / 尽头为止.
+    shortPageEnds: a page shorter than pageSize is the end of the history (match server)
+    A failed page is asked for once more; when it fails again paging stops there.
+    @return: (games, complete): complete is False when paging stopped at a failed page, so
+             the games are only the newest part of what was there
+    """
     games, seen = [], set()
     beg = 0
     while len(games) < cap:
-        page = await fetch(beg, beg + PAGE_SIZE - 1)
+        page = await fetch(beg, beg + pageSize - 1)
+        if page is None:
+            page = await fetch(beg, beg + pageSize - 1)
+            if page is None:
+                return games[:cap], False
         if not page:
             break
         if not mergePage(games, page, seen):
             break
         if min((g['timeStamp'] for g in page if g), default=0) < start:
             break
-        beg += PAGE_SIZE
-    return games[:cap]
+        if shortPageEnds and len(page) < pageSize:
+            break
+        beg += pageSize
+    return games[:cap], True
 
 
-async def fetchSeasonGames(puuid, cap=SEASON_CAP, now=None):
+def _sample(games, start, cap, complete):
     """
-    本赛季对局的统计字段 (最新在前, 至多 cap 局); 一页都拿不到返回 None.
-    @return: (games, source), source 为 'sgp' / 'lcu'
+    (season games, info): info['capped'] is decided on the fetched games before the season
+    filter (one filtered-out game must not hide the cap); info['partial'] = a page failed
+    """
+    return filterSeason(games, start), {'capped': len(games) >= cap, 'partial': not complete}
+
+
+async def _extractSgpPage(page, puuid):
+    """
+    rawSgpGameStats for a page of full games, off the Qt event loop: the model score is
+    ~1 ms per game (~60 ms per page of 50). Only the extracted fields are kept, not the json
+    """
+    return await asyncio.to_thread(lambda: [rawSgpGameStats(g, puuid) for g in page])
+
+
+async def fetchSeasonGames(puuid, cap=None, now=None):
+    """
+    本赛季对局的统计字段 (最新在前, 至多 cap 局, 默认 seasonCap(source)); 一页都拿不到返回 None.
+    @return: (games, source, info), source 为 'sgp' (CN) / 'match' (non-CN Riot match server,
+    all ten players like 'sgp') / 'lcu' (own stats only); info {'capped', 'partial'}: the
+    sample is only the newest games (cap reached / a later page failed twice)
     """
     start = seasonStart(now)
+    lcuCap = cap or SEASON_CAP
+
+    async def lcuPage(beg, end):
+        page = await connector.getSummonerGamesByPuuidQuietly(puuid, beg, end)
+        return None if page is None else [rawLcuGameStats(g) for g in page]
+
+    if not connector.inTencent:
+        async def matchPage(beg, end):
+            page = await connector.getMatchHistoryViaSgpQuietly(puuid, beg, end - beg + 1)
+            return None if page is None else await _extractSgpPage(page, puuid)
+
+        matchCap = cap or MATCH_SEASON_CAP
+        games, complete = await _fetchPages(matchPage, start, matchCap, MATCH_PAGE_SIZE,
+                                            shortPageEnds=True)
+        if games:
+            match = _sample(games, start, matchCap, complete)
+            if complete or len(games) > MATCH_PAGE_SIZE:
+                return match[0], 'match', match[1]
+            # only the first page came back: the client's own list may reach further back
+            # (own stats only); used only when it really has more season games
+            lcu, lcuComplete = await _fetchPages(lcuPage, start, lcuCap)
+            if lcu:
+                fallback = _sample(lcu, start, lcuCap, lcuComplete)
+                if len(fallback[0]) > len(match[0]):
+                    return fallback[0], 'lcu', fallback[1]
+            return match[0], 'match', match[1]
+
+    cap = lcuCap
 
     if connector.inTencent and getattr(connector, 'sgpSess', None) \
             and getattr(connector, 'sgpToken', None):
         async def sgpPage(beg, end):
             try:
                 res = await connector.getSummonerGamesByPuuidViaSGP(puuid, beg, end)
-                return [rawSgpGameStats(g, puuid) for g in res['games']]
+                return await _extractSgpPage(res['games'], puuid)
             except Exception as e:
                 logger.warning(f"SGP season page {beg}-{end} failed: {e!r}", TAG)
                 return None
 
-        games = await _fetchPages(sgpPage, start, cap)
+        games, complete = await _fetchPages(sgpPage, start, cap)
         if games:
-            return filterSeason(games, start), 'sgp'
+            season, info = _sample(games, start, cap, complete)
+            return season, 'sgp', info
 
-    async def lcuPage(beg, end):
-        page = await connector.getSummonerGamesByPuuidQuietly(puuid, beg, end)
-        return None if page is None else [rawLcuGameStats(g) for g in page]
-
-    games = await _fetchPages(lcuPage, start, cap)
+    games, complete = await _fetchPages(lcuPage, start, cap)
     if not games:
-        return None, 'lcu'
-    return filterSeason(games, start), 'lcu'
+        return None, 'lcu', {'capped': False, 'partial': not complete}
+    season, info = _sample(games, start, cap, complete)
+    return season, 'lcu', info
 
 
 async def fillLcuKp(seasonGames, recentGames, puuid, cap=KP_DETAIL_CAP):

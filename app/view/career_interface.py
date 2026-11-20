@@ -15,7 +15,8 @@ from ..common.qfluentwidgets import (TableWidget, PushButton, ComboBox,
 from app.components.career_widgets import RankCard, RecentSummaryCard, CareerGameRow, tierText
 from app.components.performance_widget import PerformancePanel
 from app.components.play_style_widget import PlayStyleView
-from app.lol import season_stats, play_style
+from app.components.champion_stats_widget import ChampionStatsView
+from app.lol import season_stats, play_style, champion_stats
 from app.components.champion_icon_widget import RoundIcon
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.summoner_name_button import SummonerName
@@ -98,8 +99,15 @@ class CareerInterface(SeraphineInterface):
         self.playStyleArea = SmoothScrollArea()
         self.playStyleContent = QWidget()
         self.playStyleLayout = QVBoxLayout(self.playStyleContent)
+        # Champions (per-champion season rows with lane matchups, same sample)
+        self.championsView = ChampionStatsView()
+        self.championsArea = SmoothScrollArea()
+        self.championsContent = QWidget()
+        self.championsLayout = QVBoxLayout(self.championsContent)
         self.seasonTask = None
         self.playStyleIconTask = None
+        self.championIconTasks = []
+        self.championIconIds = set()  # icons loaded or in flight for this summoner
         self.laningTask = None
         self.teammatesTask = None
         self.scrollContent = QWidget()
@@ -172,6 +180,8 @@ class CareerInterface(SeraphineInterface):
                                 lambda: self.__setCareerMode('overview'), FluentIcon.HOME)
         self.viewSwitch.addItem('playStyle', self.tr("Play style"),
                                 lambda: self.__setCareerMode('playStyle'), FluentIcon.PIE_SINGLE)
+        self.viewSwitch.addItem('champions', self.tr("Champions"),
+                                lambda: self.__setCareerMode('champions'), FluentIcon.PEOPLE)
         self.viewSwitch.setCurrentItem('overview')
         # a bigger, bolder switch than the default so the second view is not missed
         for item in self.viewSwitch.items.values():
@@ -180,6 +190,8 @@ class CareerInterface(SeraphineInterface):
             item.setFixedHeight(38)
         self.playStyleArea.setObjectName('gameInfoArea')
         self.playStyleContent.setObjectName("gameInfoWidget")
+        self.championsArea.setObjectName('gameInfoArea')
+        self.championsContent.setObjectName("gameInfoWidget")
 
         self.recentTeamButton.setEnabled(True)
 
@@ -325,12 +337,20 @@ class CareerInterface(SeraphineInterface):
         self.playStyleArea.setWidgetResizable(True)
         self.playStyleArea.setViewportMargins(0, 0, 5, 0)
 
+        self.championsLayout.setContentsMargins(0, 0, 0, 0)
+        self.championsLayout.addWidget(self.championsView)
+        self.championsLayout.addStretch(1)
+        self.championsArea.setWidget(self.championsContent)
+        self.championsArea.setWidgetResizable(True)
+        self.championsArea.setViewportMargins(0, 0, 5, 0)
+
         self.vBoxLayout.addLayout(self.IconNameHBoxLayout)
         self.vBoxLayout.addSpacing(12)
         self.vBoxLayout.addWidget(self.viewSwitch, alignment=Qt.AlignLeft)
         self.vBoxLayout.addSpacing(10)
         self.vBoxLayout.addWidget(self.gameInfoArea)
         self.vBoxLayout.addWidget(self.playStyleArea)
+        self.vBoxLayout.addWidget(self.championsArea)
         self.vBoxLayout.addSpacing(10)
 
         self.vBoxLayout.setContentsMargins(30, 32, 30, 20)
@@ -358,6 +378,7 @@ class CareerInterface(SeraphineInterface):
         self.recentTeamButton.setVisible(not enable)
         self.gameInfoArea.setVisible(not enable and self.careerMode == 'overview')
         self.playStyleArea.setVisible(not enable and self.careerMode == 'playStyle')
+        self.championsArea.setVisible(not enable and self.careerMode == 'champions')
         self.viewSwitch.setVisible(not enable)
         self.tagLineLabel.setVisible(not enable and self.showTagLine)
 
@@ -367,6 +388,7 @@ class CareerInterface(SeraphineInterface):
         self.careerMode = mode
         self.gameInfoArea.setVisible(mode == 'overview')
         self.playStyleArea.setVisible(mode == 'playStyle')
+        self.championsArea.setVisible(mode == 'champions')
 
     def __updateTable(self):
         for i, line in enumerate(self.rankInfo):
@@ -425,6 +447,8 @@ class CareerInterface(SeraphineInterface):
 
         self.recentTeamButton.clicked.connect(
             self.__onRecentTeammatesButtonClicked)
+        self.championsView.opponentsWanted.connect(self.__onChampionExpanded)
+        signalBus.lolClientEnded.connect(self.__onLolClientEnded)
 
     async def updateNameIconExp(self, info):
         if not self.isLoginSummoner():
@@ -596,10 +620,12 @@ class CareerInterface(SeraphineInterface):
 
         # 换人 / 刷新: 上一位召唤师的后台任务 (近期队友 / 对线得分 / 赛季样本) 不再需要
         for task in (self.teammatesTask, self.laningTask, self.seasonTask,
-                     self.playStyleIconTask):
+                     self.playStyleIconTask, *self.championIconTasks):
             if task:
                 task.cancel()
         self.teammatesTask = self.laningTask = self.seasonTask = self.playStyleIconTask = None
+        self.championIconTasks = []
+        self.championIconIds = set()
 
         if self.games:
             self.teammatesTask = asyncio.create_task(
@@ -610,37 +636,44 @@ class CareerInterface(SeraphineInterface):
         recent = season_stats.aggregate((self.games or {}).get('games'))
         self.performancePanel.setRecent(recent)
         self.playStyleArea.delegate.vScrollBar.resetValue(0)
+        self.championsArea.delegate.vScrollBar.resetValue(0)
         if not recent:
             self.playStyleView.setEmpty()
+            self.championsView.setEmpty()
         else:
             self.playStyleView.setLoading(self.games['games'])
+            self.championsView.setLoading()
             self.seasonTask = asyncio.create_task(
                 self.__updateSeasonPerformance(puuid, rankInfo, self.games['games']))
 
     async def __updateSeasonPerformance(self, puuid, rankInfo, recentGames):
         """赛季样本: 战绩翻页 (至多 season_stats.SEASON_CAP 局); 取不到用排位胜负兜底胜率"""
         try:
-            games, source = await season_stats.fetchSeasonGames(puuid)
+            games, source, info = await season_stats.fetchSeasonGames(puuid)
         except Exception:
-            games, source = None, ''
+            games, source, info = None, '', {}
         if puuid != self.puuid:
             return
+        # only the newest games: the cap was reached or a later page failed
+        capped = bool(info.get('capped') or info.get('partial'))
 
         season = season_stats.aggregate(games)
         if season is None:
             self.performancePanel.setSeason(season_stats.rankedSeasonFallback(rankInfo), 'ranked')
             self.playStyleView.setEmpty()
+            self.championsView.setEmpty()
             return
 
-        self.performancePanel.setSeason(season, source)
+        self.performancePanel.setSeason(season, source, capped)
         # Play style re-aggregates the same sample (no extra history requests)
-        capped = len(games) >= season_stats.SEASON_CAP
         manager = getattr(connector, 'manager', None)
         self.playStyleView.setSample(games, source, capped,
                                      getattr(manager, 'champRoles', None) or {}, recentGames,
                                      getattr(manager, 'champs', None))
+        self.championsView.setSample(games, source, capped, getattr(manager, 'champs', None))
         # icons in their own task so they never delay the kill participation fill below
         self.playStyleIconTask = asyncio.create_task(self.__loadPlayStyleIcons(puuid, games))
+        self.__loadChampionIconIds(champion_stats.championIds(self.championsView.profiles))
 
         if source == 'lcu':
             # LCU 战绩列表没有全队击杀: 近期参团率 + 少量补拉完整对局
@@ -649,8 +682,9 @@ class CareerInterface(SeraphineInterface):
             except Exception:
                 return
             if puuid == self.puuid:
-                self.performancePanel.setSeason(season_stats.aggregate(games), source)
+                self.performancePanel.setSeason(season_stats.aggregate(games), source, capped)
                 self.playStyleView.setSample(games, source, capped)
+                self.championsView.setSample(games, source, capped)
 
     async def __loadPlayStyleIcons(self, puuid, games):
         try:
@@ -659,6 +693,42 @@ class CareerInterface(SeraphineInterface):
             return
         if puuid == self.puuid:
             self.playStyleView.setChampionIcons(icons)
+
+    async def __loadChampionIcons(self, puuid, championIds):
+        """Champions view icons: its rows up front, a row's lane opponents when expanded"""
+        try:
+            icons = await play_style.championIcons(championIds)
+        except Exception:
+            return
+        if puuid == self.puuid:
+            self.championsView.setChampionIcons(icons)
+
+    def __loadChampionIconIds(self, championIds):
+        """one task per batch; ids already loaded or in flight are not asked for again"""
+        self.championIconTasks = [t for t in self.championIconTasks if not t.done()]
+        ids = [cid for cid in championIds if cid not in self.championIconIds]
+        if ids:
+            self.championIconIds.update(ids)
+            self.championIconTasks.append(
+                asyncio.create_task(self.__loadChampionIcons(self.puuid, ids)))
+
+    def __onChampionExpanded(self, championId):
+        self.__loadChampionIconIds(
+            champion_stats.opponentIds(self.championsView.profiles, championId))
+
+    def __onLolClientEnded(self):
+        """the client closed: the season sample and icon tasks can only fail from here on"""
+        if self.seasonTask and not self.seasonTask.done():
+            # stop the loading states instead of leaving them spinning
+            self.performancePanel.setSeason(None)
+            self.playStyleView.setEmpty()
+            self.championsView.setEmpty()
+        for task in (self.seasonTask, self.playStyleIconTask, *self.championIconTasks):
+            if task:
+                task.cancel()
+        self.seasonTask = self.playStyleIconTask = None
+        self.championIconTasks = []
+        self.championIconIds = set()
 
     async def __updateLaningScores(self, puuid, games):
         """战绩行显示后逐局补拉时间线算对线得分, 算完一局就刷新当前显示的那一行"""

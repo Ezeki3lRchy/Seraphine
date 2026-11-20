@@ -10,6 +10,8 @@ class SignalBus(QObject):
     lolClientStarted = Signal(int)
     lolClientEnded = Signal()
     lolClientChanged = Signal(int)
+    # first listener pass found no client: "not in a game" is known (update download)
+    lolClientAbsent = Signal()
 
     terminateListeners = Signal()
 
