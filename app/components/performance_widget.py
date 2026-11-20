@@ -51,8 +51,10 @@ class PerformancePanel(QFrame):
         self.state = 'unavailable'
         self.seasonSource = ""
         self.helpRects = []
+        self._hover = -1
         self._cache = None
         self._cacheKey = None
+        self.setMouseTracking(True)
 
     # ---------------- 数据 ----------------
 
@@ -158,6 +160,32 @@ class PerformancePanel(QFrame):
 
     # ---------------- 交互 ----------------
 
+    def mouseMoveEvent(self, e):
+        pos = e.position().toPoint()
+        hover = next((i for i, (rect, _) in enumerate(self.helpRects) if rect.contains(pos)), -1)
+        if hover != self._hover:
+            self._setHover(hover)
+            if hover >= 0:
+                rect, tip = self.helpRects[hover]
+                RichToolTip.showText(e.globalPosition().toPoint(), tip, self, rect)
+        super().mouseMoveEvent(e)
+
+    def leaveEvent(self, e):
+        self._setHover(-1)
+        super().leaveEvent(e)
+
+    def _setHover(self, index):
+        """悬停的 (?) 序号, -1 为没有; 变化时立刻显示/收起说明并重绘高亮"""
+        if index < 0:
+            self.unsetCursor()
+            tip = RichToolTip._instance
+            if self._hover >= 0 and tip is not None and tip._owner is self:
+                RichToolTip.hideText()
+        else:
+            self.setCursor(Qt.PointingHandCursor)
+        self._hover = index
+        self.update()
+
     def event(self, e):
         if e.type() == QEvent.ToolTip:
             for rect, tip in self.helpRects:
@@ -173,7 +201,7 @@ class PerformancePanel(QFrame):
 
     def paintEvent(self, e):
         p = QPainter(self)
-        p.drawPixmap(0, 0, cachedContent(self, self.__draw))
+        p.drawPixmap(0, 0, cachedContent(self, self.__draw, (self._hover,)))
         p.end()
 
     def __draw(self, p, pal):
@@ -208,12 +236,13 @@ class PerformancePanel(QFrame):
         titleFont = textFont(12)
         titleW = QFontMetrics(titleFont).horizontalAdvance(title)
         drawText(p, QRectF(x, y + 10, titleW + 2, 18), title, titleFont, muted)
-        help_ = QRectF(x + titleW + 6, y + 12, 14, 14)
-        p.setPen(QPen(muted, 1.1))
+        helpColor = ink if self._hover == len(self.helpRects) else muted
+        help_ = QRectF(x + titleW + 6, y + 11, 16, 16)
+        p.setPen(QPen(helpColor, 1.1))
         p.setBrush(Qt.NoBrush)
         p.drawEllipse(help_.adjusted(0.5, 0.5, -0.5, -0.5))
-        drawText(p, help_, "?", textFont(10, True), muted, Qt.AlignCenter)
-        self.helpRects.append((QRect(int(x), int(y + 8), int(titleW + 24), 22), tip))
+        drawText(p, help_, "?", textFont(11, True), helpColor, Qt.AlignCenter)
+        self.helpRects.append((QRect(int(x), int(y + 8), int(titleW + 26), 22), tip))
 
         # 近期值 + 增减胶囊
         valueFont = numberFont(24)

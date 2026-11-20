@@ -814,31 +814,21 @@ class CareerGameRow(ColorAnimationFrame):
         self.playerRects = []
         if self.teams:
             playersX = right - 2 * self.CHIP_W - 8
-            rowH = 17
+            rowH = 18
             playersTop = (h - 5 * rowH) / 2
             for column, team in enumerate(self.teams):
                 for row, player in enumerate(team):
                     px = playersX + column * (self.CHIP_W + 8)
                     py = playersTop + row * rowH
                     drawRoundedPixmap(p, self.playerIcons[id(player)],
-                                      QRectF(px, py + 0.5, 16, 16), 3)
+                                      QRectF(px, py + 1, 16, 16), 3)
                     isSelf = player.get('puuid') == self.currentPuuid
-                    nameFont = textFont(12, isSelf)
-                    # 名字 + #tag (tag 小一号, 名字太长时先省略名字, 保住 tag)
-                    tag = f"#{player['tagLine']}" if player.get('tagLine') else ""
-                    tagFont = textFont(10)
-                    tagW = min(QFontMetrics(tagFont).horizontalAdvance(tag), 44) if tag else 0
-                    nameMetrics = QFontMetrics(nameFont)
-                    name = nameMetrics.elidedText(
-                        player['name'] or "?", Qt.ElideRight, self.CHIP_W - 22 - tagW)
-                    nameX = px + 21
-                    drawText(p, QRectF(nameX, py, self.CHIP_W - 21, rowH), name,
+                    nameFont = textFont(13, isSelf)
+                    # 只画名字, #tag 留给悬停提示
+                    name = QFontMetrics(nameFont).elidedText(
+                        player['name'] or "?", Qt.ElideRight, self.CHIP_W - 22)
+                    drawText(p, QRectF(px + 21, py, self.CHIP_W - 21, rowH), name,
                              nameFont, ink if isSelf else muted)
-                    if tag:
-                        tagX = nameX + nameMetrics.horizontalAdvance(name) + 1
-                        drawText(p, QRectF(tagX, py + 1, tagW, rowH),
-                                 QFontMetrics(tagFont).elidedText(tag, Qt.ElideRight, tagW),
-                                 tagFont, tint(muted, 150))
                     self.playerRects.append(
                         (QRect(int(px), int(py), self.CHIP_W, rowH), player))
             right = playersX - 18
