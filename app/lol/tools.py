@@ -1310,6 +1310,7 @@ def summarizeGames(games, championId=0, limit=3):
         'streak': 最近连续的非重开局 ('win' | 'lose', n), 没有则 None,
         'currentChampion': 当前英雄的 {'games', 'wins', 'losses', 'kda'}, 没有则 None,
         'mvp' / 'svp': 拿到 MVP / SVP 的局数,
+        'games': 非重开局总数,
     }
     重开局不计入胜负与 KDA.
     """
@@ -1358,6 +1359,7 @@ def summarizeGames(games, championId=0, limit=3):
     current = champions.get(championId) if championId else None
 
     return {
+        'games': len(games),
         'mvp': sum(1 for g in games if g.get('badge') == 'MVP'),
         'svp': sum(1 for g in games if g.get('badge') == 'SVP'),
         'topChampions': [finish(item) for item in topChampions],
@@ -1365,6 +1367,52 @@ def summarizeGames(games, championId=0, limit=3):
         'streak': streak,
         'currentChampion': finish(current) if current else None,
     }
+
+
+# 对局信息页 Insights 胶囊的阈值
+# 绝活: 当前英雄是熟练度第一且分数够高, 或在近期 (非重开) 对局里占比够高
+MAIN_CHAMPION_POINTS = 100000
+MAIN_CHAMPION_SHARE = 0.4
+MAIN_CHAMPION_MIN_GAMES = 4
+STREAK_MIN = 3
+
+
+def playerInsights(summary, mastery, championId):
+    """
+    对局信息页玩家卡片的 Insights (按重要性排序), 纯数据, 文案和颜色由界面决定.
+
+    @param summary: summarizeGames 的结果
+    @param mastery: {championId: {'level', 'points'}} (玩家全部英雄)
+    @param championId: 当前所选英雄, 0 表示还没选 (不出绝活标签)
+    @return: [
+        {'kind': 'main', 'tone': 'good', 'byMastery', 'byShare', 'points', 'games', 'total'},
+        {'kind': 'streak', 'tone': 'good' | 'bad', 'result': 'win' | 'lose', 'count'},
+    ]
+    """
+    insights = []
+    mastery = mastery or {}
+
+    if championId:
+        points = (mastery.get(championId) or {}).get('points') or 0
+        top = max(((m or {}).get('points') or 0 for m in mastery.values()), default=0)
+        byMastery = points >= MAIN_CHAMPION_POINTS and points >= top
+
+        current = summary.get('currentChampion')
+        games = current['games'] if current else 0
+        total = summary.get('games', 0)
+        byShare = games >= MAIN_CHAMPION_MIN_GAMES and games >= MAIN_CHAMPION_SHARE * total
+
+        if byMastery or byShare:
+            insights.append({'kind': 'main', 'tone': 'good', 'byMastery': byMastery,
+                             'byShare': byShare, 'points': points, 'games': games,
+                             'total': total})
+
+    streak = summary.get('streak')
+    if streak and streak[1] >= STREAK_MIN:
+        insights.append({'kind': 'streak', 'tone': 'good' if streak[0] == 'win' else 'bad',
+                         'result': streak[0], 'count': streak[1]})
+
+    return insights
 
 
 async def revealHiddenAllies(myTeam, currentPuuid):

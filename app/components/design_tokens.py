@@ -116,6 +116,32 @@ def opScoreColor(score, dark=None):
     return QColor('#F0727E' if dark else '#C9374A')
 
 
+def contrastWithWhite(color):
+    """白色与 color 的 WCAG 对比度"""
+    def channel(v):
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+    c = QColor(color)
+    lum = 0.2126 * channel(c.redF()) + 0.7152 * channel(c.greenF()) \
+        + 0.0722 * channel(c.blueF())
+    return 1.05 / (lum + 0.05)
+
+
+def pillColor(color, muted=False, minContrast=4.5):
+    """
+    白字实色胶囊的底色: 用户配置的胜负色太浅时逐步压暗, 保证白字对比度 >= minContrast;
+    muted 降低饱和度 (连败这类负面提示不要太刺眼)
+    """
+    h, s, l, _ = QColor(color).getHslF()
+    if muted:
+        s *= 0.7
+    c = QColor.fromHslF(max(h, 0), s, l)
+    while contrastWithWhite(c) < minContrast and l > 0:
+        l = max(l - 0.02, 0)
+        c = QColor.fromHslF(max(h, 0), s, l)
+    return c
+
+
 def tint(color, alpha):
     c = QColor(color)
     c.setAlpha(alpha)

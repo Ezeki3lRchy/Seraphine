@@ -16,9 +16,10 @@ from app.components.animation_frame import ColorAnimationFrame
 from app.components.match_widgets import TagPill, gameTags, itemTooltipHtml, rankEmblemPath
 from app.components.rich_tooltip import RichToolTip
 from app.components.design_tokens import (deathsColor, palette, numberFont, textFont,
-                                         resultColor)
+                                         resultColor, pillColor)
+from app.components.scoreboard import drawTag, tagWidth, fitPills
 from app.lol.tools import (parseSummonerOrder, summarizeGames, translatePositionKey,
-                           needsScores, attachSummonerScores)
+                           needsScores, attachSummonerScores, playerInsights)
 from app.common.logger import logger
 from app.lol.connector import connector
 from app.lol.aram import AramBuff
@@ -583,7 +584,7 @@ class PlayerHeader(ComposedCardMixin, ColorAnimationFrame):
                 Peak Master   Last season Diamond I
         Flex  Diamond I 75 LP  55%
         Recent  KDA 2.27  40%  4W 6L
-        3L streak  1 remake  2 MVP  2 SVP   BOT 6 SUP 3
+        (★ Main champion) (↓ 3L streak)  1 remake  2 MVP  2 SVP   BOT 6
         Pick Ahri  M45 210k  2G 50% 3.4 KDA
     """
 
@@ -850,27 +851,63 @@ class PlayerHeader(ComposedCardMixin, ColorAnimationFrame):
                      (f"  {rw}W {rl}L", numberFont(13, 400), muted, True)]
         line(pad, y, 18, runs, self.tr("Recent games (remakes excluded)"))
 
-        # 标记: 连胜 / 连败, 重开, MVP / SVP 次数, 常用分路
+        # 标记: Insights 胶囊 (绝活, 连胜 / 连败), 之后是重开 / MVP / SVP 次数, 常用分路的文字.
+        # 放不下时从最不重要的一端丢 (先文字, 再胶囊), 悬浮整行列出被省略的内容
         y = 195
-        runs = []
-        streak = summary['streak']
-        if streak and streak[1] >= 3:
-            label = (self.tr("%1W streak") if streak[0] == 'win'
-                     else self.tr("%1L streak")).replace("%1", str(streak[1]))
-            runs.append((label + "   ", textFont(12, True),
-                         winC if streak[0] == 'win' else loseC, False))
+        pillH, pillFont, gap = 18, textFont(12, True), 4
+        pills = []      # [[文字, 窄卡片上的短文字, 图标, 底色, 悬浮提示]]
+        for insight in playerInsights(summary, self.mastery, self.championId):
+            fill = pillColor(winC) if insight['tone'] == 'good' else pillColor(loseC, muted=True)
+            if insight['kind'] == 'main':
+                fill = pillColor(pal['gold'])
+                label = self.tr("Main champion")
+                reasons = [label]
+                if insight['byMastery']:
+                    reasons.append(self.tr("Highest mastery: %1 pts")
+                                   .replace("%1", f"{insight['points']:,}"))
+                if insight['byShare']:
+                    reasons.append(self.tr("%1 of the last %2 games")
+                                   .replace("%1", str(insight['games']))
+                                   .replace("%2", str(insight['total'])))
+                pills.append([label, self.tr("Main"), 'star', fill, "\n".join(reasons)])
+            else:
+                n, win = str(insight['count']), insight['result'] == 'win'
+                label = (self.tr("%1W streak") if win else self.tr("%1L streak")).replace("%1", n)
+                tip = (self.tr("Won the last %1 games") if win
+                       else self.tr("Lost the last %1 games")).replace("%1", n)
+                pills.append([label, label, 'up' if win else 'down', fill, tip])
+
+        texts = fitPills([(pl[0], pl[1]) for pl in pills], w - 2 * pad,
+                         lambda i, t: tagWidth(t, pillFont, pillH, pills[i][2]), gap)
+        shown = [[t] + pl[1:] for t, pl in zip(texts, pills)]
+
+        x = pad
+        for label, _, icon, fill, tip in shown:
+            pw = tagWidth(label, pillFont, pillH, icon)
+            rect = QRectF(x, y, pw, pillH)
+            drawTag(p, rect, label, fill, pillFont, pal, icon)
+            tips.append((rect.toRect(), tip))
+            x += pw + gap
+        if shown:
+            x += 2
+
+        items = []
         if info.get('remakes', 0):
-            runs.append((self.tr("%1 remake").replace("%1", str(info['remakes'])) + "   ",
-                         textFont(12), loseC, True))
+            items.append((self.tr("%1 remake").replace("%1", str(info['remakes'])),
+                          textFont(12), muted))
         if summary['mvp']:
-            runs.append((f"{summary['mvp']} MVP   ", textFont(12, True), pal['gold'], False))
+            items.append((f"{summary['mvp']} MVP", textFont(12, True), pal['gold']))
         if summary['svp']:
-            runs.append((f"{summary['svp']} SVP   ", textFont(12, True), QColor('#8e6bd8'),
-                         False))
+            items.append((f"{summary['svp']} SVP", textFont(12, True), QColor('#8e6bd8')))
         for position, count in summary['positions'][:2]:
-            runs.append((f"{translatePositionKey(position)} {count}  ", textFont(12), muted, True))
-        if runs:
-            line(pad, y, 18, runs)
+            items.append((f"{translatePositionKey(position)} {count}", textFont(12), muted))
+        fitted, _ = fitRuns([(("   " if i else "") + t, f, c, True)
+                             for i, (t, f, c) in enumerate(items)], w - pad - x)
+        paintRuns(p, x, y, 18, fitted)
+
+        hidden = [pl[0] for pl in pills[len(shown):]] + [t for t, _, _ in items[len(fitted):]]
+        if hidden:
+            tips.append((QRect(pad, y, w - 2 * pad, 18), "\n".join(hidden)))
 
         # 当前所选英雄: 熟练度 + 近期战绩
         y = 215

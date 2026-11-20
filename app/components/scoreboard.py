@@ -3,6 +3,7 @@
 物品格, 按尺寸 + 主题 + 用户配色缓存的内容 pixmap, 以及对局列表用的简短文字 (模式简称 / 多久前).
 颜色与字体见 design_tokens.py.
 """
+import math
 import time
 
 from PySide6.QtCore import Qt, QRectF
@@ -123,15 +124,70 @@ def drawItemSlot(p, pixmap, itemId, rect, radius, pal):
         p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius)
 
 
-def drawTag(p, rect, string, tagColor, font, pal):
-    """标签胶囊: 名次低调 (发丝线底 + 墨色字), MVP 用海克斯金, 其余 (SVP / 多杀) 用各自颜色"""
+def tagIconPath(icon, rect):
+    """标签胶囊里的小图标 (单位方框里的路径缩放到 rect): star / up / down"""
+    if icon == 'star':
+        pts = []
+        for i in range(10):
+            r = 0.5 if i % 2 == 0 else 0.21
+            a = math.pi * (i / 5 - 0.5)
+            pts.append((0.5 + r * math.cos(a), 0.54 + r * math.sin(a)))
+    else:
+        pts = [(0.37, 0.04), (0.63, 0.04), (0.63, 0.5), (0.9, 0.5), (0.5, 0.96),
+               (0.1, 0.5), (0.37, 0.5)]
+        if icon == 'up':
+            pts = [(px, 1 - py) for px, py in pts]
+
+    x, y, s = rect.left(), rect.top(), rect.width()
+    path = QPainterPath()
+    path.moveTo(x + pts[0][0] * s, y + pts[0][1] * s)
+    for px, py in pts[1:]:
+        path.lineTo(x + px * s, y + py * s)
+    path.closeSubpath()
+    return path
+
+
+def tagWidth(string, font, height, icon=None):
+    """drawTag 胶囊需要的宽度 (左右各留 7px, 有图标时多出图标 + 3px 间距)"""
+    w = QFontMetrics(font).horizontalAdvance(string) + 14
+    return w + round(height * 0.62) + 3 if icon else w
+
+
+def fitPills(labels, room, width, gap=4):
+    """
+    一行胶囊放不下时怎么取舍: labels 为按重要性排好的 [(完整文字, 短文字)],
+    width(i, text) 返回第 i 个胶囊用 text 时的宽度. 依次尝试前 n, n-1, ... 个胶囊,
+    每次先用完整文字, 放不下再用短文字; 返回要画的前 k 个胶囊各自的文字
+    """
+    for k in range(len(labels), 0, -1):
+        for pick in (0, 1):
+            texts = [label[pick] for label in labels[:k]]
+            if sum(width(i, t) for i, t in enumerate(texts)) + gap * (k - 1) <= room:
+                return texts
+    return []
+
+
+def drawTag(p, rect, string, tagColor, font, pal, icon=None):
+    """
+    标签胶囊: 名次低调 (发丝线底 + 墨色字), MVP 用海克斯金, 其余 (SVP / 多杀) 用各自颜色;
+    icon (见 tagIconPath) 画在文字左边, 宽度用 tagWidth 算
+    """
     quiet = QColor(tagColor) == QColor(TAG_COLORS['rank'])
     fill = pal['hairline'] if quiet else (pal['gold'] if string == "MVP" else QColor(tagColor))
+    color = pal['ink'] if quiet else QColor(255, 255, 255)
     p.setPen(Qt.NoPen)
     p.setBrush(fill)
     p.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2)
-    drawText(p, rect, string, font, pal['ink'] if quiet else QColor(255, 255, 255),
-             Qt.AlignCenter)
+    if not icon:
+        drawText(p, rect, string, font, color, Qt.AlignCenter)
+        return
+
+    size = round(rect.height() * 0.62)
+    iconRect = QRectF(rect.left() + 7, rect.center().y() - size / 2, size, size)
+    p.setBrush(color)
+    p.drawPath(tagIconPath(icon, iconRect))
+    drawText(p, rect.adjusted(7 + size + 3, 0, -7, 0), string, font, color,
+             Qt.AlignLeft | Qt.AlignVCenter)
 
 
 def drawResultCard(p, rect, type, pal, radius=8, tintAlpha=15, stripe=4):

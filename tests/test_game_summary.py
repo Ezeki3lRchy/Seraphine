@@ -7,6 +7,9 @@ data, so they run for real on hand-built inputs.
 import asyncio
 import unittest
 
+from PySide6.QtGui import QColor
+
+from app.components import design_tokens, scoreboard
 from app.lol import tools
 
 
@@ -75,6 +78,130 @@ class SummarizeGamesTest(unittest.TestCase):
     def test_current_champion_ignored_when_zero(self):
         s = tools.summarizeGames([game(1, True)], championId=0)
         self.assertIsNone(s["currentChampion"])
+
+
+class PlayerInsightsTest(unittest.TestCase):
+    """Main-champion / streak pills on the game-info player card."""
+
+    def insights(self, games, mastery=None, championId=0):
+        s = tools.summarizeGames(games, championId)
+        return tools.playerInsights(s, mastery or {}, championId)
+
+    def kinds(self, insights):
+        return [i["kind"] for i in insights]
+
+    def test_summary_counts_non_remake_games(self):
+        s = tools.summarizeGames([game(1, True), game(1, True, remake=True), None])
+        self.assertEqual(s["games"], 1)
+
+    def test_main_by_mastery(self):
+        mastery = {1: {"level": 7, "points": 412000}, 2: {"level": 5, "points": 90000}}
+        main = self.insights([game(2, True)], mastery, championId=1)[0]
+        self.assertEqual(main["kind"], "main")
+        self.assertTrue(main["byMastery"])
+        self.assertFalse(main["byShare"])
+        self.assertEqual(main["points"], 412000)
+
+    def test_mastery_needs_top_spot_and_threshold(self):
+        mastery = {1: {"level": 7, "points": 300000}, 2: {"level": 9, "points": 500000}}
+        self.assertEqual(self.insights([game(3, True)], mastery, championId=1), [])
+        mastery = {1: {"level": 5, "points": tools.MAIN_CHAMPION_POINTS - 1}}
+        self.assertEqual(self.insights([game(3, True)], mastery, championId=1), [])
+
+    def test_main_by_share(self):
+        games = [game(1, True)] * 4 + [game(2, False)] * 6
+        main = self.insights(games, championId=1)[0]
+        self.assertEqual(main["kind"], "main")
+        self.assertTrue(main["byShare"])
+        self.assertFalse(main["byMastery"])
+        self.assertEqual((main["games"], main["total"]), (4, 10))
+
+    def test_share_ignores_remakes_and_needs_min_games(self):
+        games = [game(1, True)] * 3 + [game(1, False, remake=True)] * 5
+        self.assertNotIn("main", self.kinds(self.insights(games, championId=1)))
+        games = [game(1, True)] * 4 + [game(2, False)] * 7
+        self.assertNotIn("main", self.kinds(self.insights(games, championId=1)))
+
+    def test_no_champion_picked(self):
+        mastery = {1: {"level": 7, "points": 412000}}
+        games = [game(1, True)] * 5
+        self.assertEqual(self.kinds(self.insights(games, mastery, championId=0)), ["streak"])
+
+    def test_streak_threshold(self):
+        two = [game(1, False)] * 2 + [game(1, True)]
+        self.assertEqual(self.insights(two), [])
+        streak = self.insights([game(1, False)] * 3 + [game(1, True)])[0]
+        self.assertEqual((streak["kind"], streak["result"], streak["count"], streak["tone"]),
+                         ("streak", "lose", 3, "bad"))
+        self.assertEqual(self.insights([game(1, True)] * 5)[0]["tone"], "good")
+
+    def test_main_comes_before_streak(self):
+        games = [game(1, False)] * 5
+        self.assertEqual(self.kinds(self.insights(games, championId=1)), ["main", "streak"])
+
+    def test_empty_games(self):
+        self.assertEqual(self.insights([], {}, championId=0), [])
+        self.assertEqual(self.insights([], {}, championId=1), [])
+        mastery = {1: {"level": 7, "points": 150000}}
+        self.assertEqual(self.kinds(self.insights([], mastery, championId=1)), ["main"])
+
+    def test_share_boundary_is_inclusive(self):
+        games = [game(2, False), game(1, True)] * 4 + [game(2, False)] * 2
+        main = self.insights(games, championId=1)
+        self.assertEqual(self.kinds(main), ["main"])
+        self.assertEqual((main[0]["games"], main[0]["total"]), (4, 10))
+
+    def test_mastery_tie_for_first_counts(self):
+        mastery = {1: {"level": 7, "points": 250000}, 2: {"level": 7, "points": 250000}}
+        main = self.insights([game(3, True)], mastery, championId=1)[0]
+        self.assertTrue(main["byMastery"])
+
+    def test_none_points_are_zero(self):
+        mastery = {1: {"level": 7, "points": None}, 2: {"level": 7, "points": None}, 3: None}
+        self.assertEqual(self.insights([game(3, True)], mastery, championId=1), [])
+        mastery = {1: {"level": 7, "points": 150000}, 2: {"level": 3, "points": None}}
+        self.assertEqual(self.kinds(self.insights([game(3, True)], mastery, championId=1)),
+                         ["main"])
+
+
+class InsightPillsTest(unittest.TestCase):
+    """Pill fill contrast and which pills fit on the marker line."""
+
+    def test_pill_color_reaches_contrast(self):
+        for name in ("#ffffff", "#ffff00", "#808080", "#5383e8", "#e84057", "#c8aa6e"):
+            for muted in (False, True):
+                c = design_tokens.pillColor(QColor(name), muted)
+                self.assertGreaterEqual(design_tokens.contrastWithWhite(c), 4.5, name)
+
+    def test_black_is_unchanged(self):
+        self.assertEqual(design_tokens.pillColor(QColor("#000000")).name(), "#000000")
+        self.assertAlmostEqual(design_tokens.contrastWithWhite(QColor("#000000")), 21, 3)
+        self.assertAlmostEqual(design_tokens.contrastWithWhite(QColor("#ffffff")), 1, 3)
+
+    LABELS = [("Main champion", "Main"), ("5L streak", "5L streak")]
+
+    @staticmethod
+    def width(i, text):
+        return len(text) * 10
+
+    def fit(self, room, labels=None):
+        return scoreboard.fitPills(self.LABELS if labels is None else labels, room,
+                                   self.width, gap=4)
+
+    def test_everything_fits(self):
+        self.assertEqual(self.fit(1000), ["Main champion", "5L streak"])
+
+    def test_shortens_before_dropping(self):
+        self.assertEqual(self.fit(40 + 4 + 90), ["Main", "5L streak"])
+
+    def test_restores_full_label_after_dropping(self):
+        # 两个胶囊连短文字也放不下, 只剩绝活时完整文字放得下
+        self.assertEqual(self.fit(130), ["Main champion"])
+        self.assertEqual(self.fit(129), ["Main"])
+
+    def test_nothing_fits(self):
+        self.assertEqual(self.fit(39), [])
+        self.assertEqual(self.fit(100, []), [])
 
 
 class PositionKeyTest(unittest.TestCase):
