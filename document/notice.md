@@ -6,6 +6,9 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.4
+- Insight tags on the lobby / champ select / in-game player cards: a gold **Main champion** pill (top mastery with 100k+ points, or 40%+ of recent games) and win / loss streak pills. Hover a tag to see why it is shown.
+
 ### v1.4.3
 - Performance card: the (?) help icons show their explanation as soon as you hover them, and light up on hover.
 - Match rows: player names are larger and less truncated; the #TAG moved to the hover tooltip.
