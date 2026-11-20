@@ -116,7 +116,7 @@ if ($NotesFile) {
     $Notes = Get-Content -Path $NotesFile -Raw -Encoding UTF8
 }
 if (-not $Notes) {
-    $Notes = "## v$Version (Windows)`n`nMaintenance release. Use **Update and Restart** to install."
+    $Notes = "## v$Version`n`nMaintenance release. Use **Update and Restart** to install."
 }
 
 $dirty = git status --porcelain
@@ -264,7 +264,7 @@ try {
         if ($releaseExists) { Write-Host "[dry-run] gh release upload v$Version $SevenZ --repo $RepoReleases --clobber" }
         else {
             $shaShown = if ($bumpNeeded) { "<sha of the bump commit>" } else { $targetSha }
-            Write-Host "[dry-run] gh release create v$Version --repo $RepoReleases --target $shaShown --title 'v$Version (Windows)' --notes <notes> $SevenZ"
+            Write-Host "[dry-run] gh release create v$Version --repo $RepoReleases --target $shaShown --title 'v$Version' --notes <notes> $SevenZ"
         }
     }
     else {
@@ -277,7 +277,7 @@ try {
             # BOM-less UTF-8: Set-Content -Encoding UTF8 (PS 5.1) would prepend a BOM that
             # gh carries into the release body (a stray glyph in the in-app updater notes).
             [System.IO.File]::WriteAllText($notesPath, $Notes, (New-Object System.Text.UTF8Encoding($false)))
-            gh release create "v$Version" --repo $RepoReleases --target $targetSha --title "v$Version (Windows)" --notes-file $notesPath $SevenZ
+            gh release create "v$Version" --repo $RepoReleases --target $targetSha --title "v$Version" --notes-file $notesPath $SevenZ
             $rc = $LASTEXITCODE
             Remove-Item $notesPath -ErrorAction SilentlyContinue
             if ($rc -ne 0) { Die "gh release create failed" }

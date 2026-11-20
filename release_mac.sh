@@ -80,7 +80,7 @@ if [ -n "$NOTES_FILE" ]; then
   [ -f "$NOTES_FILE" ] || die "notes file not found: $NOTES_FILE"
   NOTES="$(cat "$NOTES_FILE")"
 fi
-[ -n "$NOTES" ] || NOTES="## v$VERSION (macOS)
+[ -n "$NOTES" ] || NOTES="## v$VERSION
 
 Maintenance release. Use **Update and Restart** to install."
 
@@ -152,13 +152,13 @@ TARGET_SHA="$(git rev-parse HEAD)"
 # ---- publish ----------------------------------------------------------------
 note "publishing release v$VERSION to $REPO_RELEASES"
 if [ "$DRY_RUN" -eq 1 ]; then
-  echo "[dry-run] would run: gh release create v$VERSION --repo $REPO_RELEASES --target <sha of the bump commit> --title 'v$VERSION (macOS)' --notes <notes> $DMG"
+  echo "[dry-run] would run: gh release create v$VERSION --repo $REPO_RELEASES --target <sha of the bump commit> --title 'v$VERSION' --notes <notes> $DMG"
 else
   printf '%s' "$NOTES" > /tmp/seraphine_release_notes.md
   gh release create "v$VERSION" \
     --repo "$REPO_RELEASES" \
     --target "$TARGET_SHA" \
-    --title "v$VERSION (macOS)" \
+    --title "v$VERSION" \
     --notes-file /tmp/seraphine_release_notes.md \
     "$DMG"
   rm -f /tmp/seraphine_release_notes.md
