@@ -53,11 +53,13 @@ class GameTagsTest(unittest.TestCase):
 class CareerTextTest(unittest.TestCase):
 
     def test_time_ago(self):
+        # one second past each boundary: an exact multiple can land just below it
+        # through float rounding when the clock has not ticked (Windows, ~15 ms)
         now = time.time() * 1000
         self.assertEqual(cw.timeAgo(now), "just now")
-        self.assertEqual(cw.timeAgo(now - 3 * 60_000), "3 minutes ago")
-        self.assertEqual(cw.timeAgo(now - 60 * 60_000), "1 hour ago")
-        self.assertEqual(cw.timeAgo(now - 2 * 86_400_000), "2 days ago")
+        self.assertEqual(cw.timeAgo(now - 3 * 60_000 - 1000), "3 minutes ago")
+        self.assertEqual(cw.timeAgo(now - 60 * 60_000 - 1000), "1 hour ago")
+        self.assertEqual(cw.timeAgo(now - 2 * 86_400_000 - 1000), "2 days ago")
 
     def test_tier_text_and_duration(self):
         self.assertEqual(cw.tierText("DIAMOND", "II"), "Diamond II")
