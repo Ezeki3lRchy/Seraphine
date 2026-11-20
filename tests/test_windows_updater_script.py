@@ -124,9 +124,9 @@ class WindowsUpdaterScriptTest(unittest.TestCase):
             if os.path.exists(self.log) else ''
         return self.logText
 
-    def run_script(self, source=None, pid=None, extra=(), install=None):
+    def run_script(self, source=None, pid=None, extra=(), install=None, env=None):
         r = subprocess.run(self.args(source, pid, extra, install), capture_output=True,
-                           text=True, timeout=180, creationflags=CREATE_NO_WINDOW)
+                           text=True, timeout=180, creationflags=CREATE_NO_WINDOW, env=env)
         self.readLog()
         return r
 
@@ -382,6 +382,54 @@ class WindowsUpdaterScriptTest(unittest.TestCase):
         self._leaveUnfinishedRestore()
         _write(self.p('Seraphine.exe'), b'old-exe')
         r = self.run_script()
+        self.assertEqual(r.returncode, 0, self.logText)
+        self.assertIn('earlier restore completed', self.logText)
+        self.assertNotIn('FOREIGN BACKUP', self.logText)
+        self.assertEqual(self.result()['status'], 'ok')
+
+    def test_script_hashes_without_get_filehash(self):
+        # In Windows PowerShell, Get-FileHash is a script function of the
+        # Microsoft.PowerShell.Utility module. Started from a PowerShell 7 process
+        # (a pwsh terminal, the CI step that runs these tests) the inherited
+        # PSModulePath can leave it unavailable; the script then saw an empty hash
+        # and discarded its own backup as foreign. It must hash through .NET.
+        code = [line.split('#', 1)[0] for line in
+                update.WINDOWS_UPDATER_SCRIPT.splitlines()]
+        self.assertFalse([line for line in code if 'Get-FileHash' in line])
+        self.assertTrue([line for line in code if 'SHA256CryptoServiceProvider' in line])
+
+    def test_backup_is_recognised_under_a_powershell_7_module_path(self):
+        # The same environment, reproduced without PowerShell 7: an unversioned
+        # Core-edition Microsoft.PowerShell.Utility ahead in PSModulePath, laid out
+        # the way PowerShell 7 ships it (its nested dll has the name of Windows
+        # PowerShell's own, so the compiled cmdlets still resolve). Windows
+        # PowerShell takes that manifest, and Get-FileHash, which it only has as a
+        # script function of its own module, is gone.
+        module = os.path.join(self.root, 'ps7 modules', 'Microsoft.PowerShell.Utility')
+        _write(os.path.join(module, 'Microsoft.PowerShell.Utility.psd1'),
+               b"@{ GUID='1DA87E53-152B-403E-98DC-74D7B4D63D59'; ModuleVersion='7.0.0.0'; "
+               b"PowerShellVersion='3.0'; CompatiblePSEditions=@('Core'); "
+               b"NestedModules='Microsoft.PowerShell.Commands.Utility.dll'; "
+               b"CmdletsToExport=@('Get-FileHash','Format-List','Get-Date',"
+               b"'ConvertFrom-Json','New-Object'); FunctionsToExport=@() }\r\n")
+        _write(os.path.join(module, 'Microsoft.PowerShell.Commands.Utility.dll'),
+               b'not an assembly')
+        env = dict(os.environ)
+        env['PSModulePath'] = os.path.dirname(module) + os.pathsep + \
+            env.get('PSModulePath', '')
+
+        probe = subprocess.run(
+            ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
+             'try { $null = Get-FileHash -LiteralPath $env:ComSpec; "works" } '
+             'catch { "broken" }'],
+            capture_output=True, text=True, timeout=60, env=env,
+            creationflags=CREATE_NO_WINDOW)
+        self.assertIn('broken', probe.stdout, 'the stand-in module path no longer '
+                      'breaks Get-FileHash, so this test would prove nothing')
+
+        self._leaveUnfinishedRestore()
+        _write(self.p('Seraphine.exe'), b'old-exe')
+        r = self.run_script(env=env)
         self.assertEqual(r.returncode, 0, self.logText)
         self.assertIn('earlier restore completed', self.logText)
         self.assertNotIn('FOREIGN BACKUP', self.logText)

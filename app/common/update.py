@@ -178,10 +178,24 @@ function Invoke-Robocopy([string]$From, [string]$To) {
     return $code
 }
 
+function Get-Sha256([string]$Path) {
+    # Upper-case hex SHA-256 of a file; throws when it cannot be read. .NET directly,
+    # not Get-FileHash: in Windows PowerShell that is a script function of the
+    # Microsoft.PowerShell.Utility module and can be unavailable when the parent
+    # process hands down PowerShell 7's PSModulePath (app started from a pwsh
+    # terminal, a CI step). Same provider and sharing mode as Get-FileHash uses.
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha = New-Object System.Security.Cryptography.SHA256CryptoServiceProvider
+        try {
+            return [System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', ''
+        } finally { $sha.Dispose() }
+    } finally { $stream.Dispose() }
+}
+
 function Test-SameContent([string]$A, [string]$B) {
     try {
-        return (Get-FileHash -LiteralPath $A -Algorithm SHA256).Hash -eq
-               (Get-FileHash -LiteralPath $B -Algorithm SHA256).Hash
+        return (Get-Sha256 $A) -eq (Get-Sha256 $B)
     } catch {
         return $false
     }
@@ -232,7 +246,7 @@ function Remove-Backup {
 }
 
 function Get-ExeHash([string]$Path) {
-    try { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash } catch { return $null }
+    try { return Get-Sha256 $Path } catch { return $null }
 }
 
 function Read-BackupMeta {
