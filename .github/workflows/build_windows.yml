@@ -10,7 +10,7 @@ name: build-windows
 # Prerequisite: VERSION in app/common/config.py on the chosen ref already equals
 # the requested version (bump + push first, like release_win.ps1's decoupled mode).
 #
-# Also callable from release_windows.yml (workflow_call), which publishes the
+# Also callable from release.yml (workflow_call), which publishes the
 # artifact automatically when VERSION changes on main.
 on:
   workflow_dispatch:

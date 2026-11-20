@@ -8,7 +8,8 @@
 # The release tag is pinned to the bump commit (--target <sha>), so that commit must
 # be on GitHub when the release is created: --push is required, and the push happens
 # right before `gh release create` (not at the end). Pushing the VERSION bump to main
-# also starts the automatic Windows release (.github/workflows/release_windows.yml).
+# also starts the automatic release (.github/workflows/release.yml), which builds the
+# Windows .7z and, if this script has not attached its .dmg by then, a .dmg too.
 #
 # Usage:
 #   ./release_mac.sh <version> [options]

@@ -123,7 +123,7 @@ python main.py
 - **原生 macOS 支持**：所有 Windows 专有逻辑（win32 / winreg / 窗口句柄）被收敛进 [`app/common/platform.py`](app/common/platform.py) 的跨平台垫片，macOS 上以 Qt / `open` / 包内路径等原生方式实现，Windows 路径逐字保留。
 - **PySide6 迁移**：界面框架由 PyQt5 切换为 PySide6 + [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets)。
 - **平台感知的自更新**：内置更新器读取本仓库的 [Releases](https://github.com/Ezeki3lRchy/Seraphine/releases)，并只下载与当前系统匹配的安装包（macOS 取 `.dmg`，Windows 取 `.7z`），不会把另一个平台的包推给你。
-- **Windows 自动发版**：把升 `VERSION` 的提交推到 `main`，[GitHub Actions](.github/workflows/release_windows.yml) 就会自动打出 `Seraphine.7z` 并发布为 Release，已安装的程序下次启动即提示更新。
+- **自动发版**：把升 `VERSION` 的提交推到 `main`，[GitHub Actions](.github/workflows/release.yml) 就会自动打出 `Seraphine.7z`（Windows）和 `Seraphine.dmg`（macOS）并发布到同一个 Release，两个平台已安装的程序下次启动即提示更新。
 - **一键发布脚本**：[`release_mac.sh`](release_mac.sh) 与 [`release_win.ps1`](release_win.ps1) 可手动完成「升版本 → 打 `.dmg` / `.7z` → 校验 → 发布到 GitHub Release」全流程。
 - **按模式过滤战绩**：打开 *设置 → 按模式过滤战绩* 后，大厅 / 英雄选择 / 对局中的对局信息页只显示每名玩家在当前模式下的对局（单双只看单双，灵活只看灵活，大乱斗只看大乱斗……）。非排位模式下某位玩家近期没有该模式的对局时，退回显示其最近的对局。
 - **对局评分**：战绩列表的每一行和对局详情页都会显示类似 OP.GG 的 0–10 评分，位于 MVP / SVP / 名次标记旁。排位局（单双、灵活）用一个拟合 OP.GG 真实评分的小模型打分（移植自 [lol-friends-ladder](https://github.com/ignaciomigliaro/lol-friends-ladder)，在其留出对局上平均误差约 0.3），需要从 Riot 对局服务器取每局结算数据，每局多一个请求。其他模式，以及取不到结算数据的排位局，用 Seraphine 自己的公式（参团率、伤害、KDA、承伤、金币、视野）。
@@ -200,9 +200,9 @@ pip install pyinstaller
 
 切勿另起 `-win` 之类的独立 tag——那会抢走 “latest”，破坏另一平台的更新。`-DryRun` 可预览每一步。
 
-**自动发版：** 也可以完全不跑脚本。修改 `app/common/config.py` 里的 `VERSION`，提交并推送到 `main`，工作流 `release-windows`（[`.github/workflows/release_windows.yml`](.github/workflows/release_windows.yml)）会自动打出 `Seraphine.7z` 并发布为该版本的 Release（若 Release 已存在则上传到其上）。该 Release 已有 `Seraphine.7z` 时不做任何事。macOS 的 `.dmg` 仍由 `release_mac.sh` 产出。
+**自动发版：** 也可以完全不跑脚本。修改 `app/common/config.py` 里的 `VERSION`，提交并推送到 `main`，工作流 `release`（[`.github/workflows/release.yml`](.github/workflows/release.yml)）会自动打出 `Seraphine.7z` 和 `Seraphine.dmg` 并发布为该版本的 Release（若 Release 已存在则上传到其上）。Release 已有的文件不会重新打包，两个都在时不做任何事。手动运行（`gh workflow run release.yml`）会补上当前版本 Release 缺少的文件。
 
-手边没有 Windows 机器？GitHub Actions 工作流 `build-windows`（[`.github/workflows/build_windows.yml`](.github/workflows/build_windows.yml)，`workflow_dispatch` 手动触发）会在托管 runner 上执行同样的打包 / 校验步骤，且不发布任何东西。先升级并推送 `VERSION`，然后：
+只想打包不发布？GitHub Actions 工作流 `build-windows` 和 `build-macos`（[`.github/workflows/build_windows.yml`](.github/workflows/build_windows.yml)、[`.github/workflows/build_macos.yml`](.github/workflows/build_macos.yml)，`workflow_dispatch` 手动触发）会在托管 runner 上执行同样的打包 / 校验步骤，且不发布任何东西（macOS 把下面的命令换成 `build_macos.yml`、`Seraphine-mac-X.Y.Z` 和 `Seraphine.dmg`）。先升级并推送 `VERSION`，然后：
 ```shell
 gh workflow run build_windows.yml -f version=X.Y.Z
 gh run download <run-id> -n Seraphine-win-X.Y.Z -D /tmp/win

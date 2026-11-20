@@ -1,0 +1,76 @@
+name: build-macos
+
+# Builds the macOS Seraphine.dmg on a GitHub-hosted Apple Silicon runner with the
+# same script a maintainer runs locally (make_mac.sh: Seraphine.spec, then hdiutil),
+# so no Mac has to be at hand for a release. The build is unsigned, exactly like the
+# local one. PUBLISHES NOTHING on its own: download the artifact and upload it onto
+# the version's release yourself:
+#   gh run download <run-id> -n Seraphine-mac-X.Y.Z -D /tmp/mac
+#   gh release upload vX.Y.Z /tmp/mac/Seraphine.dmg --repo Ezeki3lRchy/Seraphine --clobber
+# Prerequisite: VERSION in app/common/config.py on the chosen ref already equals
+# the requested version.
+#
+# Also callable from release.yml (workflow_call), which publishes the artifact
+# automatically when VERSION changes on main.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version the frozen app must report (X.Y.Z); must equal VERSION in app/common/config.py on this ref"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        description: "Version the frozen app must report (X.Y.Z)"
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      TARGET_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Create venv/ with requirements + PyInstaller 6.21 (the layout make_mac.sh expects)
+        run: |
+          python -m venv venv
+          venv/bin/python -m pip install --upgrade pip
+          venv/bin/pip install -r requirements.txt pyinstaller==6.21.0
+
+      - name: Check config.py VERSION matches the requested version
+        run: |
+          v=$(sed -nE 's/^VERSION = "([^"]+)".*/\1/p' app/common/config.py)
+          if [ "$v" != "$TARGET_VERSION" ]; then
+            echo "::error::config.py VERSION is '$v' but the requested version is '$TARGET_VERSION' -- bump and push first"
+            exit 1
+          fi
+          echo "VERSION $v OK"
+
+      - name: Build Seraphine.app + Seraphine.dmg (make_mac.sh)
+        run: ./make_mac.sh
+
+      - name: Verify the frozen app reports the requested version
+        run: |
+          reported=$(dist/Seraphine.app/Contents/MacOS/Seraphine --version | tail -1 | tr -d '[:space:]')
+          if [ "$reported" != "$TARGET_VERSION" ]; then
+            echo "::error::frozen app reports '$reported', expected '$TARGET_VERSION'"
+            exit 1
+          fi
+          echo "frozen app reports $reported OK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Seraphine-mac-${{ inputs.version }}
+          path: dist/Seraphine.dmg
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
