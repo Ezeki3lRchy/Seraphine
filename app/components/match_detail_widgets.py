@@ -14,7 +14,7 @@ from app.components.rich_tooltip import RichToolTip
 from app.common.signals import signalBus
 from app.components.design_tokens import (numberFont, textFont, resultColor, tint, deathsColor,
                                           opScoreColor)
-from app.components.match_widgets import itemTooltipHtml, rankEmblemPath, ordinal, TAG_COLORS
+from app.components.match_widgets import itemTooltipHtml, rankMiniPixmap, ordinal, TAG_COLORS
 from app.components.scoreboard import (cachedContent, drawText, drawRuns, runsWidth,
                                        drawRoundedPixmap, drawChampion, drawItemSlot, drawTag,
                                        drawResultCard, stripeColor)
@@ -141,7 +141,7 @@ class DetailPlayerRow(QWidget):
         itemIds = summoner.get('itemIds') or [0] * len(summoner.get('itemIcons', []))
         self.items = [(pix(icon) if itemId else QPixmap(), itemId)
                       for icon, itemId in zip(summoner.get('itemIcons', []), itemIds)]
-        self.emblem = QPixmap(rankEmblemPath(summoner.get('tierKey'))) \
+        self.emblem = rankMiniPixmap(summoner.get('tierKey')) \
             if summoner.get('tierKey') else QPixmap()
 
         # 命中区域, 绘制缓存时按当前宽度算出

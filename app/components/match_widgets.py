@@ -5,8 +5,8 @@ OP.GG 风格战绩页共用的小控件: 带详情悬浮提示的物品图标, �
 import re
 import html
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, QRect
+from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QLabel
 
 from app.common.qfluentwidgets import ToolTipFilter, ToolTipPosition
@@ -138,6 +138,27 @@ def rankEmblemPath(tier: str) -> str:
     if tier in ('', 'none', 'unranked', 'na'):
         tier = 'unranked'
     return f"app/resource/images/{tier}.png"
+
+
+def rankMiniIconPath(tier: str) -> str:
+    """段位小图标 (20px svg, 适合 ~18px 的行内显示); 大徽章缩到这么小只剩一团"""
+    tier = (tier or '').upper()
+    if tier in ('', 'NONE', 'UNRANKED', 'NA'):
+        tier = 'UNRANKED'
+    return f"app/resource/images/{tier}.svg"
+
+
+def rankMiniPixmap(tier: str, size: int = 18) -> QPixmap:
+    """rankMiniIconPath 渲染成 2 倍分辨率的 QPixmap (画进 size × size 的矩形里在高分屏也清晰)"""
+    # The svgs are not square (IRON is 20x14): centre them on a square canvas so callers
+    # that draw the pixmap into a size x size rect do not stretch it.
+    side = size * 2
+    pixmap = QPixmap(side, side)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    QIcon(rankMiniIconPath(tier)).paint(painter, QRect(0, 0, side, side), Qt.AlignCenter)
+    painter.end()
+    return pixmap
 
 
 class RankEmblem(QLabel):

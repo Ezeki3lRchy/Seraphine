@@ -13,7 +13,8 @@ from app.common.style_sheet import StyleSheet
 from app.common.signals import signalBus
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.animation_frame import ColorAnimationFrame
-from app.components.match_widgets import TagPill, gameTags, itemTooltipHtml, rankEmblemPath
+from app.components.match_widgets import (TagPill, gameTags, itemTooltipHtml, rankEmblemPath,
+                                          rankMiniPixmap)
 from app.components.rich_tooltip import RichToolTip
 from app.components.design_tokens import (deathsColor, palette, numberFont, textFont,
                                          resultColor, pillColor)
@@ -633,7 +634,7 @@ class PlayerHeader(ComposedCardMixin, ColorAnimationFrame):
         self.solo, self.flex = solo, flex
         self.soloEmblem = QPixmap(rankEmblemPath(solo.get('tierKey'))) \
             if tierText(solo.get('tierKey'), solo.get('division')) else QPixmap()
-        self.flexEmblem = QPixmap(rankEmblemPath(flex.get('tierKey'))) \
+        self.flexEmblem = rankMiniPixmap(flex.get('tierKey')) \
             if tierText(flex.get('tierKey'), flex.get('division')) else QPixmap()
 
         self.nameRect = QRect()
