@@ -72,7 +72,7 @@ class GoldOverlay(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setFocusPolicy(Qt.NoFocus)
-        self.setWindowTitle("Seraphine - Item value")
+        self.setWindowTitle("Seraphine - " + self.tr("Item value"))
         self.__applyFlags()
         self.setWindowOpacity(cfg.get(cfg.goldOverlayOpacity) / 100)
         self.resize(WIDTH, overlayHeight(None))

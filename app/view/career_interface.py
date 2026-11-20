@@ -586,12 +586,14 @@ class CareerInterface(SeraphineInterface):
 
         if 'gameCount' in games:
             self.recent20GamesLabel.setText(
-                f"{self.tr('Recent matches')} {self.tr('(Last')} {len(games['games'])} {self.tr('games)')}"
+                self.tr('Recent matches') + " " + self.tr('(Last') +
+                f" {len(games['games'])} " + self.tr('games)')
             )
-            self.winsLabel.setText(f"{self.tr('Wins:')} {games['wins']}")
-            self.lossesLabel.setText(f"{self.tr('Losses:')} {games['losses']}")
+            self.winsLabel.setText(self.tr('Wins:') + f" {games['wins']}")
+            self.lossesLabel.setText(self.tr('Losses:') + f" {games['losses']}")
 
-            kda = f"{self.tr('KDA:')} {games['kills']} / {games['deaths']} / {games['assists']} "
+            kda = self.tr('KDA:') + \
+                f" {games['kills']} / {games['deaths']} / {games['assists']} "
             kda += self.tr("(")
             kda += f"{(games['kills'] + games['assists']) / (1 if games['deaths'] == 0 else games['deaths']):.1f}"
             kda += self.tr(")")
@@ -600,12 +602,13 @@ class CareerInterface(SeraphineInterface):
 
         else:
             self.recent20GamesLabel.setText(
-                f"{self.tr('Recent matches')} {self.tr('(Last')} None {self.tr('games)')}"
+                self.tr('Recent matches') + " " + self.tr('(Last') + " None " +
+                self.tr('games)')
             )
-            self.winsLabel.setText(f"{self.tr('Wins:')} 0")
-            self.lossesLabel.setText(f"{self.tr('Losses:')} 0")
+            self.winsLabel.setText(self.tr('Wins:') + " 0")
+            self.lossesLabel.setText(self.tr('Losses:') + " 0")
             self.kdaLabel.setText(
-                f"{self.tr('KDA:')} 0 / 0 / 0 " + self.tr("(") + "0" + self.tr(")"))
+                self.tr('KDA:') + " 0 / 0 / 0 " + self.tr("(") + "0" + self.tr(")"))
 
         self.games = games
 
@@ -793,11 +796,12 @@ class CareerInterface(SeraphineInterface):
         self.summaryCard.updateGames(hitGames)
 
         self.recent20GamesLabel.setText(
-            f"{self.tr('Recent matches')} {self.tr('(Last')} {len(hitGames)} {self.tr('games)')}"
+            self.tr('Recent matches') + " " + self.tr('(Last') + f" {len(hitGames)} " +
+            self.tr('games)')
         )
-        self.winsLabel.setText(f"{self.tr('Wins:')} {wins}")
-        self.lossesLabel.setText(f"{self.tr('Losses:')} {losses}")
-        kda = f"{self.tr('KDA:')} {kills} / {deaths} / {assists}"
+        self.winsLabel.setText(self.tr('Wins:') + f" {wins}")
+        self.lossesLabel.setText(self.tr('Losses:') + f" {losses}")
+        kda = self.tr('KDA:') + f" {kills} / {deaths} / {assists}"
         kda += self.tr("(")
         kda += f"{(kills + assists) / (1 if deaths == 0 else deaths):.1f}"
         kda += self.tr(")")

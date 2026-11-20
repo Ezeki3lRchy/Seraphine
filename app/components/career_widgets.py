@@ -4,7 +4,7 @@
 """
 import time
 
-from PySide6.QtCore import Qt, QRectF, QRect, QEvent
+from PySide6.QtCore import Qt, QRectF, QRect, QEvent, QCoreApplication
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QPixmap
 from PySide6.QtWidgets import QFrame, QSizePolicy
 
@@ -16,35 +16,30 @@ from app.common.style_sheet import colorManager
 from app.components.animation_frame import ColorAnimationFrame
 from app.components.design_tokens import (palette, numberFont, textFont, resultColor, tint,
                                           opScoreColor)
-from app.components.match_widgets import rankEmblemPath, gameTags, itemTooltipHtml, TAG_COLORS
+from app.components.match_widgets import (rankEmblemPath, gameTags, itemTooltipHtml, TAG_COLORS,
+                                          tierText)
+from app.components.scoreboard import durationText
 from app.lol.activity import activityByHour, activityByWeekday, winRate
 from app.lol.connector import connector
 from app.lol.tools import summarizeGames
-
-
-def tierText(tier, division):
-    """LCU 原始段位 -> 'Diamond II' / 'Master'; 取不到为空串"""
-    if not tier or tier in ('NONE', 'UNRANKED'):
-        return ""
-
-    division = "" if division in ("", "NA", None) else division
-    return f"{tier.title()} {division}".strip()
 
 
 def timeAgo(timeStamp):
     """毫秒时间戳 -> '3 minutes ago' / '2 hours ago' / '5 days ago'"""
     secs = max(time.time() - timeStamp / 1000, 0)
 
-    for unit, size in (("day", 86400), ("hour", 3600), ("minute", 60)):
+    for size, one, many in (
+            (86400, QCoreApplication.translate("TimeText", "%1 day ago"),
+             QCoreApplication.translate("TimeText", "%1 days ago")),
+            (3600, QCoreApplication.translate("TimeText", "%1 hour ago"),
+             QCoreApplication.translate("TimeText", "%1 hours ago")),
+            (60, QCoreApplication.translate("TimeText", "%1 minute ago"),
+             QCoreApplication.translate("TimeText", "%1 minutes ago"))):
         if secs >= size:
             n = int(secs // size)
-            return f"{n} {unit}{'s' if n > 1 else ''} ago"
+            return (one if n == 1 else many).replace("%1", str(n))
 
-    return "just now"
-
-
-def durationText(secs):
-    return f"{secs // 60}m {secs % 60:02d}s" if secs else ""
+    return QCoreApplication.translate("TimeText", "just now")
 
 
 def resultType(game):
@@ -281,11 +276,16 @@ class RecentSummaryCard(QFrame):
     def __activityTip(self, label, entry):
         """'18:00 - 3 games, 67% win rate'; 全是重开时不写胜率"""
         n = entry['games']
-        tip = f"{label} - {n} {self.tr('game') if n == 1 else self.tr('games')}"
         rate = winRate(entry)
+        if rate is None:
+            text = self.tr("%1 game") if n == 1 else self.tr("%1 games")
+        else:
+            text = self.tr("%1 game, %2 win rate") if n == 1 else \
+                self.tr("%1 games, %2 win rate")
+        text = text.replace("%1", str(n))
         if rate is not None:
-            tip += f", {round(rate * 100)}% {self.tr('win rate')}"
-        return tip
+            text = text.replace("%2", f"{round(rate * 100)}%")
+        return f"{label} - " + text
 
     def __activityAt(self, pos):
         """命中的小时格 / 星期柱 -> (区域, 提示文字)"""
@@ -313,8 +313,12 @@ class RecentSummaryCard(QFrame):
                 return True
             if self.rolesRect.contains(e.pos()) and self.summary:
                 counts = dict(self.summary['positions'])
+                names = {'TOP': self.tr("Top"), 'JUNGLE': self.tr("Jungle"),
+                         'MIDDLE': self.tr("Mid"), 'BOTTOM': self.tr("Bot"),
+                         'UTILITY': self.tr("Support")}
                 RichToolTip.showText(e.globalPos(), "\n".join(
-                    f"{label}: {counts.get(key, 0)}" for key, _, label in self.ROLES), self)
+                    self.tr("%1: %2").replace("%1", names[key]).replace(
+                        "%2", str(counts.get(key, 0))) for key, _, _ in self.ROLES), self)
                 return True
             RichToolTip.hideText()
             e.ignore()
@@ -409,7 +413,7 @@ class RecentSummaryCard(QFrame):
         drawText(p, QRectF(end + 6, 66, 60, 20), "KDA", textFont(12), pal['muted'])
         kps = [g['kp'] for g in counted if g.get('kp') is not None]
         if kps:
-            drawRuns(p, x, 92, 20, (("KP  ", textFont(12), pal['muted']),
+            drawRuns(p, x, 92, 20, ((self.tr("KP") + "  ", textFont(12), pal['muted']),
                                     (f"{round(sum(kps) / len(kps) * 100)}%",
                                      numberFont(15), pal['ink'])))
 
@@ -485,7 +489,7 @@ class RecentSummaryCard(QFrame):
 
         cellsX = 132 + 28
         self.hourRects = []
-        for row, half in enumerate(("AM", "PM")):
+        for row, half in enumerate((self.tr("AM"), self.tr("PM"))):
             cy = y + row * (cell + 4)
             drawText(p, QRectF(132, cy, 28, cell), half, labelFont, muted)
             for col in range(12):
@@ -602,19 +606,19 @@ class CareerGameRow(ColorAnimationFrame):
         self.opScore = None if game.get('remake') else game.get('opScore')
         scoreTips = []
         if game.get('scoreRank'):
-            head = f"{self.tr('Seraphine score')}: "
-            if self.opScore is not None:
-                head += f"{self.opScore:.1f}  "
-            scoreTips.append(head + f"(#{game['scoreRank']} / {game['scorePlayers']})")
+            score = "" if self.opScore is None else f"{self.opScore:.1f}  "
+            scoreTips.append(self.tr("Seraphine score: %1").replace(
+                "%1", score + f"(#{game['scoreRank']} / {game['scorePlayers']})"))
             scoreTips.append(self.tr(
                 "0-10 rating of kill participation, damage, KDA, damage taken, gold and "
                 "vision vs. everyone in the game; an average game is about 5.5."))
             scoreTips.append(self.tr(
                 "MVP: best score on the winning team, SVP: best on the losing team"))
         self.scoreTip = "\n".join(scoreTips)
-        self.statsTip = "\n".join([f"{self.tr('Damage')}: {game.get('damage', 0):,}",
-                                   f"{self.tr('Vision')}: {game.get('visionScore', 0)}"]
-                                  + scoreTips)
+        self.statsTip = "\n".join(
+            [self.tr("Damage: %1").replace("%1", f"{game.get('damage', 0):,}"),
+             self.tr("Vision: %1").replace("%1", str(game.get('visionScore', 0)))]
+            + scoreTips)
 
         # 命中区域, 绘制时按当前宽度算出
         self.itemRects = []
@@ -643,7 +647,7 @@ class CareerGameRow(ColorAnimationFrame):
         self.laning = laning
         if laning:
             self.laningTip = "\n".join((
-                f"{self.tr('Laning')}: {laning['mine']} : {laning['theirs']}",
+                self.tr("Laning: %1").replace("%1", f"{laning['mine']} : {laning['theirs']}"),
                 self.tr("Laning score: your lane advantage over the opponent in the same "
                         "position during the first 14 minutes."),
                 self.tr("Your share of the two players' gold (50%), XP (30%) and CS (20%) "
@@ -838,8 +842,8 @@ class CareerGameRow(ColorAnimationFrame):
         statsX = min(statsX, right - self.STATS_W)
         pitch = 18 if self.laning else 21
         statsTop = h / 2 - (37 if self.laning else 30)
-        for i, (label, value, size) in enumerate((("KP", self.kpValue, 16),
-                                                  ("CS", self.csValue, 14),
+        for i, (label, value, size) in enumerate(((self.tr("KP"), self.kpValue, 16),
+                                                  (self.tr("CS"), self.csValue, 14),
                                                   (self.tr("Gold"), self.goldValue, 14))):
             if not value:
                 continue

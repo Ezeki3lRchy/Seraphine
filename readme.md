@@ -136,6 +136,7 @@ Delete the program folder, then remove the config directory for your platform:
 - **Both teams in custom lobbies**: in a custom game lobby the game info page already loads both teams — your team under **Ally**, the other team under **Enemy** (a spectator sees Team 1 / Team 2). Bots and spectators are skipped, players who join or switch teams update the page, and only newly joined players are looked up.
 - **Redesigned tooltips**: hover tips (items, runes, scores, charts) use a themed card that follows light / dark mode instead of the plain native tooltip.
 - **Faster start-up and browsing**: cached icons skip the request queue, the connector initialises in parallel, and match details are fetched once and reused.
+- **Complete Chinese interface**: everything this fork adds (Career views, match detail, OP.GG build page, item value, update prompts) is translated to Simplified Chinese, and rank tiers, relative times, game length and multi-kill / placement tags follow the interface language instead of staying English.
 
 ## FAQ 🧐
 

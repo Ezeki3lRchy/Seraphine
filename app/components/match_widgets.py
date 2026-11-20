@@ -5,7 +5,7 @@ OP.GG 风格战绩页共用的小控件: 带详情悬浮提示的物品图标, �
 import re
 import html
 
-from PySide6.QtCore import Qt, QRect
+from PySide6.QtCore import Qt, QRect, QCoreApplication, QT_TRANSLATE_NOOP
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QLabel
 
@@ -86,15 +86,46 @@ TAG_COLORS = {
     "rank": "#6b7280",
 }
 
-MULTI_KILL_TAGS = {2: "Double kill", 3: "Triple kill", 4: "Quadra kill", 5: "Penta kill"}
+# English source texts; translated where they are shown (gameTags), not at import time
+MULTI_KILL_TAGS = {2: QT_TRANSLATE_NOOP("GameTags", "Double kill"),
+                   3: QT_TRANSLATE_NOOP("GameTags", "Triple kill"),
+                   4: QT_TRANSLATE_NOOP("GameTags", "Quadra kill"),
+                   5: QT_TRANSLATE_NOOP("GameTags", "Penta kill")}
+
+TIER_NAMES = {'IRON': QT_TRANSLATE_NOOP("RankTier", "Iron"),
+              'BRONZE': QT_TRANSLATE_NOOP("RankTier", "Bronze"),
+              'SILVER': QT_TRANSLATE_NOOP("RankTier", "Silver"),
+              'GOLD': QT_TRANSLATE_NOOP("RankTier", "Gold"),
+              'PLATINUM': QT_TRANSLATE_NOOP("RankTier", "Platinum"),
+              'EMERALD': QT_TRANSLATE_NOOP("RankTier", "Emerald"),
+              'DIAMOND': QT_TRANSLATE_NOOP("RankTier", "Diamond"),
+              'MASTER': QT_TRANSLATE_NOOP("RankTier", "Master"),
+              'GRANDMASTER': QT_TRANSLATE_NOOP("RankTier", "Grandmaster"),
+              'CHALLENGER': QT_TRANSLATE_NOOP("RankTier", "Challenger")}
+
+
+def tierText(tier, division):
+    """LCU 原始段位 -> 'Diamond II' / 'Master' (按当前语言翻译); 取不到为空串"""
+    if not tier or tier in ('NONE', 'UNRANKED'):
+        return ""
+
+    division = "" if division in ("", "NA", None) else division
+    name = TIER_NAMES.get(tier.upper())
+    name = QCoreApplication.translate("RankTier", name) if name else tier.title()
+    return f"{name} {division}".strip()
 
 
 def ordinal(n: int) -> str:
+    """'1st' / '2nd' / '3rd' / '4th' ...; one translatable pattern per English suffix"""
     if 10 <= n % 100 <= 20:
         suffix = 'th'
     else:
         suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')
-    return f"{n}{suffix}"
+    pattern = {'st': QCoreApplication.translate("GameTags", "%1st"),
+               'nd': QCoreApplication.translate("GameTags", "%1nd"),
+               'rd': QCoreApplication.translate("GameTags", "%1rd"),
+               'th': QCoreApplication.translate("GameTags", "%1th")}[suffix]
+    return pattern.replace("%1", str(n))
 
 
 class TagPill(QLabel):
@@ -121,7 +152,8 @@ def gameTags(game) -> list:
 
     multiKill = game.get('multiKill', 0)
     if multiKill >= 2:
-        tags.append((MULTI_KILL_TAGS[min(multiKill, 5)], TAG_COLORS['multiKill']))
+        tags.append((QCoreApplication.translate("GameTags", MULTI_KILL_TAGS[min(multiKill, 5)]),
+                     TAG_COLORS['multiKill']))
 
     badge = game.get('badge')
     if badge:

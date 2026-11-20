@@ -6,6 +6,10 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.7
+- Complete Chinese interface: everything this build adds (Career views, match detail, OP.GG build page, item value, update prompts) is translated to Simplified Chinese.
+- Rank tiers, relative times, game length and multi-kill / placement tags follow the interface language instead of staying English.
+
 ### v1.4.6
 - Updates now download in the background (never during a game) and only ask you to restart. If an update cannot be applied, the previous version is restored and you are told. **Versions up to 1.4.5 cannot update themselves on Windows: download this release once by hand (Manually Download), after that it is automatic.**
 - Champions: a third view on the Career page with this season's numbers per champion, expandable into lane matchups.

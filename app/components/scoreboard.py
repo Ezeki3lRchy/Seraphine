@@ -6,7 +6,7 @@
 import math
 import time
 
-from PySide6.QtCore import Qt, QRectF
+from PySide6.QtCore import Qt, QRectF, QCoreApplication
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QPixmap
 
 from app.common.qfluentwidgets import isDarkTheme
@@ -46,14 +46,20 @@ def compactAgo(timeStamp, dateText="", now=None):
     secs = max((time.time() if now is None else now) - timeStamp / 1000, 0)
     if secs >= 7 * 86400 and dateText:
         return dateText
-    for unit, size in (("d", 86400), ("h", 3600), ("m", 60)):
+    for size, pattern in ((86400, QCoreApplication.translate("TimeText", "%1d")),
+                          (3600, QCoreApplication.translate("TimeText", "%1h")),
+                          (60, QCoreApplication.translate("TimeText", "%1m"))):
         if secs >= size:
-            return f"{int(secs // size)}{unit}"
-    return "now"
+            return pattern.replace("%1", str(int(secs // size)))
+    return QCoreApplication.translate("TimeText", "now")
 
 
 def durationText(secs):
-    return f"{secs // 60}m {secs % 60:02d}s" if secs else ""
+    """'32m 09s'; 0 -> ''"""
+    if not secs:
+        return ""
+    return QCoreApplication.translate("TimeText", "%1m %2s").replace(
+        "%1", str(secs // 60)).replace("%2", f"{secs % 60:02d}")
 
 
 def resultType(win, remake):

@@ -632,10 +632,12 @@ class ChampionStatsView(QFrame):
                 num(v, lambda v: f"{v:.1f}") for v in wards) if wards[0] is not None else None
         if key == 'cs':
             return num(r['cs'], lambda v: f"{v:.0f}"), \
-                num(r['csPerMin'], lambda v: f"{v:.1f}/min") if r['cs'] is not None else None
+                num(r['csPerMin'], lambda v: self.tr("%1/min").replace("%1", f"{v:.1f}")) \
+                if r['cs'] is not None else None
         if key == 'gold':
             return num(r['gold'], lambda v: f"{v / 1000:.1f}k"), \
-                num(r['goldPerMin'], lambda v: f"{round(v)}/min") if r['gold'] is not None \
+                num(r['goldPerMin'], lambda v: self.tr("%1/min").replace("%1", str(round(v)))) \
+                if r['gold'] is not None \
                 else None
         if key == 'multi':
             if r['doubleKills'] is None:
@@ -654,8 +656,9 @@ class ChampionStatsView(QFrame):
             return self.tr("KDA %1  ·  %2 per game").replace("%1", main).replace("%2", sub)
         have = r[NEEDS[key]]
         if not have:
-            return f"{title}: " + self.tr("not known for these games")
-        text = f"{title}: {main}"
+            return self.tr("%1: %2").replace("%1", title).replace(
+                "%2", self.tr("not known for these games"))
+        text = self.tr("%1: %2").replace("%1", title).replace("%2", main)
         if key == 'kp':
             text = self.tr("Kill participation: %1").replace("%1", main)
         elif key == 'damage':
@@ -708,7 +711,9 @@ class ChampionStatsView(QFrame):
             for k in self.hiddenColumns():
                 if row.get(NEEDS.get(k, 'games')):
                     main, sub = self.cellTexts(k, row)
-                    text += f"\n{self.columnTitle(k)}: {main}" + (f"  ({sub})" if sub else "")
+                    text += "\n" + self.tr("%1: %2").replace(
+                        "%1", self.columnTitle(k)).replace("%2", main) + \
+                        (f"  ({sub})" if sub else "")
         else:
             text = f"{label}\n" + self.cellTip(key, row)
         if row['games'] < SMALL and kind != 'total':

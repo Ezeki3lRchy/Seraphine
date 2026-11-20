@@ -1,7 +1,7 @@
 import asyncio
 from typing import Dict
 
-from PySide6.QtCore import Qt, QRectF, QRect, QPointF, QEvent
+from PySide6.QtCore import Qt, QRectF, QRect, QPointF, QEvent, QCoreApplication
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QFrame, QVBoxLayout,
                                QSizePolicy, QStackedWidget, QWidget)
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QFont, QFontMetrics, QPixmap, QPen
@@ -14,7 +14,7 @@ from app.common.signals import signalBus
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.animation_frame import ColorAnimationFrame
 from app.components.match_widgets import (TagPill, gameTags, itemTooltipHtml, rankEmblemPath,
-                                          rankMiniPixmap)
+                                          rankMiniPixmap, tierText)
 from app.components.rich_tooltip import RichToolTip
 from app.components.design_tokens import (deathsColor, palette, numberFont, textFont,
                                          resultColor, pillColor)
@@ -460,15 +460,16 @@ def shortModeName(game):
     """短模式名: 单双 / 灵活区分开, 其余模式名过长时截断 (完整名在悬浮提示里)"""
     queueId = game.get('queueId')
     if queueId == 420:
-        return "Solo"
+        return QCoreApplication.translate("GameRow", "Solo")
     if queueId == 440:
-        return "Flex"
+        return QCoreApplication.translate("GameRow", "Flex")
 
     name = (game.get('name') or "").replace("排位赛 ", "")
     if not name:
         # 新 / 限时模式在队列表里可能没有名字, 退回 gameMode 或队列号
         gameMode = game.get('gameMode')
-        name = gameMode.title() if gameMode else f"Queue {queueId}"
+        name = gameMode.title() if gameMode else \
+            QCoreApplication.translate("GameRow", "Queue %1").replace("%1", str(queueId))
 
     # 卡片上位置有限: "ARAM: Mayhem" 取冒号后, "Normal (Draft Pick)" 取第一个词
     if ':' in name:
@@ -482,15 +483,6 @@ def shortNumber(n):
     if n >= 1000000:
         return f"{n / 1000000:.2f}M"
     return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
-
-
-def tierText(tier, division):
-    """LCU 原始段位 -> 'Diamond II' / 'Master'; 取不到为空串"""
-    if not tier or tier in ('NONE', 'UNRANKED'):
-        return ""
-
-    division = "" if division in ("", "NA", None) else division
-    return f"{tier.title()} {division}".strip()
 
 
 def fitRuns(runs, maxWidth):
@@ -706,7 +698,8 @@ class PlayerHeader(ComposedCardMixin, ColorAnimationFrame):
 
         self.masteryPill.setText(f"M{mastery['level']}")
         self.masteryPill.setToolTip(
-            f"{self.tr('Mastery')} {mastery['level']}, {mastery['points']:,} pts")
+            self.tr("Mastery %1, %2 pts").replace("%1", str(mastery['level']))
+            .replace("%2", f"{mastery['points']:,}"))
         self.masteryPill.adjustSize()
         self.masteryPill.move(self.PAD - 2,
                               self.PAD + self.AVATAR - self.masteryPill.height() + 2)
@@ -938,7 +931,8 @@ class PlayerHeader(ComposedCardMixin, ColorAnimationFrame):
             if current:
                 games = current['wins'] + current['losses']
                 cr = round(current['wins'] / games * 100) if games else 0
-                runs += [(f"{current['games']}G ", numberFont(13, 400), muted, False),
+                runs += [(self.tr("%1G").replace("%1", str(current['games'])) + " ",
+                          numberFont(13, 400), muted, False),
                          (f"{cr}%", numberFont(13), winRateColor(cr) or ink, False),
                          (f"  {current['kda']:.1f} KDA", numberFont(13, 400), muted, True)]
             else:
@@ -1000,9 +994,11 @@ class GameRow(ComposedCardMixin, ColorAnimationFrame):
         secs = game.get('durationSecs') or 0
         minutes = secs / 60
         cs = game.get('cs', 0)
-        self.csText = f"{cs} CS" + (f" ({cs / minutes:.1f})" if minutes >= 1 else "")
+        self.csText = self.tr("%1 CS").replace("%1", str(cs)) + \
+            (f" ({cs / minutes:.1f})" if minutes >= 1 else "")
         self.modeText = shortModeName(game)
-        self.dateText = game['shortTime'] + (f" · {int(minutes)}m" if secs else "")
+        self.dateText = game['shortTime'] + (
+            " · " + self.tr("%1m").replace("%1", str(int(minutes))) if secs else "")
 
         self.itemRects = []
 
@@ -1015,7 +1011,8 @@ class GameRow(ComposedCardMixin, ColorAnimationFrame):
         game = self.game
         self.tags = gameTags(game)
         kp = game.get('kp')
-        self.kpText = f"KP {round(kp * 100)}%" if kp is not None else ""
+        self.kpText = self.tr("KP %1").replace("%1", f"{round(kp * 100)}%") \
+            if kp is not None else ""
         self.rowTip = self.__rowTip(game)
 
     def refreshScores(self):
@@ -1026,18 +1023,18 @@ class GameRow(ComposedCardMixin, ColorAnimationFrame):
     def __rowTip(self, game):
         tips = [game['name'], game.get('time', '')]
         if game.get('position'):
-            tips.append(f"{self.tr('Position')}: {game['position']}")
+            tips.append(self.tr("Position: %1").replace("%1", str(game['position'])))
         if game.get('duration'):
-            tips.append(f"{self.tr('Duration')}: {game['duration']}")
+            tips.append(self.tr("Duration: %1").replace("%1", str(game['duration'])))
         if game.get('champLevel'):
-            tips.append(f"{self.tr('Level')}: {game['champLevel']}")
-        tips.append(f"{self.tr('Damage')}: {shortNumber(game.get('damage', 0))}")
-        tips.append(f"{self.tr('Gold')}: {shortNumber(game.get('gold', 0))}")
-        tips.append(f"{self.tr('Vision')}: {game.get('visionScore', 0)}")
+            tips.append(self.tr("Level: %1").replace("%1", str(game['champLevel'])))
+        tips.append(self.tr("Damage: %1").replace("%1", shortNumber(game.get('damage', 0))))
+        tips.append(self.tr("Gold: %1").replace("%1", shortNumber(game.get('gold', 0))))
+        tips.append(self.tr("Vision: %1").replace("%1", str(game.get('visionScore', 0))))
         if game.get('scoreRank'):
             score = "" if game.get('opScore') is None else f"{game['opScore']:.1f}  "
-            tips.append(f"{self.tr('Seraphine score')}: {score}"
-                        f"(#{game['scoreRank']} / {game['scorePlayers']})")
+            tips.append(self.tr("Seraphine score: %1").replace(
+                "%1", score + f"(#{game['scoreRank']} / {game['scorePlayers']})"))
             tips.append(self.tr(
                 "MVP: best score on the winning team, SVP: best on the losing team"))
         return "\n".join(t for t in tips if t)
@@ -1195,7 +1192,8 @@ class ChampionStatRow(QWidget):
             if getattr(connector, 'manager', None) else ""
         tip = f"{name}  {item['wins']}W {item['losses']}L, {item['kda']:.2f} KDA".strip()
         if mastery:
-            tip += f"\n{self.tr('Mastery')} {mastery['level']}, {mastery['points']:,} pts"
+            tip += "\n" + self.tr("Mastery %1, %2 pts").replace(
+                "%1", str(mastery['level'])).replace("%2", f"{mastery['points']:,}")
         self.setToolTip(tip)
 
     def paintEvent(self, e):

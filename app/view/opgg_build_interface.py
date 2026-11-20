@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QHBoxLayout, QWidget, QFrame, QVBoxLayout
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QT_TRANSLATE_NOOP
 from qasync import asyncSlot
 
 from app.components.transparent_button import PrimaryButton
@@ -14,8 +14,11 @@ from app.common.signals import signalBus
 from app.lol.connector import connector
 
 
-POSITION_NAMES = {'TOP': "Top", 'JUNGLE': "Jungle", 'MID': "Mid", 'ADC': "Bottom",
-                  'SUPPORT': "Support"}
+POSITION_NAMES = {'TOP': QT_TRANSLATE_NOOP("OpggWindow", "Top"),
+                  'JUNGLE': QT_TRANSLATE_NOOP("OpggWindow", "Jungle"),
+                  'MID': QT_TRANSLATE_NOOP("OpggWindow", "Mid"),
+                  'ADC': QT_TRANSLATE_NOOP("OpggWindow", "Bottom"),
+                  'SUPPORT': QT_TRANSLATE_NOOP("OpggWindow", "Support")}
 
 
 def optionRows(entries, limit, minPickRate=0.0, chain=False, spells=False):

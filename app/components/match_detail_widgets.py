@@ -14,7 +14,8 @@ from app.components.rich_tooltip import RichToolTip
 from app.common.signals import signalBus
 from app.components.design_tokens import (numberFont, textFont, resultColor, tint, deathsColor,
                                           opScoreColor)
-from app.components.match_widgets import itemTooltipHtml, rankMiniPixmap, ordinal, TAG_COLORS
+from app.components.match_widgets import (itemTooltipHtml, rankMiniPixmap, ordinal, TAG_COLORS,
+                                          tierText)
 from app.components.scoreboard import (cachedContent, drawText, drawRuns, runsWidth,
                                        drawRoundedPixmap, drawChampion, drawItemSlot, drawTag,
                                        drawResultCard, stripeColor)
@@ -51,13 +52,6 @@ def columns(width):
         x += w + extra
     cols['items'] = (x, ITEMS_W)
     return cols
-
-
-def tierText(tier, division):
-    if not tier or tier in ('NONE', 'UNRANKED'):
-        return ""
-    division = "" if division in ("", "NA", None) else division
-    return f"{tier.title()} {division}".strip()
 
 
 def kdaColor(kda):
@@ -104,7 +98,7 @@ class DetailTeamHeader(QWidget):
 
         for key, title in (('score', self.tr("Score")), ('kda', "KDA"),
                            ('damage', self.tr("Damage")), ('wards', self.tr("Wards")),
-                           ('cs', "CS"), ('items', self.tr("Items"))):
+                           ('cs', self.tr("CS")), ('items', self.tr("Items"))):
             cx, cw = cols[key]
             drawText(p, QRectF(cx, 0, cw, h), title, textFont(12), pal['muted'], Qt.AlignCenter)
 
@@ -172,10 +166,9 @@ class DetailPlayerRow(QWidget):
                 RichToolTip.showText(e.globalPos(), tip, self, self.rankRect)
                 return True
             if self.scoreRect.contains(pos) and self.s.get('scoreRank'):
-                head = f"{self.tr('Seraphine score')}: "
-                if self.s.get('opScore') is not None:
-                    head += f"{self.s['opScore']:.1f}  "
-                head += f"(#{self.s['scoreRank']})"
+                score = "" if self.s.get('opScore') is None else f"{self.s['opScore']:.1f}  "
+                head = self.tr("Seraphine score: %1").replace(
+                    "%1", score + f"(#{self.s['scoreRank']})")
                 RichToolTip.showText(e.globalPos(), head + "\n" + self.tr(
                     "Seraphine score (0-10): kill participation, damage, KDA, damage taken, "
                     "gold and vision vs. the other 9 players.\n"

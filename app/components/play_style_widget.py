@@ -21,7 +21,7 @@ hollow / muted because their win rate is noise.
 import math
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QRectF, QRect, QEvent
+from PySide6.QtCore import Qt, QRectF, QRect, QEvent, QCoreApplication
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QPixmap
 from PySide6.QtWidgets import QFrame, QSizePolicy
 
@@ -47,8 +47,12 @@ def compactNumber(v):
 
 
 def playTimeText(secs):
+    """'20h 05m' / '45m'"""
     hours, rest = divmod(int(secs), 3600)
-    return f"{hours}h {rest // 60:02d}m" if hours else f"{rest // 60}m"
+    if hours:
+        return QCoreApplication.translate("PlayStyleView", "%1h %2m").replace(
+            "%1", str(hours)).replace("%2", f"{rest // 60:02d}")
+    return QCoreApplication.translate("PlayStyleView", "%1m").replace("%1", str(rest // 60))
 
 
 def winRateInk(rate, games, pal):

@@ -4,7 +4,8 @@ OP.GG 英雄详情页 (出装 / 符文 / 技能 / 克制 / 趋势) 的自绘控�
 每张卡片整块自绘并缓存成品图 (主题 / 尺寸 / 缩放比 / 胜负色 / 主题色不变就不重画),
 滚动时只贴一张图; 悬浮提示 / 点击靠命中测试. 颜色与字体见 design_tokens.py.
 """
-from PySide6.QtCore import Qt, QRectF, QPointF, QEvent, Signal, QCoreApplication
+from PySide6.QtCore import (Qt, QRectF, QPointF, QEvent, Signal, QCoreApplication,
+                            QT_TRANSLATE_NOOP)
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QPixmap, QIcon
 from PySide6.QtWidgets import QFrame, QSizePolicy
 
@@ -33,6 +34,20 @@ SKILL_COLORS = {'Q': QColor('#1E88E5'), 'W': QColor('#0E9F84'), 'E': QColor('#E0
                 'R': QColor('#7E57C2')}
 
 POSITION_ICONS = {'TOP': 'top', 'JUNGLE': 'jng', 'MID': 'mid', 'ADC': 'bot', 'SUPPORT': 'sup'}
+
+
+# Every (context, source) pair trText is called with, written out as literals so that
+# pyside6-lupdate keeps these entries alive (it cannot see the arguments of trText itself).
+TR_TEXT_SOURCES = (
+    QT_TRANSLATE_NOOP("ChampionTitleBar", "Win Rate"),
+    QT_TRANSLATE_NOOP("ChampionTitleBar", "Pick Rate"),
+    QT_TRANSLATE_NOOP("ChampionTitleBar", "Ban Rate"),
+    QT_TRANSLATE_NOOP("ChampionTitleBar", "First Rate"),
+    QT_TRANSLATE_NOOP("ChampionTitleBar", "Average Place"),
+    QT_TRANSLATE_NOOP("ItemsWidget", "Games"),
+    QT_TRANSLATE_NOOP("ChampionPerksWidget", "Set Rune Page"),
+    QT_TRANSLATE_NOOP("SummonerSpellsWidget", "Summoner Spells"),
+)
 
 
 def trText(context, source, english=None):
