@@ -6,6 +6,13 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.5
+- Play style: the Career page has an **Overview / Play style** switch with season statistics — positions, champion focus, blue / red side, classes, activity by weekday and hour, and per-minute numbers.
+- Live item value: during a game the game info page shows each lane's and each team's item value. An optional on-top overlay is under *Settings → Item value overlay* (borderless or windowed mode).
+- Custom lobbies load both teams while you are still in the lobby.
+- *Settings → Check now* checks for updates on demand.
+- macOS builds are published automatically alongside Windows.
+
 ### v1.4.4
 - Insight tags on the lobby / champ select / in-game player cards: a gold **Main champion** pill (top mastery with 100k+ points, or 40%+ of recent games) and win / loss streak pills. Hover a tag to see why it is shown.
 
