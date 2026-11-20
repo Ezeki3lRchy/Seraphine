@@ -24,6 +24,7 @@ from app.common.logger import logger
 from app.lol.connector import connector
 from app.lol.aram import AramBuff
 from app.components.seraphine_interface import SeraphineInterface
+from app.components.item_gold_panel import ItemGoldPanel
 
 
 NBSP = "\u00a0"  # 不间断空格
@@ -49,6 +50,8 @@ class GameInfoInterface(SeraphineInterface):
         self.enemyButton = TransparentTogglePushButton(self.tr("Enemy"))
 
         self.stackedWidget = QStackedWidget()
+        # live item gold (hidden unless a game is running), above the player columns
+        self.goldPanel = ItemGoldPanel()
         self.allyView = TeamColumnsView()
         self.enemyView = TeamColumnsView()
         self.allyScrollArea = SmoothScrollArea()
@@ -117,6 +120,7 @@ class GameInfoInterface(SeraphineInterface):
         self.vBoxLayout.setContentsMargins(30, 32, 30, 30)
         self.vBoxLayout.setSpacing(12)
         self.vBoxLayout.addLayout(self.buttonsLayout)
+        self.vBoxLayout.addWidget(self.goldPanel)
         self.vBoxLayout.addWidget(self.stackedWidget)
 
     def __setButtonsVisible(self, visible):
@@ -237,6 +241,15 @@ class GameInfoInterface(SeraphineInterface):
         self.allyChampions = {}
         self.allyOrder = []
         self.allyView.clear()
+
+    def clearEnemy(self):
+        """Empty the enemy side (e.g. the other custom-lobby team left) and go back to ally"""
+        self.enemyChampions = {}
+        self.enemyView.clear()
+
+        if self.enemyButton.isChecked():
+            self.allyButton.click()
+        self.enemyButton.setEnabled(False)
 
     def clear(self):
         self.clearAlly()

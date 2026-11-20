@@ -1502,6 +1502,16 @@ If champions set by lane are not available, default settings will be used.</sour
         <translation type="obsolete">请选择点击关闭按钮的默认行为</translation>
     </message>
     <message>
+        <location filename="../../view/main_window.py" line="1"/>
+        <source>Up to Date</source>
+        <translation>已是最新版本</translation>
+    </message>
+    <message>
+        <location filename="../../view/main_window.py" line="1"/>
+        <source>You are using the latest version ({}).</source>
+        <translation>当前已是最新版本（{}）。</translation>
+    </message>
+    <message>
         <location filename="../../view/main_window.py" line="358"/>
         <source>Check Update Failed</source>
         <translation>检查更新失败</translation>
@@ -2705,6 +2715,21 @@ If champions set by lane are not available, default settings will be used.</sour
         <location filename="../../view/setting_interface.py" line="56"/>
         <source>On the Game Information interface, only show games of the mode you are in (Solo/Duo, Flex, ARAM, ...)</source>
         <translation>打开此选项后，对局信息界面只显示当前模式的对局战绩（单双只看单双，灵活只看灵活，大乱斗只看大乱斗……）</translation>
+    </message>
+    <message>
+        <location filename="../../view/setting_interface.py" line="1"/>
+        <source>Check now</source>
+        <translation>立即检查</translation>
+    </message>
+    <message>
+        <location filename="../../view/setting_interface.py" line="1"/>
+        <source>Check for updates now</source>
+        <translation>立即检查更新</translation>
+    </message>
+    <message>
+        <location filename="../../view/setting_interface.py" line="1"/>
+        <source>Current version: {}</source>
+        <translation>当前版本：{}</translation>
     </message>
     <message>
         <location filename="../../view/setting_interface.py" line="217"/>

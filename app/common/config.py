@@ -185,6 +185,16 @@ class Config(QConfig):
     enableReserveGameinfo = ConfigItem(
         "Functions", "EnableReserveGameinfo", False, BoolValidator())
 
+    # In-game item gold overlay (opt-in): opacity in percent, lock = click-through
+    enableGoldOverlay = ConfigItem(
+        "Functions", "EnableGoldOverlay", False, BoolValidator())
+    goldOverlayOpacity = RangeConfigItem(
+        "Functions", "GoldOverlayOpacity", 85, RangeValidator(30, 100))
+    goldOverlayLocked = ConfigItem(
+        "Functions", "GoldOverlayLocked", False, BoolValidator())
+    # [x, y] of the overlay's top-left corner; empty = default spot
+    goldOverlayPos = ConfigItem("Other", "GoldOverlayPos", [])
+
     enableSilent = ConfigItem(
         "General", "EnableSilent", False, BoolValidator())
 

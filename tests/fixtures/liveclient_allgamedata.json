@@ -1,0 +1,779 @@
+{
+ "activePlayer": {
+  "abilities": {},
+  "championStats": {},
+  "currentGold": 812.5,
+  "level": 12,
+  "riotId": "Me Top#TAG",
+  "riotIdGameName": "Me Top",
+  "riotIdTagLine": "TAG",
+  "summonerName": "Me Top#TAG"
+ },
+ "allPlayers": [
+  {
+   "championName": "Garen",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Doran's Blade",
+     "itemID": 1055,
+     "price": 450,
+     "rawDescription": "game_item_description_1055",
+     "rawDisplayName": "game_item_displayname_1055",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Black Cleaver",
+     "itemID": 3071,
+     "price": 3000,
+     "rawDescription": "game_item_description_3071",
+     "rawDisplayName": "game_item_displayname_3071",
+     "slot": 1
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Plated Steelcaps",
+     "itemID": 3047,
+     "price": 1100,
+     "rawDescription": "game_item_description_3047",
+     "rawDisplayName": "game_item_displayname_3047",
+     "slot": 2
+    },
+    {
+     "canUse": true,
+     "consumable": true,
+     "count": 2,
+     "displayName": "Health Potion",
+     "itemID": 2003,
+     "price": 50,
+     "rawDescription": "game_item_description_2003",
+     "rawDisplayName": "game_item_displayname_2003",
+     "slot": 3
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Stealth Ward",
+     "itemID": 3340,
+     "price": 0,
+     "rawDescription": "game_item_description_3340",
+     "rawDisplayName": "game_item_displayname_3340",
+     "slot": 6
+    }
+   ],
+   "level": 12,
+   "position": "TOP",
+   "rawChampionName": "game_character_displayname_Garen",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 2,
+    "creepScore": 100,
+    "deaths": 1,
+    "kills": 3,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Me Top",
+   "riotId": "Me Top#TAG",
+   "riotIdGameName": "Me Top",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "ORDER"
+  },
+  {
+   "championName": "Lee Sin",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Mosstomper Seedling",
+     "itemID": 1103,
+     "price": 450,
+     "rawDescription": "game_item_description_1103",
+     "rawDisplayName": "game_item_displayname_1103",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Black Cleaver",
+     "itemID": 3071,
+     "price": 3000,
+     "rawDescription": "game_item_description_3071",
+     "rawDisplayName": "game_item_displayname_3071",
+     "slot": 1
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Berserker's Greaves",
+     "itemID": 3006,
+     "price": 1100,
+     "rawDescription": "game_item_description_3006",
+     "rawDisplayName": "game_item_displayname_3006",
+     "slot": 2
+    },
+    {
+     "canUse": true,
+     "consumable": true,
+     "count": 2,
+     "displayName": "Control Ward",
+     "itemID": 2055,
+     "price": 75,
+     "rawDescription": "game_item_description_2055",
+     "rawDisplayName": "game_item_displayname_2055",
+     "slot": 3
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Oracle Lens",
+     "itemID": 3364,
+     "price": 0,
+     "rawDescription": "game_item_description_3364",
+     "rawDisplayName": "game_item_displayname_3364",
+     "slot": 6
+    }
+   ],
+   "level": 11,
+   "position": "JUNGLE",
+   "rawChampionName": "game_character_displayname_Lee Sin",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 5,
+    "creepScore": 100,
+    "deaths": 2,
+    "kills": 2,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Ally Jg",
+   "riotId": "Ally Jg#TAG",
+   "riotIdGameName": "Ally Jg",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "ORDER"
+  },
+  {
+   "championName": "Ahri",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Doran's Ring",
+     "itemID": 1056,
+     "price": 400,
+     "rawDescription": "game_item_description_1056",
+     "rawDisplayName": "game_item_displayname_1056",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Luden's Companion",
+     "itemID": 6655,
+     "price": 2850,
+     "rawDescription": "game_item_description_6655",
+     "rawDisplayName": "game_item_displayname_6655",
+     "slot": 1
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Sorcerer's Shoes",
+     "itemID": 3020,
+     "price": 1100,
+     "rawDescription": "game_item_description_3020",
+     "rawDisplayName": "game_item_displayname_3020",
+     "slot": 2
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Dark Seal",
+     "itemID": 1082,
+     "price": 350,
+     "rawDescription": "game_item_description_1082",
+     "rawDisplayName": "game_item_displayname_1082",
+     "slot": 3
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Stealth Ward",
+     "itemID": 3340,
+     "price": 0,
+     "rawDescription": "game_item_description_3340",
+     "rawDisplayName": "game_item_displayname_3340",
+     "slot": 6
+    }
+   ],
+   "level": 12,
+   "position": "MIDDLE",
+   "rawChampionName": "game_character_displayname_Ahri",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 3,
+    "creepScore": 100,
+    "deaths": 1,
+    "kills": 4,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Ally Mid",
+   "riotId": "Ally Mid#TAG",
+   "riotIdGameName": "Ally Mid",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "ORDER"
+  },
+  {
+   "championName": "Jinx",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Kraken Slayer",
+     "itemID": 6672,
+     "price": 3100,
+     "rawDescription": "game_item_description_6672",
+     "rawDisplayName": "game_item_displayname_6672",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Infinity Edge",
+     "itemID": 3031,
+     "price": 3400,
+     "rawDescription": "game_item_description_3031",
+     "rawDisplayName": "game_item_displayname_3031",
+     "slot": 1
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Berserker's Greaves",
+     "itemID": 3006,
+     "price": 1100,
+     "rawDescription": "game_item_description_3006",
+     "rawDisplayName": "game_item_displayname_3006",
+     "slot": 2
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Stealth Ward",
+     "itemID": 3340,
+     "price": 0,
+     "rawDescription": "game_item_description_3340",
+     "rawDisplayName": "game_item_displayname_3340",
+     "slot": 6
+    }
+   ],
+   "level": 12,
+   "position": "BOTTOM",
+   "rawChampionName": "game_character_displayname_Jinx",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 4,
+    "creepScore": 100,
+    "deaths": 0,
+    "kills": 5,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Ally Adc",
+   "riotId": "Ally Adc#TAG",
+   "riotIdGameName": "Ally Adc",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "ORDER"
+  },
+  {
+   "championName": "Leona",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Bloodsong",
+     "itemID": 3877,
+     "price": 400,
+     "rawDescription": "game_item_description_3877",
+     "rawDisplayName": "game_item_displayname_3877",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Locket of the Iron Solari",
+     "itemID": 3190,
+     "price": 2200,
+     "rawDescription": "game_item_description_3190",
+     "rawDisplayName": "game_item_displayname_3190",
+     "slot": 1
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Mercury's Treads",
+     "itemID": 3111,
+     "price": 1100,
+     "rawDescription": "game_item_description_3111",
+     "rawDisplayName": "game_item_displayname_3111",
+     "slot": 2
+    },
+    {
+     "canUse": true,
+     "consumable": true,
+     "count": 1,
+     "displayName": "Control Ward",
+     "itemID": 2055,
+     "price": 75,
+     "rawDescription": "game_item_description_2055",
+     "rawDisplayName": "game_item_displayname_2055",
+     "slot": 3
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Oracle Lens",
+     "itemID": 3364,
+     "price": 0,
+     "rawDescription": "game_item_description_3364",
+     "rawDisplayName": "game_item_displayname_3364",
+     "slot": 6
+    }
+   ],
+   "level": 9,
+   "position": "UTILITY",
+   "rawChampionName": "game_character_displayname_Leona",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 9,
+    "creepScore": 100,
+    "deaths": 3,
+    "kills": 0,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Ally Sup",
+   "riotId": "Ally Sup#TAG",
+   "riotIdGameName": "Ally Sup",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "ORDER"
+  },
+  {
+   "championName": "Darius",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Doran's Blade",
+     "itemID": 1055,
+     "price": 450,
+     "rawDescription": "game_item_description_1055",
+     "rawDisplayName": "game_item_displayname_1055",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Sunfire Aegis",
+     "itemID": 3068,
+     "price": 2700,
+     "rawDescription": "game_item_description_3068",
+     "rawDisplayName": "game_item_displayname_3068",
+     "slot": 1
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Plated Steelcaps",
+     "itemID": 3047,
+     "price": 1100,
+     "rawDescription": "game_item_description_3047",
+     "rawDisplayName": "game_item_displayname_3047",
+     "slot": 2
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Stealth Ward",
+     "itemID": 3340,
+     "price": 0,
+     "rawDescription": "game_item_description_3340",
+     "rawDisplayName": "game_item_displayname_3340",
+     "slot": 6
+    }
+   ],
+   "level": 11,
+   "position": "TOP",
+   "rawChampionName": "game_character_displayname_Darius",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 0,
+    "creepScore": 100,
+    "deaths": 3,
+    "kills": 1,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Enemy Top",
+   "riotId": "Enemy Top#TAG",
+   "riotIdGameName": "Enemy Top",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "CHAOS"
+  },
+  {
+   "championName": "Vi",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Mosstomper Seedling",
+     "itemID": 1103,
+     "price": 450,
+     "rawDescription": "game_item_description_1103",
+     "rawDisplayName": "game_item_displayname_1103",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Long Sword",
+     "itemID": 1036,
+     "price": 350,
+     "rawDescription": "game_item_description_1036",
+     "rawDisplayName": "game_item_displayname_1036",
+     "slot": 1
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Long Sword",
+     "itemID": 1036,
+     "price": 350,
+     "rawDescription": "game_item_description_1036",
+     "rawDisplayName": "game_item_displayname_1036",
+     "slot": 2
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Berserker's Greaves",
+     "itemID": 3006,
+     "price": 1100,
+     "rawDescription": "game_item_description_3006",
+     "rawDisplayName": "game_item_displayname_3006",
+     "slot": 3
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Oracle Lens",
+     "itemID": 3364,
+     "price": 0,
+     "rawDescription": "game_item_description_3364",
+     "rawDisplayName": "game_item_displayname_3364",
+     "slot": 6
+    }
+   ],
+   "level": 10,
+   "position": "JUNGLE",
+   "rawChampionName": "game_character_displayname_Vi",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 2,
+    "creepScore": 100,
+    "deaths": 3,
+    "kills": 1,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Enemy Jg",
+   "riotId": "Enemy Jg#TAG",
+   "riotIdGameName": "Enemy Jg",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "CHAOS"
+  },
+  {
+   "championName": "Syndra",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Doran's Ring",
+     "itemID": 1056,
+     "price": 400,
+     "rawDescription": "game_item_description_1056",
+     "rawDisplayName": "game_item_displayname_1056",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Luden's Companion",
+     "itemID": 6655,
+     "price": 2850,
+     "rawDescription": "game_item_description_6655",
+     "rawDisplayName": "game_item_displayname_6655",
+     "slot": 1
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Sorcerer's Shoes",
+     "itemID": 3020,
+     "price": 1100,
+     "rawDescription": "game_item_description_3020",
+     "rawDisplayName": "game_item_displayname_3020",
+     "slot": 2
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Stealth Ward",
+     "itemID": 3340,
+     "price": 0,
+     "rawDescription": "game_item_description_3340",
+     "rawDisplayName": "game_item_displayname_3340",
+     "slot": 6
+    }
+   ],
+   "level": 11,
+   "position": "MIDDLE",
+   "rawChampionName": "game_character_displayname_Syndra",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 1,
+    "creepScore": 100,
+    "deaths": 4,
+    "kills": 2,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Enemy Mid",
+   "riotId": "Enemy Mid#TAG",
+   "riotIdGameName": "Enemy Mid",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "CHAOS"
+  },
+  {
+   "championName": "Caitlyn",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Kraken Slayer",
+     "itemID": 6672,
+     "price": 3100,
+     "rawDescription": "game_item_description_6672",
+     "rawDisplayName": "game_item_displayname_6672",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Berserker's Greaves",
+     "itemID": 3006,
+     "price": 1100,
+     "rawDescription": "game_item_description_3006",
+     "rawDisplayName": "game_item_displayname_3006",
+     "slot": 1
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Long Sword",
+     "itemID": 1036,
+     "price": 350,
+     "rawDescription": "game_item_description_1036",
+     "rawDisplayName": "game_item_displayname_1036",
+     "slot": 2
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Stealth Ward",
+     "itemID": 3340,
+     "price": 0,
+     "rawDescription": "game_item_description_3340",
+     "rawDisplayName": "game_item_displayname_3340",
+     "slot": 6
+    }
+   ],
+   "level": 11,
+   "position": "BOTTOM",
+   "rawChampionName": "game_character_displayname_Caitlyn",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 1,
+    "creepScore": 100,
+    "deaths": 4,
+    "kills": 2,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Enemy Adc",
+   "riotId": "Enemy Adc#TAG",
+   "riotIdGameName": "Enemy Adc",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "CHAOS"
+  },
+  {
+   "championName": "Thresh",
+   "isBot": false,
+   "isDead": false,
+   "items": [
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Bloodsong",
+     "itemID": 3877,
+     "price": 400,
+     "rawDescription": "game_item_description_3877",
+     "rawDisplayName": "game_item_displayname_3877",
+     "slot": 0
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Mercury's Treads",
+     "itemID": 3111,
+     "price": 1100,
+     "rawDescription": "game_item_description_3111",
+     "rawDisplayName": "game_item_displayname_3111",
+     "slot": 1
+    },
+    {
+     "canUse": true,
+     "consumable": true,
+     "count": 2,
+     "displayName": "Control Ward",
+     "itemID": 2055,
+     "price": 75,
+     "rawDescription": "game_item_description_2055",
+     "rawDisplayName": "game_item_displayname_2055",
+     "slot": 2
+    },
+    {
+     "canUse": false,
+     "consumable": false,
+     "count": 1,
+     "displayName": "Oracle Lens",
+     "itemID": 3364,
+     "price": 0,
+     "rawDescription": "game_item_description_3364",
+     "rawDisplayName": "game_item_displayname_3364",
+     "slot": 6
+    }
+   ],
+   "level": 9,
+   "position": "UTILITY",
+   "rawChampionName": "game_character_displayname_Thresh",
+   "respawnTimer": 0.0,
+   "runes": {},
+   "scores": {
+    "assists": 3,
+    "creepScore": 100,
+    "deaths": 2,
+    "kills": 0,
+    "wardScore": 10.0
+   },
+   "skinID": 0,
+   "summonerName": "Enemy Sup",
+   "riotId": "Enemy Sup#TAG",
+   "riotIdGameName": "Enemy Sup",
+   "riotIdTagLine": "TAG",
+   "summonerSpells": {},
+   "team": "CHAOS"
+  }
+ ],
+ "events": {
+  "Events": []
+ },
+ "gameData": {
+  "gameMode": "CLASSIC",
+  "gameTime": 1210.5,
+  "mapName": "Map11",
+  "mapNumber": 11,
+  "mapTerrain": "Default"
+ }
+}

@@ -4,7 +4,8 @@ import os
 from app.common.qfluentwidgets import (SettingCardGroup, SwitchSettingCard, ComboBoxSettingCard,
                                        PushSettingCard, ExpandLayout, InfoBar,
                                        setTheme, setThemeColor, PrimaryPushSettingCard, HyperlinkCard,
-                                       TeachingTip, TeachingTipTailPosition, TeachingTipView, PushButton)
+                                       TeachingTip, TeachingTipTailPosition, TeachingTipView, PushButton,
+                                       RangeSettingCard)
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QWidget, QLabel, QFileDialog
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import QWidget, QLabel, QFileDialog
 from app.common.icons import Icon
 from app.common.config import (cfg, YEAR, AUTHOR, VERSION, FEEDBACK_URL, GITHUB_URL, isWin11,
                                BETA)
+from app.common.signals import signalBus
 from app.common.style_sheet import StyleSheet
 from app.components.seraphine_interface import SeraphineInterface
 from app.components.setting_cards import (LineEditSettingCard, GameTabColorSettingCard,
@@ -72,6 +74,20 @@ class SettingInterface(SeraphineInterface):
                 "Reserve Game Information interface until the next champion selection starts"),
             cfg.enableReserveGameinfo
         )
+
+        self.goldOverlayCard = SwitchSettingCard(
+            Icon.DESKTOPRIGHT, self.tr("Item value overlay"),
+            self.tr("While in game, show the difference in item value (total cost of the items "
+                    "each player holds) in a small window on top of the game "
+                    "(borderless or windowed mode only)"),
+            cfg.enableGoldOverlay)
+        self.goldOverlayOpacityCard = RangeSettingCard(
+            cfg.goldOverlayOpacity, Icon.BLUR, self.tr("Item value overlay opacity"),
+            self.tr("Opacity of the item value overlay, in percent"))
+        self.goldOverlayLockCard = SwitchSettingCard(
+            Icon.LOCK, self.tr("Lock item value overlay"),
+            self.tr("Lock the overlay's position and let clicks pass through it to the game"),
+            cfg.goldOverlayLocked)
 
         self.opggGroup = SettingCardGroup(self.tr("OP.GG"),
                                           self.scrollWidget)
@@ -220,6 +236,12 @@ class SettingInterface(SeraphineInterface):
                 "Automatically check for updates when software starts"),
             cfg.enableCheckUpdate
         )
+        self.manualCheckUpdateCard = PushSettingCard(
+            self.tr("Check now"), Icon.UPDATE,
+            self.tr("Check for updates now"),
+            self.tr("Current version: {}").format(BETA or VERSION),
+            self.updateGroup)
+        self.manualCheckUpdateCard.button.setFixedWidth(100)
         self.httpProxyCard = ProxySettingCard(
             self.tr("HTTP proxy"), self.tr(
                 "Using a proxy when connecting to GitHub"),
@@ -273,6 +295,9 @@ class SettingInterface(SeraphineInterface):
         self.functionGroup.addSettingCard(self.gameInfoFilterCard)
         self.functionGroup.addSettingCard(self.autoClearGameinfoCard)
         self.functionGroup.addSettingCard(self.gameInfoShowTierCard)
+        self.functionGroup.addSettingCard(self.goldOverlayCard)
+        self.functionGroup.addSettingCard(self.goldOverlayOpacityCard)
+        self.functionGroup.addSettingCard(self.goldOverlayLockCard)
 
         self.opggGroup.addSettingCard(self.autoShowOpggCard)
         self.opggGroup.addSettingCard(self.opggOnTopCard)
@@ -296,6 +321,7 @@ class SettingInterface(SeraphineInterface):
         self.personalizationGroup.addSettingCard(self.languageCard)
 
         self.updateGroup.addSettingCard(self.checkUpdateCard)
+        self.updateGroup.addSettingCard(self.manualCheckUpdateCard)
         self.updateGroup.addSettingCard(self.httpProxyCard)
 
         self.aboutGroup.addSettingCard(self.feedbackCard)
@@ -324,10 +350,18 @@ class SettingInterface(SeraphineInterface):
         self.feedbackCard.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl(FEEDBACK_URL)))
         self.deleteResourceCard.clicked.connect(self.__showFlyout)
+        self.manualCheckUpdateCard.clicked.connect(
+            self.__onManualCheckUpdateClicked)
+        signalBus.checkUpdateFinished.connect(
+            lambda: self.manualCheckUpdateCard.button.setEnabled(True))
         self.viewLogCard.clicked.connect(
             lambda: QDesktopServices.openUrl(
                 QUrl.fromLocalFile(os.path.join(os.getcwd(), 'log')))
         )
+
+    def __onManualCheckUpdateClicked(self):
+        self.manualCheckUpdateCard.button.setEnabled(False)
+        signalBus.checkUpdateRequested.emit()
 
     def __onLolFolderCardClicked(self):
         current = cfg.get(cfg.lolFolder)

@@ -30,7 +30,7 @@ from app.view.auxiliary_interface import AuxiliaryInterface
 from app.view.opgg_window import OpggWindow
 from app.common.util import (github, getLolClientPid, getTasklistPath,
                              getLolClientPidSlowly, getLoLPathByRegistry,
-                             getLoLPathByScan)
+                             getLoLPathByScan, checkUpdateOutcome)
 from app.common import platform
 from app.components.avatar_widget import NavigationAvatarWidget
 from app.components.temp_system_tray_menu import TmpSystemTrayMenu
@@ -49,14 +49,21 @@ from app.lol.tools import (parseAllyGameInfo, parseLobbyGameInfo, parseGameInfoB
                            getAllyOrderByGameRole, getTeamColor, autoBan, autoPick,
                            autoComplete, autoSwap, autoTrade, ChampionSelection,
                            SERVERS_NAME, SERVERS_SUBSET, showOpggBuild, autoShow,
-                           parseEnemyChampSelectInfo, visibleEnemies, historyQueueFilter)
+                           parseEnemyChampSelectInfo, visibleEnemies,
+                           lobbyHistoryQueueFilter, splitCustomLobbyTeams)
 from app.lol.aram import AramBuff
 from app.lol.champions import ChampionAlias
 from app.lol.opgg import opgg
+from app.lol.live_client import liveClientPoller
+from app.components.gold_overlay import GoldOverlay
 
 import threading
 
 TAG = "MainWindow"
+
+# Gameflow phases in which the lobby page may be (re)painted: the party is still the
+# lobby while queueing; from champ select on its own flows own the game info page
+LOBBY_REFRESH_STATUSES = ('Lobby', 'Matchmaking', 'ReadyCheck')
 
 
 class MainWindow(FluentWindow):
@@ -64,6 +71,7 @@ class MainWindow(FluentWindow):
     showUpdateMessageBox = Signal(dict)
     showNoticeMessageBox = Signal(str)
     checkUpdateFailed = Signal()
+    showUpToDateInfo = Signal()
     fetchNoticeFailed = Signal()
     # Routes exceptHook's dialog to the GUI thread (see exceptHook / __onShowExceptionMessageBox).
     showExceptionMessageBox = Signal(str)
@@ -99,6 +107,10 @@ class MainWindow(FluentWindow):
         self.processListener = LolProcessExistenceListener(self)
         self.checkUpdateThread = StoppableThread(
             target=self.checkUpdate, parent=self)
+        self.manualCheckThread = None
+        self.manualCheckBusy = False
+        self.updateBoxOpen = False
+        self.checkUpdateLock = threading.Lock()
         self.checkNoticeThread = StoppableThread(
             target=lambda: self.checkNotice(False), parent=self)
 
@@ -123,6 +135,7 @@ class MainWindow(FluentWindow):
         self.splashScreen.finish()
 
         self.opggWindow = OpggWindow()
+        self.goldOverlay = GoldOverlay()
 
         logger.critical("Seraphine initialized", TAG)
 
@@ -250,6 +263,12 @@ class MainWindow(FluentWindow):
         self._lobbyGameInfoCache = {}
         # 缓存里的战绩是按哪个队列过滤的 (见 historyQueueFilter); 大厅换模式后要重查
         self._lobbyQueueFilter = None
+        # The enemy side shows the other team of a custom lobby (cleared when it empties)
+        self._lobbyEnemyShown = False
+        # Bumped by every lobby refresh; only the newest refresh may paint
+        self._lobbyRefreshSeq = 0
+        # Last gameflow status seen by __onGameStatusChanged (None until the first one)
+        self._gameStatus = None
         # 这次选人的队列, 己方 / 敌方战绩都按它过滤
         self._champSelectQueueId = None
 
@@ -298,6 +317,9 @@ class MainWindow(FluentWindow):
         self.showUpdateMessageBox.connect(self.__onShowUpdateMessageBox)
         self.showNoticeMessageBox.connect(self.__onShowNoticeMessageBox)
         self.checkUpdateFailed.connect(self.__onCheckUpdateFailed)
+        self.showUpToDateInfo.connect(self.__onShowUpToDateInfo)
+        signalBus.checkUpdateRequested.connect(self.__onCheckUpdateRequested)
+        signalBus.checkUpdateFinished.connect(self.__onManualCheckFinished)
         self.fetchNoticeFailed.connect(self.__onFetchNoticeFailed)
         self.showExceptionMessageBox.connect(self.__onShowExceptionMessageBox)
         self.stackedWidget.currentChanged.connect(
@@ -412,13 +434,54 @@ class MainWindow(FluentWindow):
             return
 
         try:
-            releasesInfo = github.checkUpdate()
+            with self.checkUpdateLock:
+                releasesInfo = github.checkUpdate()
         except:
             self.checkUpdateFailed.emit()
             return
 
         if releasesInfo:
             self.showUpdateMessageBox.emit(releasesInfo)
+
+    def __onCheckUpdateRequested(self):
+        # Manual check ignores enableCheckUpdate. The busy flag lives on the UI
+        # thread; an ignored request keeps the button disabled until the running
+        # check emits checkUpdateFinished, which re-enables it.
+        if self.manualCheckBusy:
+            return
+
+        self.manualCheckBusy = True
+        thread = StoppableThread(target=self.manualCheckUpdate, parent=self)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(
+            lambda t=thread: self.__onManualThreadFinished(t))
+        self.manualCheckThread = thread
+        thread.start()
+
+    def __onManualThreadFinished(self, thread):
+        if self.manualCheckThread is thread:
+            self.manualCheckThread = None
+
+    def __onManualCheckFinished(self):
+        self.manualCheckBusy = False
+
+    def manualCheckUpdate(self):
+        try:
+            # Serialise with the start-up check so GitHub is not hit concurrently
+            status, info = checkUpdateOutcome(
+                lock=self.checkUpdateLock, lockTimeout=15)
+
+            if status == "update":
+                self.showUpdateMessageBox.emit(info)
+            elif status == "latest":
+                self.showUpToDateInfo.emit()
+            else:
+                self.checkUpdateFailed.emit()
+        except Exception as e:
+            logger.exception("manual update check crashed", e, TAG)
+            self.checkUpdateFailed.emit()
+        finally:
+            signalBus.checkUpdateFinished.emit()
 
     def checkNotice(self, triggerByUser):
         try:
@@ -447,6 +510,17 @@ class MainWindow(FluentWindow):
             position=InfoBarPosition.BOTTOM_RIGHT
         )
 
+    def __onShowUpToDateInfo(self):
+        InfoBar.success(
+            self.tr("Up to Date"),
+            self.tr("You are using the latest version ({}).").format(
+                BETA or VERSION),
+            duration=5000,
+            orient=Qt.Vertical,
+            parent=self,
+            position=InfoBarPosition.BOTTOM_RIGHT
+        )
+
     def __onFetchNoticeFailed(self):
         InfoBar.warning(
             self.tr("Fetch notice Failed"),
@@ -459,8 +533,16 @@ class MainWindow(FluentWindow):
         )
 
     def __onShowUpdateMessageBox(self, info):
-        msgBox = UpdateMessageBox(info, self.window())
-        msgBox.exec()
+        # exec() runs a nested event loop; don't open a second dialog from it
+        if self.updateBoxOpen:
+            return
+
+        self.updateBoxOpen = True
+        try:
+            msgBox = UpdateMessageBox(info, self.window())
+            msgBox.exec()
+        finally:
+            self.updateBoxOpen = False
 
     def __onShowNoticeMessageBox(self, msg):
         msgBox = NoticeMessageBox(msg, self.window())
@@ -650,6 +732,7 @@ class MainWindow(FluentWindow):
             self.searchInterface.puuid = 0
             self.searchInterface.gameLoadingTask = None
 
+        liveClientPoller.stop()
         await connector.close()
         await opgg.close()
 
@@ -820,6 +903,11 @@ class MainWindow(FluentWindow):
         self.themeListener.terminate()
         self.processListener.terminate()
         self.checkUpdateThread.terminate()
+        if self.manualCheckThread is not None:
+            try:
+                self.manualCheckThread.terminate()
+            except RuntimeError:  # already deleted after finishing
+                pass
         self.checkNoticeThread.terminate()
 
     @asyncClose
@@ -842,6 +930,8 @@ class MainWindow(FluentWindow):
         if not cfg.get(cfg.enableCloseToTray) or self.isTrayExit:
             self.__terminateListeners()
             self.opggWindow.close()
+            await liveClientPoller.aclose()
+            self.goldOverlay.close()
 
             cfg.set(cfg.windowSize, self.windowSize)
 
@@ -878,6 +968,7 @@ class MainWindow(FluentWindow):
 
     @asyncSlot(str)
     async def __onGameStatusChanged(self, status):
+        self._gameStatus = status  # read by __doLobbyRefresh (LOBBY_REFRESH_STATUSES)
         title = None
         isGaming = False
 
@@ -926,6 +1017,9 @@ class MainWindow(FluentWindow):
 
             # 进入大厅: 重置缓存, 触发 (防抖) 刷新车队成员战绩
             self._lobbyGameInfoCache = {}
+            # A new lobby phase: a custom lobby's other team from before must not linger
+            # (the refresh below repaints it if this is still that custom lobby)
+            self.__dropLobbyEnemies()
             self._lobbyRefreshTimer.start()
 
         elif status == 'ReadyCheck':
@@ -939,6 +1033,8 @@ class MainWindow(FluentWindow):
             await self.__onReconnect()
 
         self.isGaming = isGaming
+        if not isGaming:
+            liveClientPoller.stop()  # also hides the item value panel / overlay
 
         if status != 'ChampSelect':
             self.opggWindow.setStaysOnTopEnabled(False)
@@ -981,7 +1077,15 @@ class MainWindow(FluentWindow):
 
     @asyncSlot()
     async def __doLobbyRefresh(self):
-        if self.isGaming:
+        # Refreshes can overlap (the debounce does not serialise them): only the newest paints
+        self._lobbyRefreshSeq += 1
+        seq = self._lobbyRefreshSeq
+
+        def current():
+            # newest refresh, and still in a lobby phase (not champ select / in game)
+            return seq == self._lobbyRefreshSeq and self._gameStatus in LOBBY_REFRESH_STATUSES
+
+        if self.isGaming or not current():
             return
 
         try:
@@ -989,13 +1093,15 @@ class MainWindow(FluentWindow):
         except:
             return
 
-        if not isinstance(lobby, dict):
+        if not isinstance(lobby, dict) or not current():
             return
 
         members = lobby.get('members') or []
 
         # 有几个显示几个 (含单人); 仅当完全无成员/不在大厅时切回生涯页
         if not members:
+            # Left the lobby: its other team must not linger into a later champ select
+            self.__dropLobbyEnemies()
             if self.stackedWidget.currentWidget() is self.gameInfoInterface:
                 self.switchTo(self.careerInterface)
             return
@@ -1006,17 +1112,82 @@ class MainWindow(FluentWindow):
             return
 
         # 大厅换了模式 (单双 -> 灵活 ...): 已缓存的战绩是按旧队列过滤的, 全部重查
-        queueFilter = historyQueueFilter((lobby.get('gameConfig') or {}).get('queueId', -1))
+        queueFilter = lobbyHistoryQueueFilter(lobby)
         if queueFilter != self._lobbyQueueFilter:
             self._lobbyQueueFilter = queueFilter
             self._lobbyGameInfoCache = {}
 
+        teams = splitCustomLobbyTeams(lobby, currentSummonerId,
+                                      self.currentSummoner.get('puuid'))
+        if teams is not None:
+            await self.__refreshCustomLobby(lobby, currentSummonerId, *teams, current=current)
+            return
+
+        # No longer a custom lobby: drop the other team it showed
+        self.__dropLobbyEnemies()
+
+        def showAlly(info):
+            if current():
+                self.gameInfoInterface.updateAllySummoners(info)
+
         info = await parseLobbyGameInfo(
             lobby, currentSummonerId, useSGP=True,
             cache=self._lobbyGameInfoCache,
-            onPartial=self.gameInfoInterface.updateAllySummoners)
+            onPartial=showAlly)
+
+        if not current():
+            return
 
         self.gameInfoInterface.updateAllySummoners(info)
+        self.checkAndSwitchTo(self.gameInfoInterface)
+
+    def __dropLobbyEnemies(self):
+        """Clear the enemy side if (and only if) it shows a custom lobby's other team"""
+        if self._lobbyEnemyShown:
+            self._lobbyEnemyShown = False
+            self.gameInfoInterface.clearEnemy()
+
+    async def __refreshCustomLobby(self, lobby, currentSummonerId, allyMembers, enemyMembers,
+                                   current):
+        """
+        Custom lobby: load both teams already in the lobby (own team = ally). Both sides
+        share the puuid cache, so only newly joined players are fetched and a player who
+        switches teams is not fetched again; an emptied enemy side is cleared.
+        @param current: () -> bool, False once a newer refresh or a non-lobby phase began
+        """
+        epoch = self._champSelectEpoch
+
+        def live():
+            # a newer refresh, champ select or the game took over meanwhile: they own the page
+            return current() and epoch == self._champSelectEpoch and not self.isGaming
+
+        def showAlly(info):
+            if live():
+                self.gameInfoInterface.updateAllySummoners(info)
+
+        def showEnemy(info):
+            if live():
+                self._lobbyEnemyShown = True
+                self.gameInfoInterface.updateEnemySummoners(info)
+
+        allyInfo, enemyInfo = await asyncio.gather(
+            parseLobbyGameInfo(lobby, currentSummonerId, useSGP=True,
+                               cache=self._lobbyGameInfoCache, onPartial=showAlly,
+                               members=allyMembers),
+            parseLobbyGameInfo(lobby, currentSummonerId, useSGP=True,
+                               cache=self._lobbyGameInfoCache, onPartial=showEnemy,
+                               members=enemyMembers))
+
+        if not live():
+            return
+
+        showAlly(allyInfo)
+        if enemyInfo['summoners']:
+            showEnemy(enemyInfo)
+        else:
+            # only clear lobby-loaded cards, never a previous game's reserved enemies
+            self.__dropLobbyEnemies()
+
         self.checkAndSwitchTo(self.gameInfoInterface)
 
     # 进入英雄选择界面时触发
@@ -1187,12 +1358,19 @@ class MainWindow(FluentWindow):
 
     # 进入游戏后触发
     async def __onGameStart(self):
+        # From here the enemy side belongs to the game, not to the lobby
+        self._lobbyEnemyShown = False
         session = await connector.getGameflowSession()
         currentSummonerId = self.currentSummoner['summonerId']
 
         queueId = session['gameData']['queue']['id']
         if queueId in (1700, 1090, 1100, 1110, 1130, 1160):  # 斗魂 云顶匹配 (排位)
             return
+
+        # Live item value (game info panel + optional overlay); stopped when not gaming.
+        # Not for Arena (1700 returned above, 1710 here): no two teams to compare
+        if queueId != 1710:
+            liveClientPoller.start()
 
         # 如果是进游戏后开的软件，需要先把友方信息更新上去
         async def paintAllySummonersInfo():

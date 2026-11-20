@@ -38,7 +38,7 @@ class Github:
         else:
             proxy = None
 
-        return self.sess.get(url, proxies=proxy).json()
+        return self.sess.get(url, proxies=proxy, timeout=10).json()
 
     def checkUpdate(self):
         """
@@ -77,7 +77,7 @@ class Github:
         else:
             proxy = None
 
-        res = self.sess.get(url, proxies=proxy).json()
+        res = self.sess.get(url, proxies=proxy, timeout=10).json()
 
         json_data = json.loads(
             str(base64.b64decode(res['content']), encoding='utf-8'))
@@ -103,6 +103,31 @@ class Github:
 
 
 github = Github()
+
+
+def checkUpdateOutcome(check=None, lock=None, lockTimeout=15):
+    """
+    Manual update check; ignores the enableCheckUpdate switch.
+    @return: ("update", info) newer version / ("latest", None) up to date
+             (or no release published) / ("error", None) check failed
+    """
+    # A stalled start-up check can hold the lock; give up rather than hang
+    if lock is not None and not lock.acquire(timeout=lockTimeout):
+        logger.warning("manual update check: timed out waiting for lock", TAG)
+        return "error", None
+
+    try:
+        info = (check or github.checkUpdate)()
+    except Exception as e:
+        logger.exception("manual update check failed", e, TAG)
+        return "error", None
+    finally:
+        if lock is not None:
+            lock.release()
+
+    if info:
+        return "update", info
+    return "latest", None
 
 
 def platformAssetSuffix() -> str:

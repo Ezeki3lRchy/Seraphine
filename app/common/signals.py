@@ -37,8 +37,15 @@ class SignalBus(QObject):
     # style:
     customColorChanged = Signal(str)
 
+    # manual update check: setting_interface -> main_window, and back when done
+    checkUpdateRequested = Signal()
+    checkUpdateFinished = Signal()
+
     # OPGG:
     toOpggBuildInterface = Signal(int, str, str)
+
+    # live_client: item gold summary of the running game (dict), None when there is none
+    liveGameDataChanged = Signal(object)
 
 
 signalBus = SignalBus()

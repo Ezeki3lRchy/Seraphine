@@ -1598,21 +1598,66 @@ async def parseEnemyChampSelectInfo(session, currentSummonerId, useSGP=False, ca
     return build(summoners)
 
 
+def splitCustomLobbyTeams(lobby, currentSummonerId, currentPuuid=None):
+    """
+    Split a custom-game lobby into (allyMembers, enemyMembers) by which custom team list
+    each member is in: the local player's team is the ally side; a spectator (in neither
+    team) sees team 100 as ally and team 200 as enemy. Bots and spectators are dropped,
+    list order is kept. Returns None when the lobby is not a custom game.
+    """
+    config = (lobby or {}).get('gameConfig') or {}
+    if not config.get('isCustom'):
+        return None
+
+    if not currentPuuid:
+        currentPuuid = ((lobby or {}).get('localMember') or {}).get('puuid')
+
+    def humans(team):
+        return [m for m in team or []
+                if isinstance(m, dict) and m.get('puuid')
+                and not m.get('isBot') and not m.get('botId')
+                and not m.get('isSpectator')]
+
+    def isMe(m):
+        return (bool(currentSummonerId) and m.get('summonerId') == currentSummonerId) \
+            or (bool(currentPuuid) and m.get('puuid') == currentPuuid)
+
+    team100 = humans(config.get('customTeam100'))
+    team200 = humans(config.get('customTeam200'))
+
+    if any(isMe(m) for m in team200):
+        return team200, team100
+
+    return team100, team200
+
+
+def lobbyHistoryQueueFilter(lobby):
+    """historyQueueFilter for a lobby; custom lobbies (queueId 3120 etc.) are never filtered"""
+    config = (lobby or {}).get('gameConfig') or {}
+    if config.get('isCustom'):
+        return None
+
+    return historyQueueFilter(config.get('queueId', -1))
+
+
 async def parseLobbyGameInfo(lobby, currentSummonerId, useSGP=False, cache=None,
-                             onPartial=None):
+                             onPartial=None, members=None):
     '''
     解析组队大厅成员战绩, 复用选人阶段的 per-summoner 取数逻辑。
 
     @param lobby: connector.getLobby() 的返回值
     @param cache: {puuid: summoner_dict} 复用缓存, 只查询新加入的成员 (避免 SGP 刷爆)
+    @param members: members to resolve, in display order (one custom-lobby team, see
+                    splitCustomLobbyTeams); defaults to lobby['members']
     @return: 与 @see: parseAllyGameInfo 一致的 {summoners, champions, order, isAram}
     '''
     if cache is None:
         cache = {}
 
-    members = lobby.get('members') or []
+    if members is None:
+        members = lobby.get('members') or []
     queueId = (lobby.get('gameConfig') or {}).get('queueId', -1)
-    queueFilter = historyQueueFilter(queueId)
+    queueFilter = lobbyHistoryQueueFilter(lobby)
 
     # 国服优先 SGP, 否则走 LCU
     fetch = getSummonerGamesInfoViaSGP if (

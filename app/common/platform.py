@@ -64,6 +64,26 @@ def find_lol_client_window_rect():
     return win32gui.GetWindowRect(hwnd)
 
 
+def set_window_no_activate(win_id):
+    """Windows: add WS_EX_NOACTIVATE to a top-level window so clicking it never takes
+    focus from the foreground (game) window. Qt.WindowDoesNotAcceptFocus already asks Qt
+    for this; this re-applies it after Qt recreated the native window. Non-Windows: no-op.
+    Never raises.
+    """
+    if not IS_WINDOWS:
+        return
+
+    try:
+        import win32con
+        import win32gui
+        hwnd = int(win_id)
+        style = win32gui.GetWindowLong(hwnd, win32con.GWL_EXSTYLE)
+        win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE,
+                               style | win32con.WS_EX_NOACTIVATE)
+    except Exception:
+        pass
+
+
 def get_file_version_info(fname, sub_block):
     """Windows: win32api.GetFileVersionInfo(fname, sub_block). Non-Windows: raise.
 
