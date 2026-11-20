@@ -55,11 +55,38 @@ def _versionMajor(version):
         return None
 
 
+def _playStyleFields(me, stats):
+    """Play style fields shared by both payloads (match-v4 stats / match-v5 participant)"""
+    return {
+        'championId': me.get('championId'),
+        'teamId': me.get('teamId'),
+        'damage': stats.get('totalDamageDealtToChampions'),
+        'gold': stats.get('goldEarned'),
+        'cs': (stats.get('totalMinionsKilled') or 0) + (stats.get('neutralMinionsKilled') or 0)
+        if 'totalMinionsKilled' in stats else None,
+        'vision': stats.get('visionScore'),
+    }
+
+
 def rawLcuGameStats(game):
     """LCU 战绩列表的一局 (只有自己一个 participant) -> 统计字段; 数据不全返回 None"""
     try:
-        stats = game['participants'][0]['stats']
+        me = game['participants'][0]
+        stats = me['stats']
+        # Legacy timeline lane / role are unreliable; in Summoner's Rift draft queues
+        # participantId 1-5 (blue) / 6-10 (red) follow Top / Jungle / Mid / Bot / Support
+        # (see laning.py), so use that order there - only when the id agrees with the side.
+        position = None
+        pid = me.get('participantId')
+        if (game.get('queueId') in (400, 420, 440) and game.get('mapId', 11) == 11
+                and isinstance(pid, int) and 1 <= pid <= 10
+                and me.get('teamId') in (100, 200) and (pid <= 5) == (me['teamId'] == 100)):
+            position = ('TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY')[(pid - 1) % 5]
         return {
+            **_playStyleFields(me, stats),
+            'position': position,
+            'custom': game.get('gameType') == 'CUSTOM_GAME',
+            'damageShare': None,
             'gameId': game['gameId'],
             'queueId': game.get('queueId'),
             'timeStamp': game['gameCreation'],
@@ -86,7 +113,16 @@ def rawSgpGameStats(game, puuid):
             teamKills = sum(p['kills'] for p in game['participants']
                             if p['teamId'] == me['teamId'])
             kp = (me['kills'] + me['assists']) / max(teamKills, 1)
+        damageShare = None
+        if not me.get('playerSubteamId') and me.get('totalDamageDealtToChampions') is not None:
+            teamDamage = sum(p.get('totalDamageDealtToChampions') or 0
+                             for p in game['participants'] if p['teamId'] == me['teamId'])
+            damageShare = me['totalDamageDealtToChampions'] / teamDamage if teamDamage else None
         return {
+            **_playStyleFields(me, me),
+            'position': me.get('teamPosition') or None,
+            'custom': game.get('gameType') == 'CUSTOM_GAME',
+            'damageShare': damageShare,
             'gameId': game['gameId'],
             'queueId': game.get('queueId'),
             'timeStamp': game['gameCreation'],

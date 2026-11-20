@@ -1727,6 +1727,8 @@ class JsonManager:
             item['desc'] = desc.strip().strip("<br>")
 
         self.champs = {item["id"]: item["name"] for item in champions}
+        # Champion classes from champion-summary.json, e.g. ['mage', 'support'] (first = primary)
+        self.champRoles = {item["id"]: item.get("roles") or [] for item in champions}
 
         self.champions = {item: {"skins": {}} for item in self.champs.values()}
         self.queues = {

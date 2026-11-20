@@ -5,15 +5,17 @@ from PySide6.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout, QSpacerItem,
                              QSizePolicy, QTableWidgetItem, QHeaderView,
                              QWidget, QFrame, QStackedWidget)
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont
 from ..common.qfluentwidgets import (TableWidget, PushButton, ComboBox,
                                      SmoothScrollArea, ToolTipFilter, setCustomStyleSheet,
                                      ToolTipPosition, ToolButton, IndeterminateProgressRing,
                                      Flyout, FlyoutViewBase, FlyoutAnimationType, InfoBar,
-                                     InfoBarPosition)
+                                     InfoBarPosition, SegmentedWidget, FluentIcon, setFont)
 
 from app.components.career_widgets import RankCard, RecentSummaryCard, CareerGameRow, tierText
 from app.components.performance_widget import PerformancePanel
-from app.lol import season_stats
+from app.components.play_style_widget import PlayStyleView
+from app.lol import season_stats, play_style
 from app.components.champion_icon_widget import RoundIcon
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.summoner_name_button import SummonerName
@@ -88,7 +90,16 @@ class CareerInterface(SeraphineInterface):
         self.summaryCard = RecentSummaryCard()
         # 近期 vs 本赛季 (赛季样本在页面显示后后台翻页拉取)
         self.performancePanel = PerformancePanel()
+        # Overview (everything above) / Play style (season sample statistics); the choice
+        # is kept when another summoner is opened
+        self.viewSwitch = SegmentedWidget()
+        self.careerMode = 'overview'
+        self.playStyleView = PlayStyleView()
+        self.playStyleArea = SmoothScrollArea()
+        self.playStyleContent = QWidget()
+        self.playStyleLayout = QVBoxLayout(self.playStyleContent)
         self.seasonTask = None
+        self.playStyleIconTask = None
         self.laningTask = None
         self.teammatesTask = None
         self.scrollContent = QWidget()
@@ -156,6 +167,19 @@ class CareerInterface(SeraphineInterface):
         self.summaryCard.setObjectName("careerCard")
 
         self.backToMeButton.setEnabled(False)
+
+        self.viewSwitch.addItem('overview', self.tr("Overview"),
+                                lambda: self.__setCareerMode('overview'), FluentIcon.HOME)
+        self.viewSwitch.addItem('playStyle', self.tr("Play style"),
+                                lambda: self.__setCareerMode('playStyle'), FluentIcon.PIE_SINGLE)
+        self.viewSwitch.setCurrentItem('overview')
+        # a bigger, bolder switch than the default so the second view is not missed
+        for item in self.viewSwitch.items.values():
+            setFont(item, 14, QFont.DemiBold)
+            item.setMinimumWidth(150)
+            item.setFixedHeight(38)
+        self.playStyleArea.setObjectName('gameInfoArea')
+        self.playStyleContent.setObjectName("gameInfoWidget")
 
         self.recentTeamButton.setEnabled(True)
 
@@ -294,9 +318,19 @@ class CareerInterface(SeraphineInterface):
 
         self.vBoxLayout.addWidget(self.progressRing, alignment=Qt.AlignCenter)
 
+        self.playStyleLayout.setContentsMargins(0, 0, 0, 0)
+        self.playStyleLayout.addWidget(self.playStyleView)
+        self.playStyleLayout.addStretch(1)
+        self.playStyleArea.setWidget(self.playStyleContent)
+        self.playStyleArea.setWidgetResizable(True)
+        self.playStyleArea.setViewportMargins(0, 0, 5, 0)
+
         self.vBoxLayout.addLayout(self.IconNameHBoxLayout)
-        self.vBoxLayout.addSpacing(16)
+        self.vBoxLayout.addSpacing(12)
+        self.vBoxLayout.addWidget(self.viewSwitch, alignment=Qt.AlignLeft)
+        self.vBoxLayout.addSpacing(10)
         self.vBoxLayout.addWidget(self.gameInfoArea)
+        self.vBoxLayout.addWidget(self.playStyleArea)
         self.vBoxLayout.addSpacing(10)
 
         self.vBoxLayout.setContentsMargins(30, 32, 30, 20)
@@ -322,10 +356,17 @@ class CareerInterface(SeraphineInterface):
         self.recent20GamesLabel.setVisible(not enable)
         self.filterComboBox.setVisible(not enable)
         self.recentTeamButton.setVisible(not enable)
-        self.gameInfoArea.setVisible(not enable)
+        self.gameInfoArea.setVisible(not enable and self.careerMode == 'overview')
+        self.playStyleArea.setVisible(not enable and self.careerMode == 'playStyle')
+        self.viewSwitch.setVisible(not enable)
         self.tagLineLabel.setVisible(not enable and self.showTagLine)
 
         self.progressRing.setVisible(enable)
+
+    def __setCareerMode(self, mode):
+        self.careerMode = mode
+        self.gameInfoArea.setVisible(mode == 'overview')
+        self.playStyleArea.setVisible(mode == 'playStyle')
 
     def __updateTable(self):
         for i, line in enumerate(self.rankInfo):
@@ -554,10 +595,11 @@ class CareerInterface(SeraphineInterface):
         self.setLoadingPageEnabled(False)
 
         # 换人 / 刷新: 上一位召唤师的后台任务 (近期队友 / 对线得分 / 赛季样本) 不再需要
-        for task in (self.teammatesTask, self.laningTask, self.seasonTask):
+        for task in (self.teammatesTask, self.laningTask, self.seasonTask,
+                     self.playStyleIconTask):
             if task:
                 task.cancel()
-        self.teammatesTask = self.laningTask = self.seasonTask = None
+        self.teammatesTask = self.laningTask = self.seasonTask = self.playStyleIconTask = None
 
         if self.games:
             self.teammatesTask = asyncio.create_task(
@@ -567,7 +609,11 @@ class CareerInterface(SeraphineInterface):
 
         recent = season_stats.aggregate((self.games or {}).get('games'))
         self.performancePanel.setRecent(recent)
-        if recent:
+        self.playStyleArea.delegate.vScrollBar.resetValue(0)
+        if not recent:
+            self.playStyleView.setEmpty()
+        else:
+            self.playStyleView.setLoading(self.games['games'])
             self.seasonTask = asyncio.create_task(
                 self.__updateSeasonPerformance(puuid, rankInfo, self.games['games']))
 
@@ -583,9 +629,19 @@ class CareerInterface(SeraphineInterface):
         season = season_stats.aggregate(games)
         if season is None:
             self.performancePanel.setSeason(season_stats.rankedSeasonFallback(rankInfo), 'ranked')
+            self.playStyleView.setEmpty()
             return
 
         self.performancePanel.setSeason(season, source)
+        # Play style re-aggregates the same sample (no extra history requests)
+        capped = len(games) >= season_stats.SEASON_CAP
+        manager = getattr(connector, 'manager', None)
+        self.playStyleView.setSample(games, source, capped,
+                                     getattr(manager, 'champRoles', None) or {}, recentGames,
+                                     getattr(manager, 'champs', None))
+        # icons in their own task so they never delay the kill participation fill below
+        self.playStyleIconTask = asyncio.create_task(self.__loadPlayStyleIcons(puuid, games))
+
         if source == 'lcu':
             # LCU 战绩列表没有全队击杀: 近期参团率 + 少量补拉完整对局
             try:
@@ -594,6 +650,15 @@ class CareerInterface(SeraphineInterface):
                 return
             if puuid == self.puuid:
                 self.performancePanel.setSeason(season_stats.aggregate(games), source)
+                self.playStyleView.setSample(games, source, capped)
+
+    async def __loadPlayStyleIcons(self, puuid, games):
+        try:
+            icons = await play_style.championIcons(play_style.topChampionIds(games))
+        except Exception:
+            return
+        if puuid == self.puuid:
+            self.playStyleView.setChampionIcons(icons)
 
     async def __updateLaningScores(self, puuid, games):
         """战绩行显示后逐局补拉时间线算对线得分, 算完一局就刷新当前显示的那一行"""
