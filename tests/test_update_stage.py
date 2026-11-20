@@ -112,10 +112,42 @@ class TempBaseMixin:
         us.writeMarker(self.base, marker)
         return marker
 
-    def writeResult(self, status, version='9.9.9'):
+    def writeResult(self, status, version='9.9.9', code=4):
         _write(os.path.join(self.base, 'result.json'),
-               ('{"status": "%s", "code": 4, "version": "%s"}' % (status, version))
+               ('{"status": "%s", "code": %d, "version": "%s"}' % (status, code, version))
                .encode('utf-8-sig'))
+
+    ROLLBACK = ('backup/Seraphine.exe', 'backup/_internal/a.dll', 'backup.meta',
+                'backup.added.txt', 'result.json')
+
+    def writeRollback(self, version='9.9.9', preExe=b'pre-exe', pkgExe=b'pkg-exe', code=4):
+        """What a 'restore-failed' updater run leaves: backup, manifest, fingerprint
+        (as the script writes it: upper-case SHA-256 of the exes, UTF-8 with BOM),
+        result."""
+        _write(os.path.join(self.base, 'backup', 'Seraphine.exe'), b'old-exe')
+        _write(os.path.join(self.base, 'backup', '_internal', 'a.dll'), b'old-a')
+        meta = '{"preExe":"%s","pkgExe":"%s","version":"%s"}' % (
+            hashlib.sha256(preExe).hexdigest().upper(),
+            hashlib.sha256(pkgExe).hexdigest().upper(), version)
+        _write(os.path.join(self.base, 'backup.meta'), meta.encode('utf-8-sig'))
+        _write(os.path.join(self.base, 'backup.added.txt'), b'C:\\inst\\_internal\\b.dll\r\n')
+        self.writeResult('restore-failed', version=version, code=code)
+        return self.rollbackFiles()
+
+    def fakeInstall(self, exe):
+        """A packaged install whose Seraphine.exe has content ``exe``."""
+        install = os.path.join(self.tmp, 'install')
+        _write(os.path.join(install, 'Seraphine.exe'), exe)
+        return install
+
+    def rollbackFiles(self):
+        files = {}
+        for rel in self.ROLLBACK:
+            path = os.path.join(self.base, rel)
+            if os.path.isfile(path):
+                with open(path, 'rb') as f:
+                    files[rel] = f.read()
+        return files
 
 
 @unittest.skipUnless(sys.platform == 'win32', 'stages the Windows .7z')
@@ -217,6 +249,135 @@ class StageReleaseTest(TempBaseMixin, unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await task
         self.assertFalse(os.path.exists(self.base))
+
+    async def test_staging_a_different_release_keeps_backup_and_result(self):
+        # 9.9.9 ended 'restore-failed'; a newer 9.9.10 is staged on the next start
+        await us.stageRelease(_info(self.data), self.base, None,
+                              FakeSession(FakeResp(self.data)))
+        rollback = self.writeRollback('9.9.9')
+        marker = await us.stageRelease(_info(self.data, version='9.9.10'), self.base,
+                                       None, FakeSession(FakeResp(self.data)))
+        self.assertEqual(marker['version'], '9.9.10')
+        self.assertEqual(self.rollbackFiles(), rollback)
+        self.assertEqual(len(rollback), len(self.ROLLBACK))
+
+        # the failure is still reported at start-up, and the newer stage is what a
+        # Retry applies (the updater completes the earlier restore first)
+        got = us.stagedUpdate('9.9.9', self.base)
+        self.assertEqual(got['version'], '9.9.10')
+        self.assertEqual(got['lastResult']['status'], 'restore-failed')
+        self.assertEqual(got['lastResult']['version'], '9.9.9')
+        self.assertTrue(us.markerApplicable(got, self.base, currentVersion='9.9.9'))
+        self.assertEqual(self.rollbackFiles(), rollback)
+
+    async def test_staging_drops_a_failure_report_of_another_release_without_backup(self):
+        # 9.9.9 ended 'restored': the install is intact, nothing left to complete
+        await us.stageRelease(_info(self.data), self.base, None,
+                              FakeSession(FakeResp(self.data)))
+        self.writeResult('restored', version='9.9.9')
+        marker = await us.stageRelease(_info(self.data, version='9.9.10'), self.base,
+                                       None, FakeSession(FakeResp(self.data)))
+        self.assertIsNone(us.readResult(self.base))
+        self.assertEqual(us.stagedUpdate('9.9.8', self.base), marker)  # no lastResult
+
+    async def test_staging_keeps_a_failure_report_of_the_same_release(self):
+        self.writeResult('restored', version='9.9.9')
+        marker = await us.stageRelease(_info(self.data), self.base, None,
+                                       FakeSession(FakeResp(self.data)))
+        self.assertEqual(us.readResult(self.base)['status'], 'restored')
+        self.assertEqual(us.stagedUpdate('9.9.8', self.base), marker)
+        self.assertEqual(marker['lastResult']['status'], 'restored')
+        self.assertEqual(us.readMarker(self.base),
+                         {k: v for k, v in marker.items() if k != 'lastResult'})
+
+    async def test_already_staged_release_carries_the_failure_report(self):
+        # N3: start-up shows "failed ... Retry"; the next check offers the same
+        # release, which must not turn that bar into a plain "ready" one
+        info = _info(self.data)
+        await us.stageRelease(info, self.base, None, FakeSession(FakeResp(self.data)))
+        self.writeResult('restored', version='9.9.9')
+        atStart = us.stagedUpdate('9.9.8', self.base)
+        again = await us.stageRelease(info, self.base, None,
+                                      FakeSession(FakeResp(b'', status=500)))
+        self.assertEqual(again, atStart)
+        self.assertEqual(again['lastResult']['status'], 'restored')
+        self.assertTrue(us.markerApplicable(again, self.base, currentVersion='9.9.8'))
+
+    async def test_newer_release_after_a_failed_repair_gets_one_attempt(self):
+        # restore-failed/8 for 9.9.9 with its backup; 9.9.10 is staged, and the
+        # background path and the next start-up show the same (Retry) state
+        rollback = self.writeRollback('9.9.9', code=8)
+        self.assertIsNone(us.failedRepair('9.9.10', self.base))
+        marker = await us.stageRelease(_info(self.data, version='9.9.10'), self.base,
+                                       None, FakeSession(FakeResp(self.data)))
+        self.assertEqual(marker['lastResult']['code'], 8)
+        self.assertFalse(us.repairBlocks(marker['lastResult'], marker['version']))
+        self.assertEqual(us.stagedUpdate('9.9.9', self.base), marker)
+        self.assertEqual(self.rollbackFiles(), rollback)
+        self.assertTrue(us.markerApplicable(marker, self.base, currentVersion='9.9.9'))
+
+    async def test_staging_after_an_uncleaned_successful_run_starts_fresh(self):
+        # the run for 9.9.9 succeeded; the start-up pass has not cleaned up yet
+        self.stage('9.9.9')
+        self.writeResult('ok', version='9.9.9')
+        _write(os.path.join(self.base, 'backup', 'Seraphine.exe'), b'left over')
+        marker = await us.stageRelease(_info(self.data, version='9.9.10'), self.base,
+                                       None, FakeSession(FakeResp(self.data)))
+        self.assertIsNone(us.readResult(self.base))
+        self.assertFalse(os.path.exists(os.path.join(self.base, 'backup')))
+        # the later start-up pass keeps the new stage
+        self.assertEqual(us.stagedUpdate('9.9.9', self.base), marker)
+
+    async def test_failed_staging_keeps_backup_and_result(self):
+        rollback = self.writeRollback('9.9.9')
+        with self.assertRaises(us.StageError):
+            await us.stageRelease(_info(self.data, version='9.9.10'), self.base, None,
+                                  FakeSession(FakeResp(b'', status=404)))
+        self.assertEqual(self.rollbackFiles(), rollback)
+        self.assertIsNone(us.readMarker(self.base))
+        self.assertFalse(os.path.exists(os.path.join(self.base, 'Seraphine.7z.part')))
+
+    async def test_refused_while_an_updater_runs(self):
+        marker = self.stage('9.9.9')
+        sess = FakeSession(FakeResp(self.data))
+        with mock.patch.object(us, '_updaterRunning', return_value=True):
+            with self.assertRaises(us.StageError):
+                await us.stageRelease(_info(self.data, version='9.9.10'), self.base,
+                                      None, sess)
+        self.assertEqual(sess.urls, [])
+        self.assertEqual(us.readMarker(self.base), marker)
+
+    async def test_refused_while_applying_or_after_an_updater_started(self):
+        marker = self.stage('9.9.9')
+        for flag in ('_applying', '_applyStarted'):
+            sess = FakeSession(FakeResp(self.data))
+            with mock.patch.object(us, flag, True):
+                with self.assertRaises(us.StageError):
+                    await us.stageRelease(_info(self.data, version='9.9.10'), self.base,
+                                          None, sess)
+            self.assertEqual(sess.urls, [])
+            self.assertEqual(us.readMarker(self.base), marker)
+
+    async def test_undeletable_leftovers_are_never_staged(self):
+        # a killed earlier run left a file in package.part that cannot be removed
+        # (e.g. held by antivirus): it must not end up in the staged package
+        stale = os.path.join(self.base, 'package.part', '_internal', 'stale.dll')
+        _write(stale, b'stale')
+        with mock.patch.object(us.shutil, 'rmtree'):
+            with self.assertRaises(us.StageError):
+                await us.stageRelease(_info(self.data), self.base, None,
+                                      FakeSession(FakeResp(self.data)))
+        self.assertIsNone(us.readMarker(self.base))
+        self.assertFalse(os.path.exists(os.path.join(self.base, 'package')))
+
+        # once it can be removed, the stage holds exactly the archive's files
+        _write(os.path.join(self.base, 'package', 'stale2.dll'), b'stale')
+        marker = await us.stageRelease(_info(self.data), self.base, None,
+                                       FakeSession(FakeResp(self.data)))
+        found = sorted(os.path.relpath(os.path.join(d, f), marker['path']).replace('\\', '/')
+                       for d, _, files in os.walk(marker['path']) for f in files)
+        self.assertEqual(found, sorted(PACKAGE_FILES))
+        self.assertFalse(os.path.exists(os.path.join(self.base, 'package.part')))
 
 
 class BackgroundUpdaterTest(unittest.IsolatedAsyncioTestCase):
@@ -418,6 +579,145 @@ class MarkerTest(TempBaseMixin, unittest.TestCase):
             self.assertIsNone(us.stagedUpdate('1.4.8', self.base))
             self.assertFalse(os.path.exists(self.base))
 
+    def test_unfinished_restore_survives_the_stale_stage_clean_up(self):
+        # restore-failed, then the staged package went missing (or staging a newer
+        # release failed): drop the stage, never the backup or the failure report
+        marker = self.stage('9.9.9')
+        rollback = self.writeRollback('9.9.9')
+        # invalidate the stage on either platform (package dir / dmg)
+        if os.path.isdir(marker['path']):
+            shutil.rmtree(marker['path'])
+        else:
+            os.remove(marker['path'])
+        self.assertIsNone(us.stagedUpdate('9.9.8', self.base))
+        self.assertEqual(self.rollbackFiles(), rollback)
+        self.assertIsNone(us.readMarker(self.base))
+        self.assertFalse(os.path.exists(os.path.join(self.base, 'Seraphine-update.dmg')))
+        self.assertFalse(os.path.exists(marker['path']))
+
+    def test_result_of_another_release_without_backup_is_not_attached(self):
+        # 9.9.9 ended 'restored' (nothing left to complete); 9.9.10 is staged now
+        marker = self.stage('9.9.10')
+        self.writeResult('restored', version='9.9.9')
+        self.assertEqual(us.stagedUpdate('9.9.8', self.base), marker)
+        self.assertFalse(us.markerApplicable(dict(marker, lastResult={'status': 'restored'}),
+                                             self.base, currentVersion='9.9.10'))
+
+    def test_result_of_another_release_with_backup_is_attached(self):
+        # an unfinished restore of 9.9.9: the next run completes it first
+        marker = self.stage('9.9.10')
+        self.writeRollback('9.9.9')
+        got = us.stagedUpdate('9.9.8', self.base)
+        self.assertEqual(got['version'], '9.9.10')
+        self.assertEqual(got['lastResult']['version'], '9.9.9')
+        self.assertTrue(us.markerApplicable(got, self.base, currentVersion='9.9.8'))
+        self.assertEqual(marker, {k: v for k, v in got.items() if k != 'lastResult'})
+
+    def test_hand_install_of_the_staged_release_ends_an_unrelated_failure(self):
+        # 1.5.0 ended 'restored', 1.5.1 was staged, then 1.5.1 installed by hand
+        self.stage('1.5.1')
+        self.writeResult('restored', version='1.5.0')
+        self.assertIsNone(us.stagedUpdate('1.5.1', self.base))
+        self.assertFalse(os.path.exists(self.base))
+
+    def test_failed_repair_blocks_only_releases_not_newer_than_the_failed_one(self):
+        # the run for 1.5.1 met the backup of a failed 1.5.0 run and ended 8; the
+        # install is half-merged to 1.5.0 (matches pkgExe of that backup)
+        marker = self.stage('1.5.1')
+        rollback = self.writeRollback('1.5.1', preExe=b'v149-exe', pkgExe=b'v150-exe',
+                                      code=8)
+        install = self.fakeInstall(b'v150-exe')
+        self.writeResult('restore-failed', version='1.5.1', code=4)
+        self.assertIsNone(us.failedRepair('1.5.1', self.base))  # code 4: Retry works
+        self.writeResult('restore-failed', version='1.5.1', code=8)
+
+        # the same release: blocked, exactly what the start-up pass reports
+        got = us.failedRepair('1.5.1', self.base)
+        self.assertEqual(got, dict(marker, lastResult=us.readResult(self.base)))
+        self.assertEqual(us.stagedUpdate('1.5.0', self.base, installDir=install), got)
+        self.assertEqual(self.rollbackFiles(), rollback)
+        self.assertIsNotNone(us.failedRepair('1.5.0', self.base))
+        # a newer release: offered (its run completes the restore first)
+        self.assertIsNone(us.failedRepair('1.5.2', self.base))
+        self.assertFalse(us.repairBlocks(us.readResult(self.base), '1.5.2'))
+        self.assertTrue(us.repairBlocks(us.readResult(self.base), '1.5.1'))
+
+    def test_failed_repair_needs_the_backup(self):
+        self.stage('9.9.9')
+        self.writeResult('restore-failed', version='9.9.9', code=8)
+        self.assertIsNone(us.failedRepair('9.9.9', self.base))
+
+    def test_hand_install_of_the_release_whose_repair_failed_ends_the_block(self):
+        # N1: the run for 1.5.1 ended restore-failed/8 (backup of a failed 1.5.0
+        # run); the user follows the bar and installs 1.5.1 by hand
+        self.stage('1.5.1')
+        self.writeRollback('1.5.1', preExe=b'v149-exe', pkgExe=b'v150-exe', code=8)
+        install = self.fakeInstall(b'v151-exe')
+        self.assertIsNotNone(us.failedRepair('1.5.1', self.base))  # before start-up
+        # the updater would discard that backup as foreign -> no failure bar
+        self.assertIsNone(us.stagedUpdate('1.5.1', self.base, installDir=install))
+        self.assertEqual(self.rollbackFiles(), {})
+        self.assertFalse(os.path.exists(self.base))
+        # 1.5.2 ships: offered normally
+        self.assertIsNone(us.failedRepair('1.5.2', self.base))
+
+    def test_hand_install_of_a_newer_version_drops_a_matching_looking_backup(self):
+        self.stage('1.5.1')
+        self.writeRollback('1.5.1', preExe=b'v150-exe', pkgExe=b'v151-exe')
+        install = self.fakeInstall(b'v160-exe')
+        self.assertIsNone(us.stagedUpdate('1.6.0', self.base, installDir=install))
+        self.assertFalse(os.path.exists(self.base))
+
+    def test_failed_downgrade_keeps_its_rollback(self):
+        # N2: a forbidden 1.5.0 was downgraded to 1.4.9; that run ended
+        # restore-failed/4 and the install is half-way between the two
+        for exe in (b'v150-exe', b'v149-exe'):
+            marker = self.stage('1.4.9')
+            rollback = self.writeRollback('1.4.9', preExe=b'v150-exe', pkgExe=b'v149-exe')
+            install = self.fakeInstall(exe)
+            got = us.stagedUpdate('1.5.0', self.base, installDir=install)
+            self.assertEqual(got, dict(marker, lastResult=us.readResult(self.base)))
+            self.assertEqual(self.rollbackFiles(), rollback)
+            us.clearStage(self.base)
+
+    def test_backup_files_without_the_backup_dir_are_dropped(self):
+        # the script never applies backup.meta / backup.added.txt without backup/
+        self.stage('9.9.9')
+        self.writeRollback('9.9.9')
+        shutil.rmtree(os.path.join(self.base, 'backup'))
+        got = us.stagedUpdate('9.9.8', self.base, installDir=self.fakeInstall(b'pre-exe'))
+        self.assertNotIn('lastResult', got)
+        self.assertEqual(self.rollbackFiles(), {})
+
+    def test_without_an_install_dir_the_backup_is_kept(self):
+        # a source run cannot fingerprint: nothing is dropped
+        self.stage('9.9.9')
+        rollback = self.writeRollback('9.9.9')
+        self.assertIsNotNone(us.stagedUpdate('9.9.8', self.base, installDir=None))
+        self.assertEqual(self.rollbackFiles(), rollback)
+
+    def test_an_unreadable_exe_never_drops_the_backup(self):
+        # e.g. antivirus holds Seraphine.exe at start-up: the fingerprint cannot be
+        # taken now, and the script will decide later, so the backup must survive.
+        # The exe is foreign on purpose: a successful read would drop the backup.
+        self.stage('9.9.9')
+        rollback = self.writeRollback('9.9.9')
+        install = self.fakeInstall(b'some-other-exe')
+        realOpen = open
+
+        def lockedOpen(path, *args, **kwargs):
+            if os.path.basename(str(path)) == 'Seraphine.exe' and install in str(path):
+                raise PermissionError(13, 'sharing violation')
+            return realOpen(path, *args, **kwargs)
+
+        with mock.patch('builtins.open', lockedOpen):
+            self.assertIsNone(us._backupBelongsToInstall(self.base, install))
+            got = us.stagedUpdate('9.9.8', self.base, installDir=install)
+        self.assertIn('lastResult', got)
+        self.assertEqual(self.rollbackFiles(), rollback)
+        # once the exe can be read again, the foreign backup is dropped as before
+        self.assertIs(us._backupBelongsToInstall(self.base, install), False)
+
     def test_failed_run_equal_or_newer_is_still_offered(self):
         for version in ('1.4.8', '1.4.9'):
             self.stage(version)
@@ -511,6 +811,13 @@ class MarkerTest(TempBaseMixin, unittest.TestCase):
 
 class ApplyStagedUpdateTest(TempBaseMixin, unittest.IsolatedAsyncioTestCase):
 
+    def setUp(self):
+        super().setUp()
+        # a confirmed start is sticky for the process; isolate the tests
+        patcher = mock.patch.object(us, '_applyStarted', False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def launch(self, logText):
         log = os.path.join(self.tmp, 'updater.log')
         if logText is not None:
@@ -560,6 +867,26 @@ class ApplyStagedUpdateTest(TempBaseMixin, unittest.IsolatedAsyncioTestCase):
         with self.patchRunner(self.launch('[x] updater started: ...')) as runner:
             self.assertTrue(await us.applyStagedUpdate(marker, self.base, startTimeout=1))
         runner.assert_called_once()
+        # the updater works from this stage now: no re-staging in this process
+        sess = FakeSession(FakeResp(b''))
+        with self.assertRaises(us.StageError):
+            await us.stageRelease(_info(b'x', version='9.9.10'), self.base, None, sess)
+        self.assertEqual(sess.urls, [])
+        self.assertEqual(us.readMarker(self.base), marker)
+
+    async def test_staging_is_refused_while_an_apply_waits_for_the_updater(self):
+        marker = self.stage('9.9.9')
+        sess = FakeSession(FakeResp(b''))
+        with self.patchRunner(self.launch(None)):
+            first = asyncio.ensure_future(
+                us.applyStagedUpdate(marker, self.base, startTimeout=0.5))
+            await asyncio.sleep(0.05)
+            with self.assertRaises(us.StageError):
+                await us.stageRelease(_info(b'x', version='9.9.10'), self.base, None, sess)
+            self.assertFalse(await first)
+        self.assertEqual(sess.urls, [])
+        self.assertEqual(us.readMarker(self.base), marker)
+        self.assertFalse(us._applyStarted)
 
     async def test_concurrent_apply_is_refused(self):
         marker = self.stage('9.9.9')
@@ -604,11 +931,43 @@ class MainWindowRoutingTest(unittest.IsolatedAsyncioTestCase):
             lambda info: mw.MainWindow._MainWindow__backgroundUpdateEligible(self.fake, info)
         self.fake.backgroundUpdater.isBusy.return_value = False
 
-    def route(self, info, auto=True, packaged=True, writable=True):
+    def route(self, info, auto=True, packaged=True, writable=True, failedRepair=None):
         with mock.patch.object(self.mw.cfg, 'get', return_value=auto), \
                 mock.patch.object(self.mw, 'isPackaged', return_value=packaged), \
-                mock.patch.object(self.mw, 'installWritable', return_value=writable):
+                mock.patch.object(self.mw, 'installWritable', return_value=writable), \
+                mock.patch.object(us, 'failedRepair', return_value=failedRepair) as fr:
             self.mw.MainWindow._MainWindow__onUpdateAvailable(self.fake, info)
+        self.failedRepairCalls = fr.call_args_list
+
+    def test_failed_repair_keeps_pointing_at_the_manual_download(self):
+        info = _info(b'x')
+        blocked = {'version': '9.9.9', 'lastResult': {'status': 'restore-failed', 'code': 8}}
+        self.route(info, failedRepair=blocked)
+        self.assertEqual(self.failedRepairCalls, [mock.call('9.9.9')])  # offered version
+        self.fake.backgroundUpdater.offer.assert_not_called()
+        self.fake.backgroundUpdater.notifyReady.assert_called_once_with(blocked)
+        self.fake._MainWindow__onShowUpdateMessageBox.assert_not_called()
+
+    def showReadyBar(self, marker):
+        with mock.patch.object(self.mw, 'InfoBar') as infoBar, \
+                mock.patch.object(self.mw, 'QWidget'), \
+                mock.patch.object(self.mw, 'QHBoxLayout'), \
+                mock.patch.object(self.mw, 'PrimaryPushButton') as primary, \
+                mock.patch.object(self.mw, 'PushButton'), \
+                mock.patch.object(self.mw.platform, 'config_dir', return_value='cfg'):
+            self.mw.MainWindow._MainWindow__onUpdateReady(self.fake, marker)
+        return infoBar, primary
+
+    def test_failed_repair_bar_only_for_a_release_not_newer_than_the_failed_one(self):
+        result = {'status': 'restore-failed', 'code': 8, 'version': '9.9.9'}
+        infoBar, primary = self.showReadyBar({'version': '9.9.9', 'lastResult': result})
+        infoBar.error.assert_called_once()  # manual download, no Retry
+        self.assertEqual(primary.call_args.args[0], 'Download')
+        self.fake._updateReadyBar = None
+        infoBar, primary = self.showReadyBar({'version': '9.9.10', 'lastResult': result})
+        infoBar.error.assert_not_called()
+        self.assertIn('v9.9.9 ', infoBar.warning.call_args.args[1])
+        self.assertEqual(primary.call_args.args[0], 'Retry')
 
     def test_packaged_with_auto_download_stages_in_background(self):
         info = _info(b'x')
@@ -729,6 +1088,22 @@ class MainWindowRoutingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.fake._MainWindow__setRestartButtonBusy.call_args_list,
                          [mock.call(True), mock.call(False)])
         self.assertFalse(self.fake._applyingUpdate)
+
+    def test_failure_bar_names_the_release_whose_run_failed(self):
+        # 9.9.9 failed; a newer 9.9.10 was staged afterwards (result kept)
+        marker = {'version': '9.9.10', 'lastResult': {'status': 'restore-failed', 'code': 4,
+                                                       'version': '9.9.9'}}
+        with mock.patch.object(self.mw, 'InfoBar') as infoBar, \
+                mock.patch.object(self.mw, 'QWidget'), \
+                mock.patch.object(self.mw, 'QHBoxLayout'), \
+                mock.patch.object(self.mw, 'PrimaryPushButton'), \
+                mock.patch.object(self.mw, 'PushButton'), \
+                mock.patch.object(self.mw.platform, 'config_dir', return_value='cfg'):
+            self.mw.MainWindow._MainWindow__onUpdateReady(self.fake, marker)
+        content = infoBar.warning.call_args.args[1]
+        self.assertIn('v9.9.9 ', content)
+        self.assertNotIn('9.9.10', content)
+        self.assertIs(self.fake._updateReadyMarker, marker)
 
     async def offerAtStart(self, marker, auto):
         fake = SimpleNamespace(backgroundUpdater=mock.Mock())

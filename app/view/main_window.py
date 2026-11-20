@@ -571,6 +571,16 @@ class MainWindow(FluentWindow):
             self.__onShowUpdateMessageBox(info)
             return
 
+        # An earlier restore could not be completed (restore-failed/8): every run
+        # would stop the same way, so keep pointing at the manual download (the
+        # same bar as at start-up) instead of offering this release as ready
+        # (only for a release not newer than the failed one; a newer one gets a run)
+        from app.common.update_stage import failedRepair, releaseVersion
+        blocked = failedRepair(releaseVersion(info))
+        if blocked is not None:
+            self.backgroundUpdater.notifyReady(blocked)
+            return
+
         # A manual "Check now" should say something while the download runs / waits
         if self.manualCheckBusy and stagedFor(info) is None:
             version = info.get("tag_name", "").lstrip("vV")
@@ -626,8 +636,10 @@ class MainWindow(FluentWindow):
 
         result = marker.get("lastResult") or {}
         logPath = os.path.join(platform.config_dir(), "updater.log")
-        if result.get("status") == "restore-failed" and result.get("code") == 8:
+        from app.common.update_stage import repairBlocks
+        if repairBlocks(result, version):
             # even finishing the earlier rollback failed: no retry, download by hand
+            # (a release newer than the failed one gets the Retry bar below instead)
             bar = InfoBar.error(
                 self.tr("Update did not complete"),
                 self.tr("Seraphine could not repair a failed update. Please download the "
@@ -649,6 +661,9 @@ class MainWindow(FluentWindow):
             return
 
         if result:
+            # the failed run may be for an earlier release than the one staged now
+            # (a newer release staged after an unfinished restore keeps its result)
+            version = result.get("version") or version
             if result.get("status") == "restore-failed":
                 content = self.tr("Updating to v{} failed and could not be fully rolled "
                                   "back. See the log: {}").format(version, logPath)
@@ -1336,7 +1351,11 @@ class MainWindow(FluentWindow):
 
         try:
             lobby = await connector.getLobby()
-        except:
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+            logger.warning(
+                f"lobby refresh: getLobby failed: {type(e).__name__}, status={getattr(e, 'status', None)}", TAG)
             return
 
         if not isinstance(lobby, dict) or not current():

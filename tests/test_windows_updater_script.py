@@ -475,6 +475,55 @@ class WindowsUpdaterScriptTest(unittest.TestCase):
         self.assertTrue(os.path.isfile(self.s('Seraphine.exe')))
         self.assertIn('download Seraphine manually', self.logText)
 
+    def test_python_fingerprint_rule_agrees_with_the_script(self):
+        # update_stage._backupBelongsToInstall mirrors the script's step 3: the same
+        # backup.meta and installed exe give the same verdict in both
+        from app.common import update_stage as us
+
+        def meta(pre=b'old-exe', pkg=b'new-exe', lower=False, bom=True, raw=None):
+            def write():
+                if raw is not None:
+                    _write(self.backup + '.meta', raw)
+                    return
+                obj = {'version': '9.9.8'}
+                if pre is not None:
+                    obj['preExe'] = _sha(pre).lower() if lower else _sha(pre)
+                if pkg is not None:
+                    obj['pkgExe'] = _sha(pkg).lower() if lower else _sha(pkg)
+                with open(self.backup + '.meta', 'w',
+                          encoding='utf-8-sig' if bom else 'utf-8') as f:
+                    json.dump(obj, f)
+            return write
+
+        cases = {
+            'pre-update exe': (meta(), b'old-exe'),
+            'package exe, lower-case hashes': (meta(lower=True), b'new-exe'),
+            'no BOM': (meta(bom=False), b'new-exe'),
+            'foreign exe': (meta(), b'v148-exe'),
+            'no meta': (None, b'old-exe'),
+            'garbage meta': (meta(raw=b'{not json'), b'old-exe'),
+            'meta without pkgExe': (meta(pkg=None), b'old-exe'),
+            'empty preExe': (meta(raw=b'{"preExe": "", "pkgExe": "%s"}'
+                                  % _sha(b'old-exe').encode()), b'old-exe'),
+            'no installed exe': (meta(), None),
+        }
+        for name, (writeMeta, exe) in cases.items():
+            with self.subTest(name):
+                self.setUp()  # fresh sandbox per case
+                _write(os.path.join(self.backup, '_internal', 'a.dll'), b'old-a')
+                if writeMeta:
+                    writeMeta()
+                if exe is None:
+                    os.remove(self.p('Seraphine.exe'))
+                else:
+                    _write(self.p('Seraphine.exe'), exe)
+                python = us._backupBelongsToInstall(self.stage, self.install)
+                r = self.run_script()
+                self.assertIn(r.returncode, (0, 1), self.logText)
+                script = 'completing its restore first' in self.logText
+                self.assertEqual(script, 'FOREIGN BACKUP' not in self.logText, self.logText)
+                self.assertEqual(python, script)
+
     def test_drive_root_install_is_refused(self):
         r = self.run_script(install='C:\\')
         self.assertEqual(r.returncode, 2, self.logText)

@@ -1518,7 +1518,11 @@ async def parseAllyGameInfo(session, currentSummonerId, useSGP=False, currentPuu
             resolve = cached(getSummonerGamesInfoViaSGP)
             summoners = await gatherProgressively(
                 [resolve(item) for item in myTeam], onPartial, build)
-        except:
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+            logger.warning(
+                f"parseAllyGameInfo: SGP failed, falling back to LCU: {type(e).__name__}, status={getattr(e, 'status', None)}", TAG)
             await fillRevealedSummonerIds(myTeam)
             resolve = cached(parseSummonerGameInfo)
             summoners = await gatherProgressively(
@@ -1749,7 +1753,11 @@ async def parseGameInfoByGameflowSession(session, currentSummonerId, side, useSG
                 [getSummonerGamesInfoViaSGP(item, queueFilter, currentSummonerId) for item in team],
                 onPartial, build)
 
-        except:
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+            logger.warning(
+                f"parseGameInfoByGameflowSession: SGP failed, falling back to LCU: {type(e).__name__}, status={getattr(e, 'status', None)}", TAG)
             summoners = await gatherProgressively(
                 [parseSummonerGameInfo(item, queueFilter, currentSummonerId) for item in team],
                 onPartial, build)
@@ -1966,7 +1974,11 @@ async def parseSummonerGameInfo(item, queueId, currentSummonerId):
 
             origGamesInfo["games"] = await collectQueueGames(
                 origGamesInfo["games"], lcuPage, lcuKey, queueId, 5)
-    except:
+    except asyncio.CancelledError:
+        raise
+    except BaseException as e:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+        logger.warning(
+            f"parseSummonerGameInfo: games fetch failed: {type(e).__name__}, status={getattr(e, 'status', None)}", TAG)
         gamesInfo = []
     else:
         tasks = [parseGameData(game)
@@ -2055,7 +2067,11 @@ async def getSummonerGamesInfoViaSGP(item, queueId, currentSummonerId):
 
             origGamesInfo["games"] = await collectQueueGames(
                 origGamesInfo["games"], sgpPage, sgpKey, queueId, 10)
-    except:
+    except asyncio.CancelledError:
+        raise
+    except BaseException as e:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+        logger.warning(
+            f"getSummonerGamesInfoViaSGP: games fetch failed: {type(e).__name__}, status={getattr(e, 'status', None)}", TAG)
         # SGP 拉取失败: 绑定空 origGamesInfo, 否则下方 teammatesInfo 的
         # origGamesInfo['games'][:1] 会 UnboundLocalError
         origGamesInfo = {"games": []}

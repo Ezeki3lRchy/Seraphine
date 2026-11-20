@@ -1,3 +1,4 @@
+import asyncio
 import os
 import stat
 
@@ -8,6 +9,7 @@ from qasync import asyncSlot
 
 from app.common.config import cfg
 from app.common.icons import Icon
+from app.common.logger import logger
 from app.common.qfluentwidgets import (SettingCardGroup, SwitchSettingCard, ExpandLayout,
                                        SettingCard, LineEdit, PushButton,
                                        setCustomStyleSheet, ComboBox, SwitchButton, ConfigItem,
@@ -23,6 +25,8 @@ from app.components.seraphine_interface import SeraphineInterface
 from app.lol.connector import connector
 from app.lol.exceptions import *
 from app.lol.tools import fixLCUWindowViaExe
+
+TAG = "AuxiliaryInterface"
 
 
 class AuxiliaryInterface(SeraphineInterface):
@@ -1216,7 +1220,11 @@ class FriendRequestCard(ExpandGroupSettingCard):
 
         try:
             await connector.sendFriendRequest(self.lineEdit.text())
-        except:
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+            logger.warning(
+                f"send friend request failed: {type(e).__name__}, status={getattr(e, 'status', None)}", TAG)
             info('error', self.tr("Summoner not found"),
                  self.tr("Please check the summoner's name and retry"))
         else:

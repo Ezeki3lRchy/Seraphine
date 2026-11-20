@@ -110,6 +110,8 @@ class CareerInterface(SeraphineInterface):
         self.championIconIds = set()  # icons loaded or in flight for this summoner
         self.laningTask = None
         self.teammatesTask = None
+        # Bumped by every updateInterface call; only the newest load may paint
+        self._loadSeq = 0
         self.scrollContent = QWidget()
         self.scrollContentLayout = QVBoxLayout(self.scrollContent)
 
@@ -472,24 +474,32 @@ class CareerInterface(SeraphineInterface):
     async def __changeToCurrentSummoner(self):
         self.setLoadingPageEnabled(True)
         summoner = await connector.getCurrentSummoner()
-        await self.updateInterface(summoner=summoner)
-        self.setLoadingPageEnabled(False)
+        if await self.updateInterface(summoner=summoner):
+            self.setLoadingPageEnabled(False)
 
     @asyncSlot()
     async def refresh(self):
         if self.puuid:
             index = self.filterComboBox.currentIndex()
-            await self.updateInterface(puuid=self.puuid)
+            if not await self.updateInterface(puuid=self.puuid):
+                return
             self.filterComboBox.setCurrentIndex(index)
             self.__onfilterComboBoxChanged(index)
 
     async def updateInterface(self, puuid=None, summoner=None):
         '''
         通过 `puuid` 或 `summoner` 更新界面
+
+        Returns False when a newer call superseded this one (it then leaves the page,
+        the loading state and the background tasks to the newer call), True otherwise.
         '''
 
         # 不能同时为空
         assert summoner or puuid
+
+        # Loads can overlap (e.g. A is slow, then B is opened): only the newest paints
+        self._loadSeq += 1
+        seq = self._loadSeq
 
         self.setLoadingPageEnabled(True)
         self.recentTeammatesInfo = None
@@ -501,27 +511,40 @@ class CareerInterface(SeraphineInterface):
             self.recentTeammatesFlyout.close()
             self.recentTeammatesFlyout = None
 
-        if summoner is None:
-            summoner = await connector.getSummonerByPuuid(puuid)
+        try:
+            if summoner is None:
+                summoner = await connector.getSummonerByPuuid(puuid)
+                if seq != self._loadSeq:
+                    return False
 
-        if 'errorCode' in summoner:
-            InfoBar.error(self.tr("Get summoner infomation error"),
-                          self.tr("The server returned abnormal content."),
-                          orient=Qt.Vertical,
-                          position=InfoBarPosition.BOTTOM_RIGHT,
-                          duration=5000,
-                          parent=self.window())
+            if 'errorCode' in summoner:
+                InfoBar.error(self.tr("Get summoner infomation error"),
+                              self.tr("The server returned abnormal content."),
+                              orient=Qt.Vertical,
+                              position=InfoBarPosition.BOTTOM_RIGHT,
+                              duration=5000,
+                              parent=self.window())
 
-            self.setLoadingPageEnabled(False)
-            return
+                self.setLoadingPageEnabled(False)
+                return True
 
-        self.loadGamesTask = asyncio.create_task(
-            connector.getSummonerGamesByPuuid(summoner['puuid'], 0, cfg.get(cfg.careerGamesNumber) - 1))
-        rankTask = asyncio.create_task(
-            connector.getRankedStatsByPuuid(summoner['puuid']))
+            self.loadGamesTask = asyncio.create_task(
+                connector.getSummonerGamesByPuuid(summoner['puuid'], 0, cfg.get(cfg.careerGamesNumber) - 1))
+            rankTask = asyncio.create_task(
+                connector.getRankedStatsByPuuid(summoner['puuid']))
 
-        info = await parseSummonerData(summoner, rankTask, self.loadGamesTask)
-        await self.repaintInterface(info)
+            info = await parseSummonerData(summoner, rankTask, self.loadGamesTask)
+            if seq != self._loadSeq:
+                return False
+            await self.repaintInterface(info)
+            return True
+        except BaseException:
+            # CancelledError included: nothing else would take the spinner down (the
+            # refresh / back buttons are hidden while loading); a superseded call leaves
+            # the loading page to the newer one
+            if seq == self._loadSeq:
+                self.setLoadingPageEnabled(False)
+            raise
 
     async def repaintInterface(self, info):
         name = info['name'] if info['isPublic'] else f"{info['name']}🔒"

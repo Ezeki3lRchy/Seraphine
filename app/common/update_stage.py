@@ -4,13 +4,15 @@ Layout under ``<config dir>/update`` (``stageBase``):
   Seraphine.7z / Seraphine-update.dmg  the downloaded asset (.7z removed after extraction)
   package/                             Windows: the extracted release (updater source dir)
   staged.json                          marker: version, asset digest, staged path, size
-  backup/                              Windows updater: install files it replaces
+  backup/, backup.meta, backup.added.txt  Windows updater: install files it replaces
   result.json                          Windows updater: outcome of the last run
+Staging only ever replaces the first three; the updater's files are left alone.
 
 Used by the background updater (MainWindow) and by UpdateMessageBox, so a release
 is never downloaded twice.
 """
 import asyncio
+import hashlib
 import json
 import os
 import shutil
@@ -44,6 +46,9 @@ UPDATER_START_TIMEOUT = 25.0
 
 # an applyStagedUpdate is in flight (UI thread): a second call is refused
 _applying = False
+# an updater was confirmed started by this process (sticky: the app is exiting and
+# the updater will use the stage; nothing may be re-staged under it)
+_applyStarted = False
 
 # one staging at a time per event loop (background updater vs. update dialog)
 _stageLocks = weakref.WeakKeyDictionary()
@@ -115,7 +120,129 @@ def writeMarker(base, data):
 
 
 def clearStage(base):
+    """Remove everything under base, including the Windows updater's backup and
+    result: only for a run that succeeded or a stage that belongs to the past."""
     shutil.rmtree(base, ignore_errors=True)
+
+
+# what staging creates (marker first, so a half-cleared stage is never valid);
+# the updater's backup/, backup.meta, backup.added.txt and result.json are not here
+_STAGING_NAMES = (MARKER_NAME, MARKER_NAME + '.tmp',
+                  ARCHIVE_NAME, ARCHIVE_NAME + '.part',
+                  DMG_NAME, DMG_NAME + '.part',
+                  PACKAGE_NAME, PACKAGE_NAME + '.part')
+
+
+def _clearStaging(base, check=False):
+    """Remove only the staging artifacts, keeping the rollback data and the last
+    result. With ``check``, raise StageError if any of them survived (e.g. locked
+    by antivirus): a leftover must never be extracted into / merged with a stage."""
+    for name in _STAGING_NAMES:
+        path = os.path.join(base, name)
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    left = [n for n in _STAGING_NAMES if os.path.lexists(os.path.join(base, n))]
+    try:
+        os.rmdir(base)  # only if nothing else (backup, result) is in it
+    except OSError:
+        pass
+    if check and left:
+        raise StageError(f"could not remove an earlier stage: {', '.join(left)}")
+
+
+def _hasRollback(base):
+    """The Windows updater left a backup (an unfinished restore)."""
+    return any(os.path.lexists(os.path.join(base, n))
+               for n in ('backup', 'backup.meta', 'backup.added.txt'))
+
+
+def _clearRollback(base):
+    """Remove the updater's backup, its manifest and fingerprint, and the result."""
+    shutil.rmtree(os.path.join(base, 'backup'), ignore_errors=True)
+    for name in ('backup.meta', 'backup.added.txt', RESULT_NAME):
+        try:
+            os.remove(os.path.join(base, name))
+        except OSError:
+            pass
+
+
+def _resultFor(result, marker, base):
+    """``result`` reports on ``marker``'s release, or on an unfinished restore that
+    the next updater run completes before it merges whatever is staged."""
+    return str(result.get('version') or '') == str(marker.get('version') or '') \
+        or _hasRollback(base)
+
+
+def _backupBelongsToInstall(base, installDir):
+    """Python mirror of the Windows updater's step 3 (WINDOWS_UPDATER_SCRIPT in
+    app/common/update.py, "an earlier run left a backup"): the backup is applied
+    only if backup.meta has non-empty preExe and pkgExe and the installed
+    Seraphine.exe's SHA-256 equals one of them (case-insensitive); otherwise the
+    script discards it as foreign. Without backup/ the script never applies
+    backup.meta / backup.added.txt either (it removes them).
+    @return: True (the next run completes this restore), False (it discards the
+    backup), None (cannot tell: no install dir, i.e. not a packaged build)."""
+    if not os.path.exists(os.path.join(base, 'backup')):
+        return False
+    meta = _readJson(os.path.join(base, 'backup.meta')) or {}
+    pre, pkg = meta.get('preExe'), meta.get('pkgExe')
+    if not pre or not pkg:
+        return False
+    if not installDir:
+        return None
+    try:
+        h = hashlib.sha256()
+        with open(os.path.join(installDir, 'Seraphine.exe'), 'rb') as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b''):
+                h.update(chunk)
+    except FileNotFoundError:
+        return False  # the script's Get-ExeHash gives $null: no match
+    except OSError:
+        # e.g. a sharing violation while antivirus scans the exe: the script decides
+        # later, once the app has exited, so never drop the backup on a read error
+        return None
+    current = h.hexdigest().lower()
+    return current in (str(pre).lower(), str(pkg).lower())
+
+
+def repairBlocks(result, version):
+    """``result`` is restore-failed/8 (even completing an earlier restore failed)
+    and ``version`` is not newer than the release that run was for. Such a release
+    is not offered as ready again (the run would stop the same way); the user is
+    pointed at the manual download. A newer release gets one attempt: its run
+    completes the pending restore first, then merges."""
+    return bool(result) and result.get('status') == 'restore-failed' \
+        and result.get('code') == 8 \
+        and parseVersion(version) <= parseVersion(result.get('version'))
+
+
+def failedRepair(offeredVersion, base=None):
+    """What the update-ready bar shows instead of offering ``offeredVersion``
+    while repairBlocks applies and the backup is still there (the valid marker or
+    {}, with ``lastResult``; equal to what the start-up stagedUpdate returns for a
+    valid stage), else None. No hashing: cheap enough for the UI thread; a foreign
+    backup is dropped by the start-up pass."""
+    base = base or stageBase()
+    result = readResult(base)
+    if not repairBlocks(result, offeredVersion) or not _hasRollback(base):
+        return None
+    marker = readMarker(base)
+    return dict(marker if _markerValid(marker, base) else {}, lastResult=result)
+
+
+def _withResult(marker, base):
+    """``marker`` with ``lastResult`` when the last failed run reports on it, the
+    same dict stagedUpdate returns at start-up (so the bars agree)."""
+    result = readResult(base)
+    if result is not None and result.get('status') != 'ok' \
+            and _resultFor(result, marker, base):
+        return dict(marker, lastResult=result)
+    return marker
 
 
 def _expectedPath(base, platformName):
@@ -146,14 +273,20 @@ def _markerValid(marker, base):
     return os.path.isfile(path) and os.path.getsize(path) == marker.get('size', -1)
 
 
-def stagedUpdate(currentVersion, base=None):
+def stagedUpdate(currentVersion, base=None, installDir=None):
     """The staged update to offer on start-up, or None.
 
     After a successful updater run everything is cleared. After a failed run the
     stage is kept (even if the versions look equal: a half-applied install may
-    report the new version) and returned with ``lastResult`` so the user can retry.
+    report the new version) and returned with ``lastResult`` so the user can retry,
+    if the result is about that release or about an unfinished restore. A backup
+    the updater would discard as foreign (``installDir``: default the packaged
+    install; hashes its Seraphine.exe, so call this off the UI thread) is dropped
+    with its result; without a backup, a failed run older than the running
+    version is dropped.
     Otherwise stale data is removed: another platform, files gone, a path outside
-    the stage dir, or a version that is not newer than the running one.
+    the stage dir, or a version that is not newer than the running one (the
+    backup and result of an unfinished restore are kept then).
     """
     base = base or stageBase()
     if not os.path.exists(base):
@@ -169,21 +302,38 @@ def stagedUpdate(currentVersion, base=None):
         clearStage(base)
         return None
 
+    if _hasRollback(base):
+        # whose backup it is decides by the updater's own fingerprint rule, never
+        # by version order (a failed downgrade is older than the running version
+        # and still needs its backup): a backup the next run would discard as
+        # foreign (e.g. a version installed by hand since) goes with its result
+        if _backupBelongsToInstall(base, installDir or platform.install_dir()) is False:
+            logger.info(f"the updater's backup does not belong to this install; "
+                        f"discarding it and the result {result}", TAG)
+            _clearRollback(base)
+            result = None
+    elif result is not None and \
+            parseVersion(result.get('version')) < parseVersion(currentVersion):
+        # no backup: a failed run older than the running version belongs to the past
+        logger.info(f"failed update {result.get('version')} is older than the running "
+                    f"{currentVersion}; discarding its result", TAG)
+        _clearRollback(base)
+        result = None
+
     valid = _markerValid(marker, base)
-    if result is not None and valid:
-        if parseVersion(marker.get('version')) < parseVersion(currentVersion):
-            # something newer was installed since (e.g. by hand): the failed
-            # stage, its result and its backup belong to the past -> drop them
-            logger.info(f"failed update {marker.get('version')} is older than the running "
-                        f"{currentVersion}; discarding its stage and backup", TAG)
-            clearStage(base)
-            return None
+    # a result about another release with nothing left to complete is ignored
+    if result is not None and valid and _resultFor(result, marker, base):
         logger.warning(f"last update run did not complete: {result}", TAG)
         return dict(marker, lastResult=result)
 
     if not valid or parseVersion(marker.get('version')) <= parseVersion(currentVersion):
         logger.info(f"removing stale staged update: {marker}", TAG)
-        clearStage(base)
+        if _hasRollback(base):
+            # an unfinished restore: keep its backup and result for the next
+            # updater run (it completes the restore first, or discards a foreign one)
+            _clearStaging(base)
+        else:
+            clearStage(base)
         return None
 
     return marker
@@ -231,7 +381,8 @@ def markerApplicable(marker, base=None, currentVersion=None, allowDowngrade=Fals
         return True
     result = readResult(base)
     return staged == running and bool(marker.get('lastResult')) \
-        and result is not None and result.get('status') != 'ok'
+        and result is not None and result.get('status') != 'ok' \
+        and _resultFor(result, disk, base)
 
 
 def _probeWritable(directory):
@@ -341,7 +492,9 @@ async def stageRelease(info, base=None, onProgress=None, session=None):
 
     Short-circuits when exactly this release is already staged. On any failure or
     cancellation nothing is left staged and partial files are removed.
-    @return: the marker dict. Raises StageError / network errors / CancelledError.
+    @return: the marker dict, with ``lastResult`` when the last failed run reports on
+    it (as stagedUpdate returns it). Raises StageError / network errors /
+    CancelledError.
     """
     async with _stageLock():
         return await _stageRelease(info, base or stageBase(), onProgress, session)
@@ -352,12 +505,35 @@ async def _stageRelease(info, base, onProgress, session):
     if asset is None:
         raise StageError("no install asset for this platform")
 
+    # never touch the stage an updater is (about to be) working from
+    if _applying or _applyStarted or _updaterRunning(base):
+        raise StageError("an update is being applied")
+
+    result = readResult(base)
+    if result and result.get('status') == 'ok':
+        # a finished run the start-up pass has not cleaned yet: its 'ok' branch
+        # would later remove everything, including the stage created now
+        clearStage(base)
+
     marker = stagedFor(info, base)
     if marker:
         logger.info(f"update {marker['version']} already staged", TAG)
-        return marker
+        return _withResult(marker, base)
 
-    clearStage(base)
+    # Replace only the staging artifacts. The updater's backup and result.json are
+    # kept, also after an unresolved 'restore-failed': the next updater run (for
+    # whatever release is staged then) first completes that restore from the
+    # backup, or stops with restore-failed/8 merging nothing, so a newer release
+    # can still be staged and offered without losing the way back. A failure report
+    # about another release that left no backup is obsolete and goes with the stage.
+    _clearStaging(base, check=True)
+    result = readResult(base)
+    if result is not None and not _hasRollback(base) \
+            and str(result.get('version') or '') != releaseVersion(info):
+        try:
+            os.remove(os.path.join(base, RESULT_NAME))
+        except OSError:
+            pass
     os.makedirs(base, exist_ok=True)
 
     isWindows = sys.platform == 'win32'
@@ -396,9 +572,9 @@ async def _stageRelease(info, base, onProgress, session):
         }
         writeMarker(base, marker)
         logger.info(f"update {marker['version']} staged at {path}", TAG)
-        return marker
+        return _withResult(marker, base)
     except BaseException:
-        clearStage(base)
+        _clearStaging(base)
         raise
 
 
@@ -412,14 +588,17 @@ async def applyStagedUpdate(marker, base=None, startTimeout=UPDATER_START_TIMEOU
     the stage changed / is invalid, or the updater never started (it is killed so
     it cannot act later) - the app should stay running.
     """
-    global _applying
+    global _applying, _applyStarted
     if _applying:
         logger.warning("an update is already being applied", TAG)
         return False
     _applying = True
     try:
-        return await _applyStagedUpdate(marker, base or stageBase(), startTimeout,
-                                        allowDowngrade)
+        started = await _applyStagedUpdate(marker, base or stageBase(), startTimeout,
+                                           allowDowngrade)
+        if started:
+            _applyStarted = True
+        return started
     finally:
         _applying = False
 
