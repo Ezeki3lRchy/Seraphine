@@ -44,7 +44,8 @@ from app.components.message_box import (UpdateMessageBox, NoticeMessageBox,
                                         ChangeDpiMessageBox, isPackaged)
 from app.common.update_stage import (BackgroundUpdater, GAME_PHASES, stagedUpdateAsync,
                                      stagedFor, applyStagedUpdate, markerApplicable,
-                                     isNewer, hasDigest, installWritable)
+                                     isNewer, hasDigest, installWritable, releaseVersion)
+from app.common.update_progress import Throttle, progressPayload, progressText
 from app.lol.exceptions import (SummonerGamesNotFound, RetryMaximumAttempts,
                                 SummonerNotFound, SummonerNotInGame, SummonerRankInfoNotFound)
 from app.lol.listener import (LolProcessExistenceListener, StoppableThread)
@@ -60,6 +61,8 @@ from app.lol.champions import ChampionAlias
 from app.lol.opgg import opgg
 from app.lol.live_client import liveClientPoller
 from app.components.gold_overlay import GoldOverlay
+from app.components.ledger_panel import LedgerPanel
+from app.lol.ledger_data import LedgerDatabase, LedgerDataError
 
 import threading
 
@@ -133,7 +136,13 @@ class MainWindow(FluentWindow):
         self.checkUpdateLock = threading.Lock()
         # Background download + "ready, restart now" prompt (UI thread only)
         self.backgroundUpdater = BackgroundUpdater(
-            self.__onUpdateReady, onStarting=self.__onUpdateStaging)
+            self.__onUpdateReady, onStarting=self.__onUpdateStaging,
+            onProgress=self.__onBackgroundProgress, resumable=True)
+        self._updateProgressThrottle = Throttle()
+        # closable bar showing a background download; closing it does not cancel
+        self._updateProgressBar = None
+        self._updateProgressDismissed = None  # version whose bar the user closed
+        self._lastReadyMarker = None  # last update offered as ready (card's restart)
         self._updateReadyBar = None
         self._updateReadyMarker = None
         self._updateReadyButton = None  # (button, its normal text)
@@ -163,6 +172,8 @@ class MainWindow(FluentWindow):
 
         self.opggWindow = OpggWindow()
         self.goldOverlay = GoldOverlay()
+        self._ledgerTasks = set()
+        self.ledgerDb, self.ledgerPanel = self.__createLedger()
 
         logger.critical("Seraphine initialized", TAG)
         # From here an uncaught exception no longer ends the session (see exceptHook)
@@ -171,6 +182,61 @@ class MainWindow(FluentWindow):
         QTimer.singleShot(0, self.__offerStagedUpdate)
 
         self.__silentStart()
+
+    def __createLedger(self):
+        """The cooldown ledger's database (bundled baseline + cache + the user's priorities,
+        files only: no request at start-up) and its panel, which shows itself only while
+        cfg.enableCooldownLedger is on. (None, None) when the baseline cannot be read"""
+        try:
+            db = LedgerDatabase().load()
+        except LedgerDataError as e:
+            logger.error(f"ledger db unavailable ({type(e).__name__}); no cooldown ledger", TAG)
+            return None, None
+        except Exception as e:  # start-up: the error policy is not armed yet
+            logger.error(f"ledger db failed ({type(e).__name__}); no cooldown ledger", TAG)
+            return None, None
+        try:
+            logger.info(f"ledger db: baseline {db.baselinePatch}, cache {db.cachePatch or 'none'}, "
+                        f"{len(db.data['champions'])} champions", TAG)
+            panel = LedgerPanel(db, spellIcon=connector.getSummonerSpellIcon,
+                                itemIcon=connector.getItemIcon,
+                                spellKnown=lambda i: i in connector.manager.spells)
+            panel.enemiesSeen.connect(self.__onLedgerEnemiesSeen)
+        except Exception as e:
+            logger.error(f"ledger panel failed ({type(e).__name__}); no cooldown ledger", TAG)
+            return None, None
+        return db, panel
+
+    def __onLedgerEnemiesSeen(self, enemies):
+        """A game's enemies passed the panel's gate: fetch the skill priorities the cache
+        lacks from OP.GG (GET only, the app's OP.GG session) in a background task; the panel
+        keeps using the baseline / cache meanwhile and picks the result up on its next use"""
+        if self.ledgerDb is None or not cfg.get(cfg.enableCooldownLedger):
+            return
+        session = opgg.session
+        if session is None or session.closed:  # no client session: try in a later game
+            return
+        task = asyncio.ensure_future(self.ledgerDb.refresh(opgg.getChampionBuild, enemies))
+        self._ledgerTasks.add(task)
+        task.add_done_callback(self._ledgerTasks.discard)
+
+    async def __cancelLedgerRefresh(self):
+        """Cancel the running ledger refresh tasks and wait until they have ended (the client
+        ended, or shutdown). An OP.GG GET already in flight is not cancelled with them: the
+        build fetch is shielded by its alru_cache"""
+        tasks = list(self._ledgerTasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def __closeLedger(self):
+        """Shutdown: a running refresh is cancelled, the panel stops following the live data
+        and the settings"""
+        await self.__cancelLedgerRefresh()
+        if self.ledgerPanel is not None:
+            self.ledgerPanel.disconnectSources()
+            self.ledgerPanel.close()
 
     def __initConfig(self):
         folder = cfg.get(cfg.lolFolder)
@@ -355,6 +421,8 @@ class MainWindow(FluentWindow):
         self.showUpToDateInfo.connect(self.__onShowUpToDateInfo)
         signalBus.checkUpdateRequested.connect(self.__onCheckUpdateRequested)
         signalBus.checkUpdateFinished.connect(self.__onManualCheckFinished)
+        signalBus.updateProgressChanged.connect(self.__onUpdateProgressChanged)
+        signalBus.restartToUpdateRequested.connect(self.__onRestartToUpdateRequested)
         self.fetchNoticeFailed.connect(self.__onFetchNoticeFailed)
         self.showExceptionMessageBox.connect(self.__onShowExceptionMessageBox)
         self.showExceptionNotice.connect(self.__onShowExceptionNotice)
@@ -550,6 +618,8 @@ class MainWindow(FluentWindow):
         )
 
     def __onShowUpToDateInfo(self):
+        # nothing newer: the settings card shows its normal text again
+        signalBus.updateProgressChanged.emit(progressPayload('idle', BETA or VERSION))
         InfoBar.success(
             self.tr("Up to Date"),
             self.tr("You are using the latest version ({}).").format(
@@ -599,29 +669,19 @@ class MainWindow(FluentWindow):
         # would stop the same way, so keep pointing at the manual download (the
         # same bar as at start-up) instead of offering this release as ready
         # (only for a release not newer than the failed one; a newer one gets a run)
-        from app.common.update_stage import failedRepair, releaseVersion
+        from app.common.update_stage import failedRepair
         blocked = failedRepair(releaseVersion(info))
         if blocked is not None:
             self.backgroundUpdater.notifyReady(blocked)
             return
 
-        # A manual "Check now" should say something while the download runs / waits
+        # A manual "Check now" says something while the download runs / waits: the
+        # progress bar, shown again even if it was closed before
         if self.manualCheckBusy and stagedFor(info) is None:
-            version = info.get("tag_name", "").lstrip("vV")
-            if self.backgroundUpdater.gaming is False:
-                content = self.tr("Seraphine v{} is downloading in the background; you "
-                                  "will be asked to restart when it is ready.").format(version)
-            else:
-                content = self.tr("Seraphine v{} will be downloaded after the current "
-                                  "game.").format(version)
-            InfoBar.info(
-                self.tr("Update found"),
-                content,
-                duration=5000,
-                orient=Qt.Vertical,
-                parent=self,
-                position=InfoBarPosition.BOTTOM_RIGHT
-            )
+            version = releaseVersion(info)
+            self._updateProgressDismissed = None
+            state = 'downloading' if self.backgroundUpdater.gaming is False else 'waiting'
+            self.__showUpdateProgressBar(version, progressText(state, version), state)
 
         self.backgroundUpdater.offer(info)
 
@@ -647,9 +707,119 @@ class MainWindow(FluentWindow):
             self.__syncUpdaterGameStatus(None)
 
     def __onUpdateStaging(self, info):
+        if stagedFor(info) is not None:
+            return  # already staged: no download, the ready bar follows
         # A different release is about to replace the stage: the old bar is stale
-        if self._updateReadyBar is not None and stagedFor(info) is None:
+        if self._updateReadyBar is not None:
             self.__closeUpdateReadyBar()
+        version = releaseVersion(info)
+        self.__showUpdateProgressBar(version, progressText('downloading', version))
+
+    def __onBackgroundProgress(self, state, version, cur, total, kind):
+        # BackgroundUpdater.onProgress: at most a few UI updates per second
+        if not self._updateProgressThrottle.allow(state, version, cur, total):
+            return
+        reason = self.backgroundUpdater.lastError if state == 'failed' else None
+        signalBus.updateProgressChanged.emit(
+            progressPayload(state, version, cur, total, kind, reason, source='background'))
+
+    def __showUpdateProgressBar(self, version, text, state='downloading'):
+        title = self.tr("Update paused") if state == 'waiting' else self.tr("Downloading update")
+        bar = self._updateProgressBar
+        if bar is not None:
+            bar.updateVersion = version  # what closing it dismisses
+            # InfoBar has no setters: title / content are re-wrapped by its
+            # protected _adjustText (the bar may already be deleted by Qt)
+            bar.title, bar.content = title, text
+            try:
+                bar._adjustText()
+            except RuntimeError:
+                self._updateProgressBar = None
+            return
+        if self._updateProgressDismissed == version:
+            return
+        bar = InfoBar.info(
+            title,
+            text,
+            duration=-1,
+            orient=Qt.Vertical,
+            isClosable=True,
+            parent=self,
+            position=InfoBarPosition.BOTTOM_RIGHT
+        )
+        bar.updateVersion = version
+        bar.closedSignal.connect(lambda b=bar: self.__onUpdateProgressBarClosed(b))
+        self._updateProgressBar = bar
+
+    def __onUpdateProgressBarClosed(self, bar):
+        # closed by the user (a programmatic close clears the reference first):
+        # the download goes on; the bar is not shown again for this version
+        if self._updateProgressBar is bar:
+            self._updateProgressBar = None
+            self._updateProgressDismissed = bar.updateVersion
+
+    def __closeUpdateProgressBar(self):
+        bar, self._updateProgressBar = self._updateProgressBar, None
+        if bar is not None:
+            try:
+                bar.close()
+            except RuntimeError:  # already deleted
+                pass
+
+    def __onUpdateProgressChanged(self, payload):
+        # only the background download has a bar (the dialog shows its own progress)
+        if payload.get('source') != 'background':
+            return
+        state, version = payload['state'], payload['version']
+        if state == 'ready':
+            self.__closeUpdateProgressBar()  # the ready bar takes over
+            return
+        text = progressText(state, version, payload['cur'], payload['total'],
+                            payload['kind'], payload.get('reason'))
+        if state == 'failed':
+            self.__closeUpdateProgressBar()
+            InfoBar.warning(
+                self.tr("Update failed"),
+                text,
+                duration=8000,
+                orient=Qt.Vertical,
+                parent=self,
+                position=InfoBarPosition.BOTTOM_RIGHT
+            )
+            return
+        if self._updateProgressBar is not None:
+            self.__showUpdateProgressBar(version, text, state)
+
+    def __onRestartToUpdateRequested(self):
+        # the settings card's "Restart to update": the ready bar's restart, also
+        # after that bar was closed with "Later"
+        from app.common.update_stage import repairBlocks
+        marker = self._lastReadyMarker
+        gaming = self.backgroundUpdater.gaming
+        if marker and repairBlocks(marker.get('lastResult'), marker.get('version')):
+            # a repair that keeps failing is never restarted into: the manual download
+            self._lastReadyMarker = None
+            signalBus.updateProgressChanged.emit(progressPayload('idle', ''))
+            self.__onUpdateReady(marker)
+            return
+        if gaming is not False:
+            InfoBar.info(
+                self.tr("Update ready"),
+                self.tr("Restart after the game to finish updating.") if gaming
+                else self.tr("Restart once the client is ready to finish updating."),
+                duration=5000,
+                orient=Qt.Vertical,
+                parent=self,
+                position=InfoBarPosition.BOTTOM_RIGHT
+            )
+            return
+        if not marker or not markerApplicable(marker):
+            self._lastReadyMarker = None
+            self.__showUpdateError(self.tr(
+                "This update is no longer available; please check for updates again."))
+            signalBus.updateProgressChanged.emit(progressPayload('idle', ''))
+            return
+        self.__restartToUpdate(marker)
 
     def __onUpdateReady(self, marker):
         version = marker.get("version", "")
@@ -662,18 +832,23 @@ class MainWindow(FluentWindow):
         logPath = os.path.join(platform.config_dir(), "updater.log")
         from app.common.update_stage import repairBlocks
         if repairBlocks(result, version):
-            # even finishing the earlier rollback failed: no retry, download by hand
+            # even finishing the earlier rollback failed, or the package twice did not match
+            # the install (failed:9, nothing changed): no retry, download by hand
             # (a release newer than the failed one gets the Retry bar below instead)
             bar = InfoBar.error(
                 self.tr("Update did not complete"),
-                self.tr("Seraphine could not repair a failed update. Please download the "
-                        "latest release manually. See the log: {}").format(logPath),
+                (self.tr("This update does not match your install and could not be applied. "
+                         "Please download the latest release manually. See the log: {}")
+                 if result.get('status') == 'failed:9' else
+                 self.tr("Seraphine could not repair a failed update. Please download the "
+                         "latest release manually. See the log: {}")).format(logPath),
                 duration=-1,
                 orient=Qt.Vertical,
                 isClosable=True,
                 parent=self,
                 position=InfoBarPosition.BOTTOM_RIGHT
             )
+            self._lastReadyMarker = None  # nothing to restart into
             downloadButton = PrimaryPushButton(self.tr("Download"), bar)
             downloadButton.clicked.connect(
                 lambda: webbrowser.open(GITHUB_URL + "/releases/latest"))
@@ -732,6 +907,7 @@ class MainWindow(FluentWindow):
 
         self._updateReadyBar = bar
         self._updateReadyMarker = marker
+        self._lastReadyMarker = marker
         self._updateReadyButton = (restartButton, restartText)
 
     def __onUpdateReadyBarClosed(self, bar):
@@ -1085,6 +1261,7 @@ class MainWindow(FluentWindow):
 
         liveClientPoller.stop()
         await connector.close()
+        await self.__cancelLedgerRefresh()  # before its OP.GG session closes
         await opgg.close()
 
         self.isClientProcessRunning = False
@@ -1289,6 +1466,7 @@ class MainWindow(FluentWindow):
             self.opggWindow.close()
             await liveClientPoller.aclose()
             self.goldOverlay.close()
+            await self.__closeLedger()
 
             cfg.set(cfg.windowSize, self.windowSize)
 

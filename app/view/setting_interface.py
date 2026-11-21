@@ -5,15 +5,17 @@ from app.common.qfluentwidgets import (SettingCardGroup, SwitchSettingCard, Comb
                                        PushSettingCard, ExpandLayout, InfoBar,
                                        setTheme, PrimaryPushSettingCard, HyperlinkCard,
                                        TeachingTip, TeachingTipTailPosition, TeachingTipView, PushButton,
-                                       RangeSettingCard)
+                                       RangeSettingCard, ProgressBar, IndeterminateProgressBar,
+                                       FluentIcon)
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QWidget, QLabel
+from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QSizePolicy
 
 from app.common.icons import Icon
 from app.common.config import (cfg, YEAR, AUTHOR, VERSION, FEEDBACK_URL, GITHUB_URL, isWin11,
                                BETA)
 from app.common.signals import signalBus
+from app.common.update_progress import progressText
 from app.common.style_sheet import StyleSheet
 from app.components.seraphine_interface import SeraphineInterface
 from app.components.setting_cards import (LineEditSettingCard, GameTabColorSettingCard,
@@ -88,6 +90,19 @@ class SettingInterface(SeraphineInterface):
             Icon.LOCK, self.tr("Lock item value overlay"),
             self.tr("Lock the overlay's position and let clicks pass through it to the game"),
             cfg.goldOverlayLocked)
+        self.cooldownLedgerCard = SwitchSettingCard(
+            FluentIcon.STOP_WATCH, self.tr("Cooldown ledger"),
+            self.tr("On Summoner's Rift, shows a panel with one row per enemy. Click an ability, "
+                    "summoner spell or item you see used to start a timer of its usual cooldown.\n"
+                    "You start every timer yourself; nothing is detected. Times are approximate: "
+                    "they use the level and items you last saw."),
+            cfg.enableCooldownLedger)
+        # two explicit lines (a setting card's description does not wrap): one line taller,
+        # measured with the card's stylesheet font
+        ledgerText = self.cooldownLedgerCard.contentLabel
+        ledgerText.ensurePolished()
+        self.cooldownLedgerCard.setFixedHeight(
+            self.cooldownLedgerCard.height() + ledgerText.fontMetrics().lineSpacing())
 
         self.opggGroup = SettingCardGroup(self.tr("OP.GG"),
                                           self.scrollWidget)
@@ -246,9 +261,27 @@ class SettingInterface(SeraphineInterface):
             self.tr("Check for updates now"),
             self.tr("Current version: {}").format(BETA or VERSION),
             self.updateGroup)
+        self._updateIdleText = self.manualCheckUpdateCard.contentLabel.text()
+        self._updateState = None  # last update-progress state shown on the card
         # Minimum, not fixed: the stylesheet's horizontal padding makes the
         # button wider than 100 px, and a fixed width clipped the label
         self.manualCheckUpdateCard.button.setMinimumWidth(100)
+        # thin bar under the subtitle (signalBus.updateProgressChanged): how far the
+        # download is, or a moving bar while verifying / unpacking. Its box has the
+        # gap above it, so a hidden bar takes no space; it spans the text above it
+        self.updateBarBox = QWidget(self.manualCheckUpdateCard)
+        self.updateBarBox.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        barLayout = QVBoxLayout(self.updateBarBox)
+        barLayout.setContentsMargins(0, 4, 0, 0)
+        barLayout.setSpacing(0)
+        self.updateProgressBar = ProgressBar(self.updateBarBox)
+        self.updateProgressBar.setRange(0, 1000)
+        self.updateBusyBar = IndeterminateProgressBar(self.updateBarBox, start=False)
+        self.updateBusyBar.setVisible(False)
+        barLayout.addWidget(self.updateProgressBar)
+        barLayout.addWidget(self.updateBusyBar)
+        self.updateBarBox.setVisible(False)
+        self.manualCheckUpdateCard.vBoxLayout.addWidget(self.updateBarBox)
         self.httpProxyCard = ProxySettingCard(
             self.tr("HTTP proxy"), self.tr(
                 "Using a proxy when connecting to GitHub"),
@@ -305,6 +338,7 @@ class SettingInterface(SeraphineInterface):
         self.functionGroup.addSettingCard(self.goldOverlayCard)
         self.functionGroup.addSettingCard(self.goldOverlayOpacityCard)
         self.functionGroup.addSettingCard(self.goldOverlayLockCard)
+        self.functionGroup.addSettingCard(self.cooldownLedgerCard)
 
         self.opggGroup.addSettingCard(self.autoShowOpggCard)
         self.opggGroup.addSettingCard(self.opggOnTopCard)
@@ -360,16 +394,68 @@ class SettingInterface(SeraphineInterface):
         self.deleteResourceCard.clicked.connect(self.__showFlyout)
         self.manualCheckUpdateCard.clicked.connect(
             self.__onManualCheckUpdateClicked)
-        signalBus.checkUpdateFinished.connect(
-            lambda: self.manualCheckUpdateCard.button.setEnabled(True))
+        signalBus.checkUpdateFinished.connect(self.__onCheckUpdateFinished)
+        signalBus.updateProgressChanged.connect(self.__onUpdateProgressChanged)
         self.viewLogCard.clicked.connect(
             lambda: QDesktopServices.openUrl(
                 QUrl.fromLocalFile(os.path.join(os.getcwd(), 'log')))
         )
 
     def __onManualCheckUpdateClicked(self):
+        if self._updateState == 'ready':
+            # "Restart to update": MainWindow runs the same restart as the ready bar
+            signalBus.restartToUpdateRequested.emit()
+            return
         self.manualCheckUpdateCard.button.setEnabled(False)
         signalBus.checkUpdateRequested.emit()
+
+    def __onCheckUpdateFinished(self):
+        # a failure stays on the card until the next check has run
+        if self._updateState == 'failed':
+            self.__showUpdateState({'state': 'idle'})
+        self.manualCheckUpdateCard.button.setEnabled(self._updateState not in self.UPDATE_BUSY)
+
+    UPDATE_BUSY = ('downloading', 'verifying', 'extracting')
+
+    def __onUpdateProgressChanged(self, payload):
+        # 'idle' (MainWindow: a check found nothing newer) never interrupts a download
+        if payload['state'] == 'idle' and self._updateState in self.UPDATE_BUSY + ('waiting',):
+            return
+        self.__showUpdateState(payload)
+
+    def __showUpdateState(self, payload):
+        # subtitle: what the update is doing; bar: how far it is; button: "Check now",
+        # disabled while a download runs, or "Restart to update" once it is ready
+        card, state = self.manualCheckUpdateCard, payload['state']
+        self._updateState = None if state == 'idle' else state
+        if state == 'idle':
+            card.setContent(self._updateIdleText)
+        else:
+            card.setContent(progressText(state, payload['version'], payload['cur'],
+                                         payload['total'], payload['kind'], payload.get('reason')))
+
+        bar, busy = self.updateProgressBar, self.updateBusyBar
+        cur, total = payload.get('cur', 0), payload.get('total', 0)
+        moving = state in ('verifying', 'extracting')
+        showBar = (state == 'downloading' and total > 0) or \
+            (state == 'waiting' and total > 0 and cur > 0)
+        if showBar:
+            bar.setValue(min(1000, cur * 1000 // total))
+            bar.setPaused(state == 'waiting')
+        bar.setVisible(showBar)
+        busy.setVisible(moving)
+        if moving:
+            busy.start()
+        else:
+            busy.stop()
+        self.updateBarBox.setVisible(showBar or moving)
+
+        button = card.button
+        button.setText(self.tr("Restart to update") if state == 'ready' else self.tr("Check now"))
+        if state in self.UPDATE_BUSY:
+            button.setEnabled(False)
+        elif state != 'idle':
+            button.setEnabled(True)
 
     def __onLolFolderCardClicked(self):
         current = cfg.get(cfg.lolFolder)
