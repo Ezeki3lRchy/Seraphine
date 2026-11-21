@@ -112,7 +112,7 @@ class SettingInterface(SeraphineInterface):
                                              self.tr(
                                                  "Set client path and order"),
                                              self.generalGroup)
-        self.lolFolderCard.button.setFixedWidth(100)
+        self.lolFolderCard.button.setMinimumWidth(100)
         self.lolFolderCard.button.setStyleSheet(
             "QPushButton {padding-left: 0; padding-right: 0;}")
 
@@ -137,7 +137,7 @@ class SettingInterface(SeraphineInterface):
             self.
             tr("Open log directory"),
             self.logGroup)
-        self.viewLogCard.button.setFixedWidth(100)
+        self.viewLogCard.button.setMinimumWidth(100)
 
         # 这玩意左右 padding 大的离谱，手动给它改了
         self.viewLogCard.button.setStyleSheet(
@@ -155,7 +155,7 @@ class SettingInterface(SeraphineInterface):
             tr("Delete all game resources (Apply it when game resources update)"
                ), self.generalGroup)
 
-        self.deleteResourceCard.button.setFixedWidth(100)
+        self.deleteResourceCard.button.setMinimumWidth(100)
         self.deleteResourceCard.button.setStyleSheet(
             "QPushButton {padding-left: 0; padding-right: 0;}")
 
@@ -246,7 +246,9 @@ class SettingInterface(SeraphineInterface):
             self.tr("Check for updates now"),
             self.tr("Current version: {}").format(BETA or VERSION),
             self.updateGroup)
-        self.manualCheckUpdateCard.button.setFixedWidth(100)
+        # Minimum, not fixed: the stylesheet's horizontal padding makes the
+        # button wider than 100 px, and a fixed width clipped the label
+        self.manualCheckUpdateCard.button.setMinimumWidth(100)
         self.httpProxyCard = ProxySettingCard(
             self.tr("HTTP proxy"), self.tr(
                 "Using a proxy when connecting to GitHub"),
