@@ -17,7 +17,7 @@ from app.components.design_tokens import numberFont, textFont, resultColor, tint
 from app.components.rich_tooltip import RichToolTip
 from app.components.paint import drawText, drawChampion
 from app.components.scoreboard import cachedContent
-from app.lol.live_client import resolveChampionId, EVEN_GOLD, EVEN_SHARE
+from app.lol.live_client import resolveChampionId
 from app.lol.tools import translatePositionKey
 
 TAG = "ItemGoldPanel"
@@ -28,6 +28,7 @@ ROWS = 5
 SUMMARY_W = 230
 CONTENT_H = 2 * PAD + ROWS * ROW_H
 ANIMATION_MS = 180
+MIN_BAR_W = 7  # a lane bar for any non-zero difference reads as a bar, not a speck
 
 
 def goldText(value, compact=False):
@@ -43,9 +44,10 @@ def diffText(diff, compact=False):
     return sign + goldText(abs(diff), compact)
 
 
-def diffColor(diff, even, neutral):
-    """The one colour rule: even -> neutral, ahead -> win colour, behind -> lose colour"""
-    if even:
+def diffColor(diff, neutral):
+    """The one colour rule: zero -> neutral, ahead -> win colour, behind -> lose colour"""
+    diff = int(round(diff or 0))
+    if diff == 0:
         return QColor(neutral)
     return resultColor('win' if diff > 0 else 'lose')
 
@@ -205,9 +207,8 @@ class ItemGoldContent(QWidget):
         drawText(p, QRectF(x, y, w, 16), f"{minutes}:{secs:02d}", numberFont(12, 500), muted,
                  Qt.AlignRight | Qt.AlignVCenter)
 
-        headline = self.tr("Even") if s['even'] else diffText(s['diff'])
-        drawText(p, QRectF(x, y + 17, w, 38), headline, numberFont(30, 600),
-                 diffColor(s['diff'], s['even'], ink))
+        drawText(p, QRectF(x, y + 17, w, 38), diffText(s['diff']), numberFont(30, 600),
+                 diffColor(s['diff'], ink))
 
         win, lose = resultColor('win'), resultColor('lose')
         total = max(s['allyTotal'] + s['enemyTotal'], 1)
@@ -240,9 +241,7 @@ class ItemGoldContent(QWidget):
         lines = [self.tr("Item value: total cost of the items each player holds "
                          "(not gold earned)."),
                  self.tr("Enemy items are what the scoreboard shows (last seen). "
-                         "Unspent gold of other players is not available."),
-                 self.tr("A difference under {0} gold or {1}% of the larger value "
-                         "counts as even.").format(EVEN_GOLD, round(EVEN_SHARE * 100))]
+                         "Unspent gold of other players is not available.")]
         if s.get('currentGold') is not None:
             lines.append(self.tr("Your unspent gold: {0}").format(goldText(s['currentGold'])))
         if not s['localKnown']:
@@ -297,17 +296,16 @@ class ItemGoldContent(QWidget):
         p.setBrush(pal['hairline'])
         p.drawRoundedRect(leftBar, 2.5, 2.5)
         p.drawRoundedRect(rightBar, 2.5, 2.5)
-        if not lane['even']:
-            length = max(min(abs(lane['diff']) / scale, 1) * half, 3)
-            p.setBrush(diffColor(lane['diff'], False, muted))
+        if lane['diff']:
+            length = min(max(abs(lane['diff']) / scale * half, MIN_BAR_W), half)
+            p.setBrush(diffColor(lane['diff'], muted))
             if lane['diff'] > 0:  # ahead: grows towards the ally
                 p.drawRoundedRect(QRectF(leftBar.right() - length, leftBar.top(), length, 5),
                                   2.5, 2.5)
             else:
                 p.drawRoundedRect(QRectF(rightBar.left(), rightBar.top(), length, 5), 2.5, 2.5)
-        text = self.tr("Even") if lane['even'] else diffText(lane['diff'])
-        drawText(p, QRectF(x + half, row.top(), diffW, ROW_H), text, numberFont(15, 600),
-                 diffColor(lane['diff'], lane['even'], ink), Qt.AlignCenter)
+        drawText(p, QRectF(x + half, row.top(), diffW, ROW_H), diffText(lane['diff']),
+                 numberFont(15, 600), diffColor(lane['diff'], ink), Qt.AlignCenter)
 
         self.__drawSide(p, pal, row, g, enemy, x + 2 * half + diffW + 10, True)
 

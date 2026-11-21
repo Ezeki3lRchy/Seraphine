@@ -1,12 +1,12 @@
 """
 Small always-on-top overlay with the live item value difference (team totals and, when
-the game reports lanes, the five lane differences), meant to sit over the game in
-borderless / windowed mode. It never takes focus, can be dragged (unless locked: then it
-is click-through), and is shown only while live data exists and the "Item value overlay"
-setting is on. Fed by signalBus.liveGameDataChanged.
+the game reports lanes, one row per lane: ally value, difference, enemy value), meant to
+sit over the game in borderless / windowed mode. It never takes focus, can be dragged
+(unless locked: then it is click-through), and is shown only while live data exists and
+the "Item value overlay" setting is on. Fed by signalBus.liveGameDataChanged.
 """
 from PySide6.QtCore import Qt, QPoint, QRectF
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen
+from PySide6.QtGui import QColor, QFontMetrics, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from app.common import platform
@@ -20,11 +20,31 @@ from app.lol.tools import translatePositionKey
 
 TAG = "GoldOverlay"
 
-WIDTH = 196
 PAD = 12
+INNER_X = PAD + 2  # left / right edge of the text
 TOP_H = 116      # header + headline + two total rows
 LANE_H = 24
-LANES_GAP = 6
+LANES_GAP = 6    # the hairline sits in the middle of it
+LEGEND_MARK = 10        # rounded square next to "You" / "Enemy", and over the value columns
+LEGEND_RADIUS = 2.5
+LEGEND_TEXT_X = 16      # totals rows: label starts this far right of the square's left edge
+TOTAL_GAP = 8           # least space between a total's label and its number
+LANE_MARKS_H = 12       # band under the hairline with the squares over the value columns
+LANES_TOP = TOP_H + LANES_GAP + LANE_MARKS_H  # first lane row
+
+# lane row columns: label | ally value | difference | enemy value. Numbers are written in
+# full when they fit their column, else in the compact form (see fitNumber). Sized with
+# Bahnschrift / Segoe UI for the longest label (zh_CN, 2 CJK characters, 28 px), a
+# five-digit value ("88,888", 38-39 px) and a four-digit signed difference ("−8,888",
+# 62 px, as wide as the widest compact one, "−88.8k")
+LANE_LABEL_W = 30
+LANE_VALUE_W = 40
+LANE_DIFF_W = 64
+COL_GAP = 6
+INNER_W = LANE_LABEL_W + 2 * LANE_VALUE_W + LANE_DIFF_W + 3 * COL_GAP
+WIDTH = INNER_W + 2 * INNER_X
+
+MISSING = "—"  # em dash for a lane side without a player (uneven teams)
 
 # dark card regardless of the app theme: it sits over the game
 COLORS = {
@@ -32,6 +52,7 @@ COLORS = {
     'border': QColor(255, 255, 255, 34),
     'ink': QColor('#F2F4F7'),
     'label': QColor('#E6E9EE'),
+    'value': QColor('#D3D8E0'),  # lane item values: readable, quieter than the difference
     'muted': QColor('#A3AAB6'),
     'hairline': QColor(255, 255, 255, 30),
 }
@@ -56,7 +77,86 @@ def overlayPosition(value):
 def overlayHeight(summary):
     if summary is None or not summary.get('hasLanes'):
         return TOP_H + PAD
-    return TOP_H + LANES_GAP + len(summary['lanes']) * LANE_H + PAD
+    return LANES_TOP + len(summary['lanes']) * LANE_H + PAD
+
+
+def topFonts():
+    """Fonts of the headline difference and the totals rows"""
+    return {'headline': numberFont(36, 700), 'label': textFont(14, True),
+            'total': numberFont(17, 600)}
+
+
+def laneFonts():
+    """Font of each lane column"""
+    value = numberFont(13, 500)
+    return {'label': textFont(13, True), 'ally': value, 'diff': numberFont(19, 600),
+            'enemy': value}
+
+
+def textWidth(font, text):
+    fm = QFontMetrics(font)
+    return max(fm.horizontalAdvance(text), fm.boundingRect(text).width())
+
+
+def fitNumber(full, compact, font, width):
+    """full when it fits width with font, else compact: a number is never elided"""
+    return full if textWidth(font, full) <= width else compact
+
+
+def headlineText(diff):
+    return fitNumber(diffText(diff), diffText(diff, True), topFonts()['headline'], INNER_W)
+
+
+def totalSpace(label):
+    """Width left for the number of a totals row after its square and label"""
+    fonts = topFonts()
+    return INNER_W - LEGEND_TEXT_X - textWidth(fonts['label'], label) - TOTAL_GAP
+
+
+def totalText(value, label):
+    return fitNumber(goldText(value), goldText(value, True), topFonts()['total'],
+                     totalSpace(label))
+
+
+def laneMarks():
+    """Squares over the ally / enemy value columns, under the hairline: {'ally', 'enemy'}"""
+    cols = laneColumns(0)
+    y = TOP_H + LANES_GAP + (LANE_MARKS_H - LEGEND_MARK) / 2
+    return {key: QRectF(cols[key].center().x() - LEGEND_MARK / 2, y, LEGEND_MARK, LEGEND_MARK)
+            for key in ('ally', 'enemy')}
+
+
+def laneColumns(i):
+    """Rects of lane row i: {'label', 'ally', 'diff', 'enemy'}, left to right"""
+    y = LANES_TOP + i * LANE_H
+    x, rects = INNER_X, {}
+    for key, w in (('label', LANE_LABEL_W), ('ally', LANE_VALUE_W),
+                   ('diff', LANE_DIFF_W), ('enemy', LANE_VALUE_W)):
+        rects[key] = QRectF(x, y, w, LANE_H)
+        x += w + COL_GAP
+    return rects
+
+
+def laneCells(lane):
+    """(text, colour) of each lane column. A side without a player shows a muted dash,
+    and so does the difference then (it would only repeat the other side's value)"""
+    fonts, c = laneFonts(), COLORS
+
+    def value(key):
+        player = lane.get(key)
+        if player is None:
+            return MISSING, c['muted']
+        v = player.get('value')
+        return fitNumber(goldText(v), goldText(v, True), fonts[key], LANE_VALUE_W), c['value']
+
+    if lane.get('ally') is None or lane.get('enemy') is None:
+        diff = MISSING, c['muted']
+    else:
+        d = lane['diff']
+        diff = (fitNumber(diffText(d), diffText(d, True), fonts['diff'], LANE_DIFF_W),
+                diffColor(d, c['ink']))
+    return {'label': (translatePositionKey(lane['position']) or "", c['label']),
+            'ally': value('ally'), 'diff': diff, 'enemy': value('enemy')}
 
 
 class GoldOverlay(QWidget):
@@ -93,7 +193,7 @@ class GoldOverlay(QWidget):
             self.__updateVisible()
             self.update()
         except Exception as e:
-            logger.error(f"item value overlay update failed: {e!r}", TAG)
+            logger.error(f"item value overlay update failed: {type(e).__name__}", TAG)
 
     def __updateVisible(self):
         try:
@@ -106,7 +206,7 @@ class GoldOverlay(QWidget):
             elif not wanted and self.isVisible():
                 self.hide()
         except Exception as e:
-            logger.error(f"item value overlay visibility failed: {e!r}", TAG)
+            logger.error(f"item value overlay visibility failed: {type(e).__name__}", TAG)
 
     def __applyFlags(self):
         flags = (Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
@@ -125,7 +225,7 @@ class GoldOverlay(QWidget):
                 self.show()
                 platform.set_window_no_activate(self.winId())
         except Exception as e:
-            logger.error(f"item value overlay lock failed: {e!r}", TAG)
+            logger.error(f"item value overlay lock failed: {type(e).__name__}", TAG)
 
     def __placeOnScreen(self):
         point = overlayPosition(cfg.get(cfg.goldOverlayPos))
@@ -169,7 +269,7 @@ class GoldOverlay(QWidget):
             self.drawContent(p)
             p.end()
         except Exception as e:
-            logger.error(f"item value overlay paint failed: {e!r}", TAG)
+            logger.error(f"item value overlay paint failed: {type(e).__name__}", TAG)
 
     def drawContent(self, p):
         s, c = self.summary, COLORS
@@ -178,7 +278,7 @@ class GoldOverlay(QWidget):
         p.setBrush(c['bg'])
         p.drawRoundedRect(rect, 10, 10)
 
-        x, w = PAD + 2, WIDTH - 2 * PAD - 4
+        x, w = INNER_X, INNER_W
         win, lose = resultColor('win'), resultColor('lose')
 
         drawText(p, QRectF(x, PAD - 2, w, 16), self.tr("Item value").upper(),
@@ -187,9 +287,9 @@ class GoldOverlay(QWidget):
         drawText(p, QRectF(x, PAD - 2, w, 16), f"{minutes}:{secs:02d}", numberFont(12, 500),
                  c['muted'], Qt.AlignRight | Qt.AlignVCenter)
 
-        headline = self.tr("Even") if s['even'] else diffText(s['diff'], True)
-        drawText(p, QRectF(x, PAD + 14, w, 40), headline, numberFont(36, 700),
-                 diffColor(s['diff'], s['even'], c['ink']))
+        top = topFonts()
+        drawText(p, QRectF(x, PAD + 14, w, 40), headlineText(s['diff']), top['headline'],
+                 diffColor(s['diff'], c['ink']))
 
         if s['localKnown']:
             labels = (self.tr("You"), self.tr("Enemy"))
@@ -200,9 +300,10 @@ class GoldOverlay(QWidget):
             r = QRectF(x, PAD + 60 + j * 22, w, 20)
             p.setPen(Qt.NoPen)
             p.setBrush(color)
-            p.drawRoundedRect(QRectF(r.left(), r.center().y() - 5, 10, 10), 2.5, 2.5)
-            drawText(p, r.adjusted(16, 0, 0, 0), label, textFont(14, True), color)
-            drawText(p, r, goldText(value, True), numberFont(17, 600), c['ink'],
+            p.drawRoundedRect(QRectF(r.left(), r.center().y() - LEGEND_MARK / 2, LEGEND_MARK,
+                                     LEGEND_MARK), LEGEND_RADIUS, LEGEND_RADIUS)
+            drawText(p, r.adjusted(LEGEND_TEXT_X, 0, 0, 0), label, top['label'], color)
+            drawText(p, r, totalText(value, label), top['total'], c['ink'],
                      Qt.AlignRight | Qt.AlignVCenter)
 
         if not s['hasLanes']:
@@ -211,11 +312,17 @@ class GoldOverlay(QWidget):
         y = TOP_H + LANES_GAP / 2
         p.setPen(QPen(c['hairline'], 1))
         p.drawLine(int(x), int(y), int(x + w), int(y))
+        # which value column is whose: the legend's squares again, over each column
+        p.setPen(Qt.NoPen)
+        for key, color in (('ally', win), ('enemy', lose)):
+            p.setBrush(color)
+            p.drawRoundedRect(laneMarks()[key], LEGEND_RADIUS, LEGEND_RADIUS)
+
+        fonts = laneFonts()
+        right = Qt.AlignRight | Qt.AlignVCenter
+        align = {'label': Qt.AlignLeft | Qt.AlignVCenter, 'ally': right,
+                 'diff': Qt.AlignCenter, 'enemy': right}
         for i, lane in enumerate(s['lanes']):
-            row = QRectF(x, TOP_H + LANES_GAP + i * LANE_H, w, LANE_H)
-            drawText(p, row, translatePositionKey(lane['position']) or "", textFont(13, True),
-                     c['label'])
-            text = self.tr("Even") if lane['even'] else diffText(lane['diff'], True)
-            drawText(p, row, text, numberFont(19, 600),
-                     diffColor(lane['diff'], lane['even'], c['ink']),
-                     Qt.AlignRight | Qt.AlignVCenter)
+            cols = laneColumns(i)
+            for key, (text, color) in laneCells(lane).items():
+                drawText(p, cols[key], text, fonts[key], color, align[key])
