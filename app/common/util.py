@@ -13,6 +13,7 @@ from PySide6.QtCore import QRectF
 from app.common.config import cfg, VERSION
 from app.common.logger import logger
 from app.common import platform
+from app.common.release_names import FULL_MAC, FULL_WIN, MANIFEST_ASSET, parseDelta
 
 
 TAG = "Util"
@@ -52,6 +53,12 @@ class Github:
 
         ver_info = self.__get_ver_info()
         info["forbidden"] = ver_info.get("forbidden", False)
+        # field switches for this version, settable without a release (edit
+        # document/ver.json on main): noDelta -> always the full package,
+        # noResume -> never continue a partial download; only JSON true switches
+        # (missing or any other value = off)
+        info["noDelta"] = ver_info.get("noDelta") is True
+        info["noResume"] = ver_info.get("noResume") is True
 
         latest = info.get("tag_name").lstrip("vV")
         # Only a strictly newer release is an update; an older one only when the
@@ -134,10 +141,34 @@ def selectReleaseAsset(assets):
     macOS 取以 '.dmg' 结尾的资源, Windows 取以 '.7z' 结尾的资源. 找不到匹配时
     返回 None (而非盲取 assets[0]), 以便调用方跳过该版本, 避免把错误平台的安装包
     (例如把 macOS 的 .dmg 当成 Windows 的 .7z) 下载下来.
+    The full package (Seraphine.7z / Seraphine.dmg) is preferred, then the suffix
+    rule; a delta or the manifest asset is never returned.
     """
+    full = FULL_MAC if platform.IS_MACOS else FULL_WIN
+    for asset in assets or []:
+        if asset.get('name', '') == full:
+            return asset
+    # then the suffix rule (every self-updating version in the field uses it);
+    # never a delta or the manifest asset (release_names), whatever they end in
     suffix = platformAssetSuffix()
     for asset in assets or []:
-        if asset.get('name', '').endswith(suffix):
+        name = asset.get('name', '')
+        if name.endswith(suffix) and name != MANIFEST_ASSET and parseDelta(name) is None:
+            return asset
+    return None
+
+
+def selectDeltaAsset(assets, currentVersion, releaseVersion):
+    """The Windows delta that updates exactly ``currentVersion`` to
+    ``releaseVersion`` (``Seraphine-<base>-to-<new>.delta``, release_names) and
+    carries a sha256 digest, else None. Always None on macOS (full .dmg only)."""
+    if not platform.IS_WINDOWS:
+        return None
+    want = (str(currentVersion or '').lstrip('vV'), str(releaseVersion or '').lstrip('vV'))
+    for asset in assets or []:
+        digest = asset.get('digest') or ''
+        if parseDelta(asset.get('name', '')) == want \
+                and digest.lower().startswith('sha256:') and digest[7:].strip():
             return asset
     return None
 

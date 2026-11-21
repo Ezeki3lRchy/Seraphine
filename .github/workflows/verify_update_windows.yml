@@ -1,0 +1,110 @@
+name: verify-update-windows
+
+# Called by release.yml (workflow_call) for each Windows leg; publishes nothing.
+# Installs the new release over the PREVIOUS release's published Seraphine.7z
+# (downloaded and verified against its API digest) with the real updater scripts,
+# tools/update_e2e.py:
+#   leg full:  the new Seraphine.7z applied by the updater script of every
+#              self-updating version in the field (git show v<x>:app/common/update.py
+#              of each tag from tools/prev_release.py --all-self-updating; hence
+#              fetch-depth: 0) and by this commit's script;
+#   leg delta: the delta applied by this commit's script (and by the previous
+#              version's script when it carries `# seraphine-updater: manifest 1`).
+# Each run must end with result.json "ok" and the install equal to the new package
+# file by file. This job's result gates what it covers (tools/release_gates.py):
+# the full leg the Windows package, the delta leg the delta.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "The new release X.Y.Z (its Seraphine-win-X.Y.Z artifact is in this run)"
+        required: true
+        type: string
+      leg:
+        description: "full (the new Seraphine.7z) or delta (the Seraphine-delta-win-X.Y.Z artifact)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: update test (${{ inputs.leg }})
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      TARGET_VERSION: ${{ inputs.version }}
+      LEG: ${{ inputs.leg }}
+    steps:
+      # Full history with tags: every self-updating version's updater script comes
+      # from `git show v<x>:app/common/update.py`. Nothing pushes.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install py7zr (the pin of requirements.txt; what the app extracts with)
+        shell: pwsh
+        run: |
+          if ($env:LEG -ne 'full' -and $env:LEG -ne 'delta') { throw "leg must be full or delta, got '$env:LEG'" }
+          $pin = $null
+          foreach ($line in Get-Content requirements.txt) { if ($line -match '^\s*py7zr\s*==\s*([^\s;#]+)') { $pin = $Matches[1]; break } }
+          if (-not $pin) { throw "requirements.txt has no py7zr==<version> pin" }
+          python -m pip install --disable-pip-version-check -q "py7zr==$pin"
+          if ($LASTEXITCODE -ne 0) { throw "pip install py7zr==$pin failed" }
+
+      # Read-only gh: release list / view / download.
+      - name: Download the previous release's Seraphine.7z and verify it against its API digest
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $versions = @(python tools/prev_release.py --version $env:TARGET_VERSION --all-self-updating)
+          if ($LASTEXITCODE -ne 0 -or $versions.Count -eq 0) { throw "prev_release.py found no self-updating release below $env:TARGET_VERSION" }
+          Write-Host ("self-updating releases: " + ($versions -join ', '))
+          $versions -join "`n" | Set-Content -Path (Join-Path $env:RUNNER_TEMP 'self-updating.txt')
+          python tools/make_delta.py --fetch-base $versions[-1] (Join-Path $env:RUNNER_TEMP 'prev') --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw "the previous package v$($versions[-1]) does not match its API digest" }
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Seraphine-win-${{ inputs.version }}
+          path: ${{ runner.temp }}/new
+
+      - if: inputs.leg == 'delta'
+        uses: actions/download-artifact@v4
+        with:
+          name: Seraphine-delta-win-${{ inputs.version }}
+          path: ${{ runner.temp }}/delta
+
+      # GH_TOKEN only for update_e2e.py's read-only `gh api` fallback when a tag's
+      # update.py is not in the clone.
+      - name: Install over the previous release with the real updater scripts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $versions = @(Get-Content (Join-Path $env:RUNNER_TEMP 'self-updating.txt') | Where-Object { $_ })
+          $e2eArgs = @('--prev-package', (Join-Path $env:RUNNER_TEMP 'prev\Seraphine.7z'),
+                       '--new-package', (Join-Path $env:RUNNER_TEMP 'new\Seraphine.7z'),
+                       '--versions', ($versions -join ','), '--version', $env:TARGET_VERSION,
+                       '--repo', $env:GITHUB_REPOSITORY, '--leg', $env:LEG)
+          if ($env:LEG -eq 'delta') {
+            $deltas = @(Get-ChildItem -Path (Join-Path $env:RUNNER_TEMP 'delta') -Filter '*.delta' -File)
+            if ($deltas.Count -ne 1) { throw "expected one .delta in the artifact, found $($deltas.Count)" }
+            # the artifact itself, again: previous + delta == the new package
+            python tools/make_delta.py --check (Join-Path $env:RUNNER_TEMP 'prev\Seraphine.7z') (Join-Path $env:RUNNER_TEMP 'new\Seraphine.7z') $deltas[0].FullName
+            if ($LASTEXITCODE -ne 0) { throw "the delta artifact does not rebuild the new package" }
+            $e2eArgs += @('--delta', $deltas[0].FullName)
+            "### Update test (delta): $($deltas[0].Name), $($deltas[0].Length) B" >> $env:GITHUB_STEP_SUMMARY
+          }
+          else {
+            "### Update test (full): Seraphine.7z over v$($versions[-1])" >> $env:GITHUB_STEP_SUMMARY
+          }
+          python tools/update_e2e.py @e2eArgs
+          if ($LASTEXITCODE -ne 0) { throw "the $env:LEG leg failed: this release must not ship it" }

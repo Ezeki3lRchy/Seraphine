@@ -1,0 +1,691 @@
+{
+ "champions": {
+  "Ahri": {
+   "championId": 103,
+   "id": "Ahri",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    }
+   }
+  },
+  "Ezreal": {
+   "championId": 81,
+   "id": "Ezreal",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      26,
+      23,
+      20,
+      17,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      5.5,
+      5.25,
+      5,
+      4.75,
+      4.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    }
+   }
+  },
+  "Jayce": {
+   "championId": 126,
+   "id": "Jayce",
+   "maxRank": {
+    "E": 6,
+    "Q": 6,
+    "R": 1,
+    "W": 6
+   },
+   "priority": "QWE",
+   "rLevels": [
+    1
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      16,
+      14,
+      12,
+      10,
+      8,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      6
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    }
+   }
+  },
+  "Kai'Sa": {
+   "championId": 145,
+   "id": "Kaisa",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      100,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      18.5,
+      17,
+      15.5,
+      14
+     ]
+    }
+   }
+  },
+  "Karma": {
+   "championId": 43,
+   "id": "Karma",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 4,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    1,
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      40,
+      38,
+      36,
+      34
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    }
+   }
+  },
+  "Lee Sin": {
+   "championId": 64,
+   "id": "LeeSin",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      85,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    }
+   }
+  },
+  "Nunu & Willump": {
+   "championId": 20,
+   "id": "Nunu",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      100,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    }
+   }
+  },
+  "Renata Glasc": {
+   "championId": 888,
+   "id": "Renata",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EWQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      16,
+      16,
+      16,
+      16,
+      16
+     ]
+    },
+    "R": {
+     "cooldown": [
+      150,
+      130,
+      110
+     ]
+    },
+    "W": {
+     "cooldown": [
+      28,
+      27,
+      26,
+      25,
+      24
+     ]
+    }
+   }
+  },
+  "Udyr": {
+   "championId": 77,
+   "id": "Udyr",
+   "maxRank": {
+    "E": 6,
+    "Q": 6,
+    "R": 6,
+    "W": 6
+   },
+   "priority": "QEWR",
+   "rLevels": [],
+   "spells": {
+    "E": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "W": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    }
+   }
+  },
+  "Wukong": {
+   "championId": 62,
+   "id": "MonkeyKing",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9.25,
+      8.5,
+      7.75,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      110,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      21,
+      20,
+      19,
+      18
+     ]
+    }
+   }
+  },
+  "Yuumi": {
+   "championId": 350,
+   "id": "Yuumi",
+   "maxRank": {
+    "E": 5,
+    "Q": 6,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6.5,
+      6.5,
+      6.5,
+      6.5,
+      6.5,
+      6.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  }
+ },
+ "items": {
+  "3071": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3118": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 20
+  },
+  "3142": {
+   "active": 45,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3157": {
+   "active": 120,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3158": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 10,
+   "ultHaste": 0
+  },
+  "3171": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 20,
+   "ultHaste": 0
+  },
+  "3190": {
+   "active": 90,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6698": {
+   "active": 10,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  }
+ },
+ "patch": "16.23",
+ "schema": 1,
+ "sources": {
+  "communitydragon": {
+   "characters": "https://raw.communitydragon.org/16.23/game/data/characters/<id>/<id>.bin.json",
+   "items": "https://raw.communitydragon.org/16.23/game/items.cdtb.bin.json",
+   "metadata": "https://raw.communitydragon.org/16.23/content-metadata.json",
+   "spells": "https://raw.communitydragon.org/16.23/game/shared.cdtb.bin.json",
+   "version": "16.23.8406595+branch.releases-16-23.content.release"
+  },
+  "ddragon": "16.23.1",
+  "opgg": [
+   "16.23"
+  ],
+  "region": "global",
+  "tier": "emerald_plus"
+ },
+ "summonerSpells": {
+  "S12_SummonerTeleportUpgrade": {
+   "cooldown": 300,
+   "id": 12
+  },
+  "S5_SummonerSmitePlayerGanker": {
+   "cooldown": null,
+   "id": 11
+  },
+  "SummonerBarrier": {
+   "cooldown": 180,
+   "id": 21
+  },
+  "SummonerBoost": {
+   "cooldown": 240,
+   "id": 1
+  },
+  "SummonerDot": {
+   "cooldown": 180,
+   "id": 14
+  },
+  "SummonerExhaust": {
+   "cooldown": 240,
+   "id": 3
+  },
+  "SummonerFlash": {
+   "cooldown": 300,
+   "id": 4
+  },
+  "SummonerHaste": {
+   "cooldown": 240,
+   "id": 6
+  },
+  "SummonerHeal": {
+   "cooldown": 240,
+   "id": 7
+  },
+  "SummonerSmite": {
+   "cooldown": null,
+   "id": 11
+  },
+  "SummonerTeleport": {
+   "cooldown": 300,
+   "id": 12
+  }
+ }
+}

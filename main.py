@@ -63,7 +63,10 @@ def _selftest():
             'app/resource/images/avatar.jpg',
             'app/resource/icons/Alert_black.svg',
             'app/resource/qss',
-        ]
+            # the cooldown ledger's database and lane icons
+            'app/resource/ledger/ledger_baseline.json',
+        ] + [f'app/resource/images/icon-position-{lane}.svg'
+             for lane in ('top', 'jng', 'mid', 'bot', 'sup')]
         if platform.IS_WINDOWS:
             resources.append('app/resource/bin/fix_lcu_window.exe')
         missing = [r for r in resources if not os.path.exists(r)]

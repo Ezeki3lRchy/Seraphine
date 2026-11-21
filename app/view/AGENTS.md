@@ -11,13 +11,13 @@ each `*_interface.py` is one tab/screen, composed from `../components/` widgets 
 ## Key Files
 | File | Description |
 |------|-------------|
-| `main_window.py` | Application shell: hosts the navigation + all interfaces; launched by `../main.py` |
+| `main_window.py` | Application shell: hosts the navigation + all interfaces; launched by `../main.py`. Also creates the in-game windows: the item value overlay (`../components/gold_overlay.py`) and the cooldown ledger (`../components/ledger_panel.py` with `../lol/ledger_data.py`'s `LedgerDatabase`, loaded from files at start-up; its OP.GG skill-priority refresh runs as a background task when the panel reports a game's enemies, is cancelled when the client ends (before the OP.GG session closes) and at shutdown, where the panel is also closed and disconnected; a failure while building the ledger at start-up only means no panel), and shows the update progress / ready / failure info bars |
 | `start_interface.py` | Landing/connection screen (waits for the LoL client) |
 | `career_interface.py` | A summoner's career / match-history view |
 | `search_interface.py` | Summoner search screen |
 | `game_info_interface.py` | Live-game / BP teammate + opponent lookup |
 | `auxiliary_interface.py` | Auxiliary tools (auto-accept, profile tweaks, etc.) |
-| `setting_interface.py` | App settings (built from `../components/setting_cards.py`) |
+| `setting_interface.py` | App settings (built from `../components/setting_cards.py`), incl. the overlay cards and the "Cooldown ledger" switch (`cfg.enableCooldownLedger`, off by default; its two-line description is the card's only wording about the feature), and the update card's progress subtitle / bar / "Restart to update" button |
 | `opgg_window.py` | Standalone op.gg window |
 | `opgg_tier_interface.py` | op.gg tier-list view |
 | `opgg_build_interface.py` | op.gg champion build view |

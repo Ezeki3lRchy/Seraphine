@@ -25,6 +25,7 @@ define `price` or `count`. Assumptions made here, stated so they can be revisite
 Data only: no view imports. UI updates go through signalBus.liveGameDataChanged.
 """
 import asyncio
+import re
 
 import aiohttp
 
@@ -38,6 +39,9 @@ ALL_GAME_DATA = "/liveclientdata/allgamedata"
 
 ORDER, CHAOS = "ORDER", "CHAOS"
 LANES = ("TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY")
+
+_RAW_CHAMPION_PREFIX = 'game_character_displayname_'
+_SPELL_KEY = re.compile(r'^GeneratedTip_SummonerSpell_(.+)_DisplayName$')
 
 POLL_INTERVAL = 3.0
 REQUEST_TIMEOUT = 2.0
@@ -214,6 +218,61 @@ def _playerSummary(player, fullPrice=None):
     }
 
 
+def spellKey(spell):
+    """Summoner spell entry of the payload -> its key from rawDisplayName
+    (GeneratedTip_SummonerSpell_<key>_DisplayName, e.g. SummonerFlash,
+    S12_SummonerTeleportUpgrade), or "" when absent or not of that shape"""
+    raw = spell.get('rawDisplayName') if isinstance(spell, dict) else None
+    match = _SPELL_KEY.match(raw) if isinstance(raw, str) else None
+    return match.group(1) if match else ""
+
+
+def _lane(player):
+    """The player's position upper-cased, or "" when it is not one of LANES"""
+    position = (player.get('position') or "").upper()
+    return position if position in LANES else ""
+
+
+def _rawChampionName(player):
+    """The payload's rawChampionName without its game_character_displayname_ prefix (the English
+    champion name, unlike the localized championName), or "" when missing or not of that form"""
+    raw = player.get('rawChampionName')
+    if isinstance(raw, str) and raw.startswith(_RAW_CHAMPION_PREFIX):
+        return raw[len(_RAW_CHAMPION_PREFIX):]
+    return ""
+
+
+def _rosterEntry(player, index, positionCounts):
+    """One enemy for the cooldown ledger. Only values that change rarely (items, spells,
+    level, position): nothing per-poll (gold, scores, respawn) and no player names, so the
+    summary's display key stays stable between polls"""
+    position = _lane(player)
+    spells = player.get('summonerSpells')
+    spells = spells if isinstance(spells, dict) else {}
+    items = [i for i in player.get('items') or [] if isinstance(i, dict)]
+    items.sort(key=lambda i: _num(i.get('slot')))
+    return {
+        'key': position if position and positionCounts[position] == 1 else f'#{index}',
+        'championName': player.get('championName') or "",
+        'rawChampionName': _rawChampionName(player),
+        'position': position,
+        'level': _num(player.get('level')),
+        'items': [_num(i.get('itemID')) for i in items],
+        'spells': [spellKey(spells.get('summonerSpellOne')),
+                   spellKey(spells.get('summonerSpellTwo'))],
+    }
+
+
+def _enemyRoster(team, enemy):
+    if team is None:
+        return []
+    counts = {}
+    for player in enemy:
+        position = _lane(player)
+        counts[position] = counts.get(position, 0) + 1
+    return [_rosterEntry(p, i, counts) for i, p in enumerate(enemy)]
+
+
 def summarizeGameData(data, fullPrice=None):
     """
     allgamedata payload -> the plain dict the panel and overlay draw, or None when the
@@ -256,6 +315,8 @@ def summarizeGameData(data, fullPrice=None):
         'team': team or ORDER,
         'localKnown': team is not None,
         'gameMode': gameMode,
+        'mapNumber': _num(gameData.get('mapNumber')),
+        'enemyRoster': _enemyRoster(team, enemy),
         'gameTime': float(gameData.get('gameTime') or 0),
         'allyTotal': allyTotal,
         'enemyTotal': enemyTotal,

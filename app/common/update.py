@@ -18,14 +18,27 @@ from app.common import platform
 #   3. finish an unfinished restore left by an earlier run (backup dir present)
 #      only if its backup.meta fingerprint matches this install's Seraphine.exe;
 #      a foreign / unfingerprinted backup is discarded without applying it,
+#   4b. (runs before 4) check the package against the install, before anything is
+#      changed: with a usable manifest (filemanifest.txt, first line
+#      "#seraphine-manifest 1"), every entry must match (size + SHA-256) the package
+#      file or, when the package does not ship it, the installed file; package files
+#      the install already has are pruned from the package (never Seraphine.exe /
+#      filelist.txt / filemanifest.txt); the manifest must list exactly the new
+#      filelist's files, once each. Every new-filelist entry no manifest entry
+#      covers must be in the package. A mismatch exits 9 ("failed:9"), nothing changed,
 #   4. write backup.meta (pre-update exe hash, package exe hash, version),
 #   5. precheck every package file against the install (reparse points, file vs
 #      directory) and back up each install file the package will replace,
-#   6. merge the package over the install (robocopy /IM, bounded retries),
-#      on failure restore every backed-up file and remove the files it added,
+#   6. merge the package over the install (robocopy /IM, bounded retries; the
+#      package's filemanifest.txt stays in the package),
+#      on failure restore every backed-up file and remove the files it added;
+#      with a manifest, then verify every merged file's SHA-256 (a mismatch or a
+#      read error restores the previous version, like a failed merge),
 #   7. delete stale files (old filelist only, never a path the package has, never
 #      through a reparse point, never outside the install dir),
 #   8. remove backup + package, 9. write the result file, 10. relaunch.
+# Without a manifest the run is the same as before manifests existed (escape hatch).
+# After a run the package dir no longer equals the downloaded asset (4b prunes it).
 # Every exit path after the app has exited writes the result file and relaunches
 # whatever version is in place (the result is written BEFORE the relaunch so the
 # new process can read it). Files in no filelist (icon cache, logs) are never touched.
@@ -46,6 +59,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# seraphine-updater: manifest 1
 
 # 0. single instance: nothing (not even the log) is touched before this
 $script:lock = $null
@@ -174,8 +188,10 @@ function Resolve-Entry([string]$Entry) {
 
 function Invoke-Robocopy([string]$From, [string]$To) {
     $ErrorActionPreference = 'Continue'
-    # /IM: also copy "modified" files (same size + time, different content)
-    $out = & robocopy.exe $From $To /E /IS /IT /IM /XJ /R:2 /W:1 /NP /NJH /NJS /NDL 2>&1
+    # /IM: also copy "modified" files (same size + time, different content);
+    # the package's manifest is never merged into the install (/XF, that path only)
+    $out = & robocopy.exe $From $To /E /IS /IT /IM /XJ /R:2 /W:1 /NP /NJH /NJS /NDL `
+        /XF ([System.IO.Path]::Combine($From, 'filemanifest.txt')) 2>&1
     $code = $LASTEXITCODE
     foreach ($l in $out) { if ([string]$l) { Write-Log ('robocopy: ' + ([string]$l).Trim()) } }
     return $code
@@ -194,6 +210,89 @@ function Get-Sha256([string]$Path) {
             return [System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', ''
         } finally { $sha.Dispose() }
     } finally { $stream.Dispose() }
+}
+
+function Write-Phase([string]$Name, $Watch, [string]$Counts) {
+    $s = $Watch.Elapsed.TotalSeconds.ToString('0.00', [System.Globalization.CultureInfo]::InvariantCulture)
+    Write-Log "phase ${Name}: $s s, $Counts"
+}
+
+function Get-Sha256Retry([string]$Path) {
+    # Get-Sha256 with a read error retried (antivirus scanning a freshly written
+    # file holds it briefly); throws after the last attempt. A hash is final.
+    for ($i = 1; ; $i++) {
+        try {
+            return Get-Sha256 $Path
+        } catch {
+            if ($i -ge 3) { throw }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
+
+function Test-FileMatches([string]$Path, [long]$Size, [string]$Sha) {
+    # the file exists with this size and SHA-256; a read error (after the
+    # retries) counts as no
+    try {
+        $info = [System.IO.FileInfo]::new($Path)
+        if (-not $info.Exists -or $info.Length -ne $Size) { return $false }
+        return (Get-Sha256Retry $Path) -ieq $Sha
+    } catch {
+        return $false
+    }
+}
+
+function Read-Manifest([string]$Path) {
+    # $null without a usable manifest (missing, or any other first line);
+    # else @{ Entries = [@{Sha; Size; Entry}...]; Bad = why it is unusable or $null }
+    if (-not [System.IO.File]::Exists($Path)) { return $null }
+    try {
+        $lines = [System.IO.File]::ReadAllLines($Path, [System.Text.Encoding]::UTF8)
+    } catch {
+        return @{ Entries = @(); Bad = "unreadable: $($_.Exception.GetType().Name)" }
+    }
+    if ($lines.Count -eq 0 -or $lines[0].TrimStart([char]0xFEFF) -cne '#seraphine-manifest 1') {
+        return $null
+    }
+    $entries = New-Object System.Collections.ArrayList
+    for ($i = 1; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        if (-not $line.Trim()) { continue }
+        # char[] overload explicitly: Windows PowerShell binds Split([char]9, 3)
+        # to Split(params char[]) and would split on '3' too
+        $parts = $line.Split([char[]]@([char]9), 3)
+        $size = [long]0
+        if ($parts.Count -ne 3 -or $parts[0] -notmatch '^[0-9a-fA-F]{64}$' -or
+            -not [long]::TryParse($parts[1], [ref]$size) -or $size -lt 0 -or -not $parts[2].Trim()) {
+            return @{ Entries = $entries; Bad = "line $($i + 1)" }
+        }
+        [void]$entries.Add(@{ Sha = $parts[0]; Size = $size; Entry = $parts[2].Trim() })
+    }
+    return @{ Entries = $entries; Bad = $null }
+}
+
+function Test-MergedFiles([string]$From, [string]$To, $Expected) {
+    # post-merge verify: every package file that has a manifest entry
+    # ($Expected: lower-case relative path -> SHA-256) now has that hash in the
+    # install; a mismatch or a read error -> $false
+    $script:verifiedCount = 0
+    foreach ($f in @(Get-ChildItem -LiteralPath $From -Recurse -File -Force)) {
+        $rel = $f.FullName.Substring($From.Length + 1)
+        $sha = $Expected[$rel.ToLowerInvariant()]
+        if (-not $sha) { continue }
+        try {
+            $got = Get-Sha256Retry ([System.IO.Path]::Combine($To, $rel))
+        } catch {
+            Write-Log "verify: cannot read the merged $rel"
+            return $false
+        }
+        if (-not ($got -ieq $sha)) {
+            Write-Log "verify: the merged $rel differs from the package manifest"
+            return $false
+        }
+        $script:verifiedCount++
+    }
+    return $true
 }
 
 function Test-SameContent([string]$A, [string]$B) {
@@ -371,6 +470,88 @@ try {
     $oldList = Read-FileList (Join-Path $install 'filelist.txt')
     $newList = Read-FileList (Join-Path $source 'filelist.txt')
 
+    # 4b. the package against THIS install (step 3 is complete, nothing backed up
+    #     or modified yet). Pruning waits until every check passed, so a refused
+    #     package is left as it was.
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    $pkgManifest = Read-Manifest (Join-Path $source 'filemanifest.txt')
+    $script:expected = $null
+    $covered = @{}
+    if ($null -ne $pkgManifest) {
+        if ($pkgManifest.Bad) {
+            Write-Log "the package manifest is malformed ($($pkgManifest.Bad)); nothing changed"
+            Finish 'failed:9' 9
+        }
+        # the manifest must describe exactly the new filelist's files, once each
+        $listed = @{}
+        foreach ($e in $newList) {
+            $full = Resolve-Entry $e
+            if ($full) { $listed[$full.Substring($install.Length + 1).ToLowerInvariant()] = $true }
+        }
+        $checks = New-Object System.Collections.ArrayList
+        foreach ($m in $pkgManifest.Entries) {
+            $full = Resolve-Entry $m.Entry
+            $why = $null
+            if (-not $full) { $why = "invalid path $($m.Entry)" }
+            else {
+                $rel = $full.Substring($install.Length + 1)
+                $key = $rel.ToLowerInvariant()
+                if ($covered.ContainsKey($key)) { $why = "$rel listed twice" }
+                elseif (-not $listed.ContainsKey($key)) { $why = "$rel is not in the new filelist" }
+            }
+            if ($why) {
+                Write-Log "the package manifest is malformed ($why); nothing changed"
+                Finish 'failed:9' 9
+            }
+            $covered[$key] = $true
+            [void]$checks.Add(@{ Rel = $rel; Full = $full; Size = $m.Size; Sha = $m.Sha })
+        }
+        $script:expected = @{}
+        $prune = New-Object System.Collections.ArrayList
+        $keepInPackage = @('seraphine.exe', 'filelist.txt', 'filemanifest.txt')
+        foreach ($m in $checks) {
+            $rel = $m.Rel
+            $full = $m.Full
+            $key = $rel.ToLowerInvariant()
+            $script:expected[$key] = $m.Sha
+            $have = Test-FileMatches $full $m.Size $m.Sha
+            $pkgFile = [System.IO.Path]::Combine($source, $rel)
+            if ([System.IO.File]::Exists($pkgFile)) {
+                if ($have -and -not ($keepInPackage -contains $key)) {
+                    [void]$prune.Add($pkgFile)
+                } elseif (-not (Test-FileMatches $pkgFile $m.Size $m.Sha)) {
+                    Write-Log "package does not match the install: the package's $rel differs from its manifest entry; nothing changed"
+                    Finish 'failed:9' 9
+                }
+            } elseif (-not $have) {
+                Write-Log "package does not match the install: $rel is not in the package and the installed file differs from the manifest; nothing changed"
+                Finish 'failed:9' 9
+            }
+        }
+    }
+    foreach ($e in $newList) {
+        $full = Resolve-Entry $e
+        if (-not $full) { continue }
+        $rel = $full.Substring($install.Length + 1)
+        if ($covered.ContainsKey($rel.ToLowerInvariant())) { continue }
+        if (-not [System.IO.File]::Exists([System.IO.Path]::Combine($source, $rel))) {
+            Write-Log "package does not match the install: $rel (new filelist) is not in the package; nothing changed"
+            Finish 'failed:9' 9
+        }
+    }
+    if ($null -ne $pkgManifest) {
+        $pruned = 0
+        foreach ($p in $prune) {
+            # a file that cannot be pruned is merged like any other (same content)
+            try { [System.IO.File]::Delete($p); $pruned++ } catch { Write-Log "could not prune $p" }
+        }
+        Write-Phase 'manifest' $watch "$($covered.Count) checked, $pruned pruned"
+        # hashing the install must not eat the merge deadline (the wait for the
+        # app above keeps its own WaitTimeoutSec bound)
+        $script:deadline = (Get-Date).AddSeconds($DeadlineSec)
+        Write-Log "deadline: $($script:deadline.ToString('s'))"
+    }
+
     # 4. fingerprint the backup about to be taken, BEFORE anything is backed up or
     #    modified: the install's exe now and the package's exe (the merge copies the
     #    root files first, so a half-merged install has one of the two)
@@ -392,8 +573,11 @@ try {
     Set-Content -LiteralPath ($BackupDir + '.meta') -Value ($metaObj | ConvertTo-Json -Compress) -Encoding UTF8
 
     # 5. precheck + backup of every install file the package will replace
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    # (the package's filemanifest.txt is not merged, see Invoke-Robocopy)
     $sourceFiles = @(Get-ChildItem -LiteralPath $source -Recurse -File -Force |
-        ForEach-Object { $_.FullName.Substring($source.Length + 1) })
+        ForEach-Object { $_.FullName.Substring($source.Length + 1) } |
+        Where-Object { $_ -ine 'filemanifest.txt' })
     foreach ($rel in $sourceFiles) {
         $target = [System.IO.Path]::Combine($install, $rel)
         if (Test-ReparseBelow $target) {
@@ -440,8 +624,10 @@ try {
     # what the merge will add, so a later run can finish an interrupted restore
     [System.IO.File]::WriteAllLines($BackupDir + '.added.txt', [string[]]@($script:added))
     Write-Log "backed up $($script:backedUp.Count) files"
+    Write-Phase 'backup' $watch "$($script:backedUp.Count) files"
 
     # 6. merge, a bounded number of passes (transient locks)
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
     $script:mergeStarted = $true
     $merged = $false
     for ($i = 1; $i -le $MergeAttempts; $i++) {
@@ -454,11 +640,24 @@ try {
         if ($i -lt $MergeAttempts) { Start-Sleep -Seconds 2 }
     }
     if (-not $merged) { Restore-Install }
+    Write-Phase 'merge' $watch "$($sourceFiles.Count) files"
+    if ($null -ne $script:expected) {
+        # still inside the merge window: a mismatch here must restore, never
+        # reach the "merge done" path of the outer catch
+        $watch = [System.Diagnostics.Stopwatch]::StartNew()
+        if (-not (Test-MergedFiles $source $install $script:expected)) {
+            Write-Log 'post-merge verify failed'
+            Restore-Install
+        }
+        Write-Phase 'verify' $watch "$($script:verifiedCount) files"
+    }
     $script:mergeStarted = $false
     $script:mergeDone = $true
     Write-Log 'merge finished'
 
     # 7. stale files: in the old filelist, not in the new one, not in the package
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    $removed = 0
     $script:pathState = @{}
     if ($newList.Count -eq 0) {
         Write-Log 'new filelist missing or empty; skipping stale-file cleanup'
@@ -479,6 +678,7 @@ try {
             if (Test-Path -LiteralPath $full -PathType Leaf) {
                 try {
                     Remove-Item -LiteralPath $full -Force
+                    $removed++
                     Write-Log "removed stale: $rel"
                 } catch {
                     Write-Log "could not remove stale ${rel}: $($_.Exception.Message)"
@@ -486,6 +686,7 @@ try {
             }
         }
     }
+    Write-Phase 'removal' $watch "$removed files"
 
     # 8. clean up
     Remove-Backup

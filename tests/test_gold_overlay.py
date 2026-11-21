@@ -380,6 +380,27 @@ class GoldOverlayLaneTest(unittest.TestCase):
         finally:
             cfg.goldOverlayPos.value = old
 
+    def test_unlock_makes_the_overlay_clickable_again(self):
+        # the lock is shared with the cooldown ledger, so it is toggled often: after an
+        # unlock neither the attribute nor the window flag may keep the overlay
+        # click-through (Qt adds WindowTransparentForInput to the flags while
+        # WA_TransparentForMouseEvents is set)
+        from PySide6.QtCore import Qt
+        from app.common.config import cfg
+        old = cfg.goldOverlayLocked.value
+        try:
+            for locked in (True, False, True, False):
+                cfg.goldOverlayLocked.value = locked  # in memory only; emits valueChanged
+                flags = self.overlay.windowFlags()
+                self.assertEqual(bool(flags & Qt.WindowTransparentForInput), locked, locked)
+                self.assertEqual(self.overlay.testAttribute(Qt.WA_TransparentForMouseEvents),
+                                 locked, locked)
+                self.assertTrue(flags & Qt.WindowDoesNotAcceptFocus, locked)
+                self.assertTrue(flags & Qt.WindowStaysOnTopHint, locked)
+                self.assertFalse(self.overlay.isVisible())  # offscreen: never on screen
+        finally:
+            cfg.goldOverlayLocked.value = old
+
 
 if __name__ == "__main__":
     unittest.main()

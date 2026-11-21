@@ -13,7 +13,8 @@ from app.common.config import VERSION, cfg, BETA
 from app.common.util import getLolClientPidSlowly, selectReleaseAsset
 from app.common.signals import signalBus
 from app.common.update_stage import (stageRelease, applyStagedUpdate, StageError,
-                                     installWritable)
+                                     installWritable, releaseVersion)
+from app.common.update_progress import Throttle, progressPayload
 from app.common.logger import logger
 from app.common import platform
 from app.lol.connector import connector
@@ -54,6 +55,8 @@ class UpdateMessageBox(MessageBoxBase):
         self.textEdit = TextEdit()
         self.infoLabel = BodyLabel()
         self.bar = ProgressBar()
+        # the settings card shows the dialog's download too (updateProgressChanged)
+        self._progressThrottle = Throttle()
 
         self.__initWidget()
         self.__initLayout()
@@ -142,7 +145,8 @@ class UpdateMessageBox(MessageBoxBase):
         try:
             marker = await stageRelease(self.info, onProgress=self.__onStageProgress)
         except Exception as e:
-            logger.warning(f"update from dialog failed: {e!r}", TAG)
+            # the type name only: an aiohttp error's repr carries the request headers
+            logger.warning(f"update from dialog failed: {type(e).__name__}", TAG)
             detail = str(e) or type(e).__name__
             if isinstance(e, StageError) and detail.startswith("verification failed"):
                 text = self.tr("Update verification failed, aborting: ") + detail
@@ -153,8 +157,14 @@ class UpdateMessageBox(MessageBoxBase):
 
         self.infoLabel.setText(self.tr("Starting the updater..."))
         # an older release is only installed when the running version is forbidden
-        if not await applyStagedUpdate(marker,
-                                       allowDowngrade=bool(self.info["forbidden"])):
+        try:
+            started = await applyStagedUpdate(marker,
+                                              allowDowngrade=bool(self.info["forbidden"]))
+        except Exception as e:
+            logger.warning(f"starting the updater from the dialog failed: {type(e).__name__}",
+                           TAG)
+            started = False
+        if not started:
             # the updater never started: stay running rather than exit into nothing
             self.__onUpdateAborted(self.tr("Could not start the updater."))
             return
@@ -170,15 +180,25 @@ class UpdateMessageBox(MessageBoxBase):
         self.myCancelButton.setEnabled(not self.info["forbidden"])
         self.manuallyButton.setEnabled(True)
         self.bar.setVisible(False)
+        self.__emitProgress('failed')
+
+    def __emitProgress(self, state, cur=0, total=0):
+        version = releaseVersion(self.info)
+        if self._progressThrottle.allow(state, version, cur, total):
+            signalBus.updateProgressChanged.emit(
+                progressPayload(state, version, cur, total, source='dialog'))
 
     def __onStageProgress(self, phase, cur, length):
         if phase == 'verify':
             self.infoLabel.setText(self.tr("Verifying download..."))
+            self.__emitProgress('verifying')
             return
         if phase == 'extract':
             self.infoLabel.setText(
                 self.tr("Downloading finished, decompressing..."))
+            self.__emitProgress('extracting')
             return
+        self.__emitProgress('downloading', cur, length)
 
         # content-length 可能缺失(分块传输)或为 0; 缺失时只显示已下载大小
         self.bar.setMaximum(length)

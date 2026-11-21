@@ -200,6 +200,12 @@ class Config(QConfig):
     # [x, y] of the overlay's top-left corner; empty = default spot
     goldOverlayPos = ConfigItem("Other", "GoldOverlayPos", [])
 
+    # In-game cooldown ledger panel (opt-in); shares goldOverlayLocked with the overlay
+    enableCooldownLedger = ConfigItem(
+        "Functions", "EnableCooldownLedger", False, BoolValidator())
+    # [x, y] of the ledger panel's top-left corner; empty = default spot
+    cooldownLedgerPos = ConfigItem("Other", "CooldownLedgerPos", [])
+
     enableSilent = ConfigItem(
         "General", "EnableSilent", False, BoolValidator())
 
@@ -209,7 +215,7 @@ class Config(QConfig):
 
 YEAR = 2023
 AUTHOR = "Ezeki3lRchy"
-VERSION = "1.4.10"
+VERSION = "1.4.11"
 BETA = None
 FEEDBACK_URL = "https://github.com/Ezeki3lRchy/Seraphine/issues?q=is%3Aissue"
 GITHUB_URL = "https://github.com/Ezeki3lRchy/Seraphine"
