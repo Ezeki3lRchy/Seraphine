@@ -15,19 +15,50 @@ name: release
 #
 # One release per version tag holds both files. If the release already exists the
 # files are uploaded onto it; otherwise it is created with its tag pinned to the
-# commit that was built (--target $GITHUB_SHA). If one platform's build fails, the
-# other platform's file is still published (the failed build job marks the run failed).
+# commit that was built (--target $GITHUB_SHA).
 #
-# Each platform's build also waits for its own test run (test.yml, one runner per
-# platform): failing tests skip that platform's build, so nothing is published for it,
-# while the other platform is unaffected.
+# The builds run beside the tests (they need only `check`); what is published is
+# decided in one place, tools/release_gates.py, from every job's result
+# (toJSON(needs)) and tools/release_flags.json:
+#   - Seraphine.7z: test-win, build-win and verify-full-win (the new package
+#     installed over the previous release by every self-updating version's updater
+#     script and the new one, verify_update_windows.yml leg full) all succeeded;
+#   - Seraphine.dmg: test-mac and build-mac succeeded (independent of Windows);
+#   - the delta Seraphine-<prev>-to-<new>.delta (delta-win: built from the
+#     previous release's Seraphine.7z, verified against its API digest, and checked
+#     to rebuild the new package) and Seraphine.filemanifest.txt: only with the
+#     Windows package, only when this run uploaded Seraphine.7z, never under
+#     noManifest; the delta also needs verify-delta-win (the delta installed by the
+#     new script). A failed delta leg never blocks the Windows package.
+# A failed or skipped job marks the run failed and blocks only what it gates.
+#
+# Upload order: the full packages first and alone; then, in a separate upload, the
+# manifest asset and the delta. Every self-updating version in the field takes the
+# first asset ending in .7z / .dmg (older builds took assets[0]), so afterwards
+# assets[0] must be Seraphine.7z or Seraphine.dmg, else the manifest and delta
+# assets are deleted again and the job fails (a final always() step, so also after
+# a failed upload or a cancel). Uploading a new Seraphine.7z onto an existing release
+# first deletes that version's delta and manifest asset. No other name is ever
+# uploaded (app/common/release_names.py; `release_gates.py --check-full-names` for
+# the first upload, `--check-names` for the second).
+#
+# The publish job and the verify / delta jobs run on `!cancelled() && ...`, not
+# always(): a run cancelled by hand publishes nothing.
+#
+# Escape hatch: tools/release_flags.json {"noManifest": true}, changed in the
+# reviewed commit of the release's VERSION bump, packs the release without
+# filemanifest.txt and skips the delta and the manifest asset.
+#
+# tools/check_release_graph.py (test.yml's lint job, on every push and pull
+# request) checks this graph: publish needs, the gate step, every download /
+# upload condition, the flag's path. Keep them in step with it.
 #
 # Uses the built-in GITHUB_TOKEN (no PAT): contents: read everywhere, contents:
 # write only on the publish job. Note: releases created with GITHUB_TOKEN do not
 # trigger other workflows.
 #
-# Publishing only happens from main: a manual run on another ref still builds, but
-# its publish job is skipped (it would tag a feature-branch commit).
+# Publishing only happens from main: a manual run on another ref still builds and
+# verifies, but its publish job is skipped (it would tag a feature-branch commit).
 #
 # The per-file check runs again right before publishing, since a hand release may
 # attach its file while this run is building.
@@ -55,6 +86,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       need_win: ${{ steps.v.outputs.need_win }}
       need_mac: ${{ steps.v.outputs.need_mac }}
+      no_manifest: ${{ steps.flags.outputs.no_manifest }}
     steps:
       - uses: actions/checkout@v4
 
@@ -81,9 +113,15 @@ jobs:
             fi
           done
 
-  # Each platform is gated on its own test run (test.yml with that one runner). A
-  # failed test job leaves its build job skipped, and publish treats a skipped build
-  # like a failed one: that platform is not published, the other one still is.
+      # The escape hatch is a reviewed file, not a repository variable.
+      - id: flags
+        name: Read the release flags (tools/release_flags.json)
+        run: |
+          python3 tools/release_gates.py --flags tools/release_flags.json >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  # Each platform is gated on its own test run (test.yml with that one runner); the
+  # build runs beside it and publish requires both (tools/release_gates.py).
   test-win:
     needs: check
     if: needs.check.outputs.need_win == 'true'
@@ -99,51 +137,190 @@ jobs:
       os: macos-latest
 
   build-win:
-    needs: [check, test-win]
+    needs: [check]
     if: needs.check.outputs.need_win == 'true'
     # The called workflow only needs contents: read (checkout); it inherits at
     # most what this caller grants.
     uses: ./.github/workflows/build_windows.yml
     with:
       version: ${{ needs.check.outputs.version }}
+      no_manifest: ${{ needs.check.outputs.no_manifest == 'true' }}
 
   build-mac:
-    needs: [check, test-mac]
+    needs: [check]
     if: needs.check.outputs.need_mac == 'true'
     uses: ./.github/workflows/build_macos.yml
     with:
       version: ${{ needs.check.outputs.version }}
 
-  publish:
-    needs: [check, build-win, build-mac]
-    if: >-
-      always() && needs.check.result == 'success' &&
-      (needs.build-win.result == 'success' || needs.build-mac.result == 'success') &&
-      github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  # The full Windows package installed over the previous release by every
+  # self-updating version's updater script and by the new one.
+  verify-full-win:
+    needs: [check, build-win]
+    if: ${{ !cancelled() && needs.build-win.result == 'success' }}
+    uses: ./.github/workflows/verify_update_windows.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+      leg: full
+
+  # The delta from the previous release (skipped with a notice when there is none,
+  # and under noManifest). Its failure blocks only the delta.
+  delta-win:
+    needs: [check, build-win]
+    if: ${{ !cancelled() && needs.build-win.result == 'success' && needs.check.outputs.no_manifest == 'false' }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      delta: ${{ steps.make.outputs.delta }}
     env:
       VERSION: ${{ needs.check.outputs.version }}
-      GH_TOKEN: ${{ github.token }}
     steps:
-      # gh authenticates with GH_TOKEN; nothing here needs git credentials (git log
-      # reads the local clone only), so do not leave the token in .git/config.
+      # full history with tags: the py7zr pins of the self-updating releases
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - if: needs.build-win.result == 'success'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install py7zr (the pin of requirements.txt)
+        shell: pwsh
+        run: |
+          $pin = $null
+          foreach ($line in Get-Content requirements.txt) { if ($line -match '^\s*py7zr\s*==\s*([^\s;#]+)') { $pin = $Matches[1]; break } }
+          if (-not $pin) { throw "requirements.txt has no py7zr==<version> pin" }
+          python -m pip install --disable-pip-version-check -q "py7zr==$pin"
+          if ($LASTEXITCODE -ne 0) { throw "pip install py7zr==$pin failed" }
+
+      # The only step with a token: read-only gh release list / view / download.
+      - name: Download the previous release's Seraphine.7z and verify it against its API digest
+        id: base
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $errFile = Join-Path $env:RUNNER_TEMP 'prev_release.err'
+          $versions = @(python tools/prev_release.py --version $env:VERSION --all-self-updating 2> $errFile)
+          $rc = $LASTEXITCODE
+          $why = "$(Get-Content -Raw -ErrorAction SilentlyContinue $errFile)".Trim()
+          if ($rc -ne 0 -or $versions.Count -eq 0) {
+            # only "no such release" means no delta; a gh / network failure fails this job
+            # (it blocks only the delta)
+            if ($rc -eq 1 -and $why -match '^prev_release: no release below ') {
+              Write-Host "::notice::no previous release below $env:VERSION with Seraphine.7z; no delta"
+              "prev=" >> $env:GITHUB_OUTPUT
+              exit 0
+            }
+            Write-Host "::error::prev_release.py failed (exit $rc): $why"
+            throw "cannot tell the previous release; no delta"
+          }
+          $versions -join "`n" | Set-Content -Path (Join-Path $env:RUNNER_TEMP 'self-updating.txt')
+          $prev = $versions[-1]
+          python tools/make_delta.py --fetch-base $prev (Join-Path $env:RUNNER_TEMP 'prev') --repo $env:RELEASES_REPO
+          if ($LASTEXITCODE -ne 0) { throw "the previous package v$prev does not match its API digest; no delta" }
+          "prev=$prev" >> $env:GITHUB_OUTPUT
+
+      - if: steps.base.outputs.prev != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: Seraphine-win-${{ needs.check.outputs.version }}
+          path: ${{ runner.temp }}/new
+
+      - name: Build the delta and check that previous + delta == the new package
+        id: make
+        if: steps.base.outputs.prev != ''
+        shell: pwsh
+        env:
+          PREV: ${{ steps.base.outputs.prev }}
+        run: |
+          $name = "Seraphine-$env:PREV-to-$env:VERSION.delta"
+          $out = Join-Path $env:RUNNER_TEMP "out\$name"
+          python tools/make_delta.py (Join-Path $env:RUNNER_TEMP 'prev\Seraphine.7z') (Join-Path $env:RUNNER_TEMP 'new\Seraphine.7z') $out
+          if ($LASTEXITCODE -ne 0) { throw "make_delta.py refused the delta" }
+          # like the full package: every distinct py7zr pin of the field must read it
+          $tree = Join-Path $env:RUNNER_TEMP 'delta-tree'
+          python -c "import sys, py7zr; py7zr.SevenZipFile(sys.argv[1]).extractall(sys.argv[2])" $out $tree
+          if ($LASTEXITCODE -ne 0) { throw "cannot extract the delta" }
+          $pins = @()
+          foreach ($v in Get-Content (Join-Path $env:RUNNER_TEMP 'self-updating.txt') | Where-Object { $_ }) {
+            $pin = $null
+            foreach ($line in @(git show "v${v}:requirements.txt")) { if ($line -match '^\s*py7zr\s*==\s*([^\s;#]+)') { $pin = $Matches[1]; break } }
+            if (-not $pin) { throw "v$v requirements.txt has no py7zr==<version> pin" }
+            $pins += $pin
+          }
+          foreach ($pin in @($pins | Sort-Object -Unique)) {
+            $venv = Join-Path $env:RUNNER_TEMP "py7zr-$pin"
+            python -m venv $venv
+            if ($LASTEXITCODE -ne 0) { throw "venv for py7zr $pin failed" }
+            & "$venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q "py7zr==$pin"
+            if ($LASTEXITCODE -ne 0) { throw "pip install py7zr==$pin failed" }
+            & "$venv\Scripts\python.exe" tools/check_archive.py $out $tree --partial
+            if ($LASTEXITCODE -ne 0) { throw "py7zr $pin cannot read the delta" }
+          }
+          "delta=$name" >> $env:GITHUB_OUTPUT
+
+      - if: steps.make.outputs.delta != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Seraphine-delta-win-${{ needs.check.outputs.version }}
+          path: ${{ runner.temp }}/out/*.delta
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  # The delta installed over the previous release by the new updater script.
+  verify-delta-win:
+    needs: [check, delta-win]
+    if: ${{ !cancelled() && needs.delta-win.result == 'success' && needs.delta-win.outputs.delta != '' }}
+    uses: ./.github/workflows/verify_update_windows.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+      leg: delta
+
+  publish:
+    needs: [check, test-win, build-win, verify-full-win, delta-win, verify-delta-win, test-mac, build-mac]
+    # !cancelled(), not always(): a run cancelled by hand publishes nothing
+    if: ${{ !cancelled() && needs.check.result == 'success' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      # gh authenticates with GH_TOKEN, given only to the upload steps; nothing here
+      # needs git credentials (git log reads the local clone only), so do not leave
+      # the token in .git/config.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Every download and upload below runs only on this step's outputs.
+      - id: gates
+        name: Decide what to publish (tools/release_gates.py)
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          NO_MANIFEST: ${{ needs.check.outputs.no_manifest }}
+        run: python3 tools/release_gates.py >> "$GITHUB_OUTPUT"
+
+      - if: steps.gates.outputs.publish_win == 'true'
         uses: actions/download-artifact@v4
         with:
           name: Seraphine-win-${{ needs.check.outputs.version }}
           path: out
 
-      - if: needs.build-mac.result == 'success'
+      - if: steps.gates.outputs.publish_mac == 'true'
         uses: actions/download-artifact@v4
         with:
           name: Seraphine-mac-${{ needs.check.outputs.version }}
+          path: out
+
+      - if: steps.gates.outputs.publish_delta == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: Seraphine-delta-win-${{ needs.check.outputs.version }}
           path: out
 
       - name: Write release notes (commit subjects since the previous VERSION bump)
@@ -163,11 +340,16 @@ jobs:
           } > notes.md
           cat notes.md
 
-      - name: Publish the built files
+      # The full packages first, alone.
+      - id: full
+        name: Publish the full packages
+        if: steps.gates.outputs.publish_win == 'true' || steps.gates.outputs.publish_mac == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Re-check each file: a hand release (release_win.ps1 / release_mac.sh push the
           # bump right before they create the release) may have attached it meanwhile.
-          assets=$(gh release view "v$VERSION" --repo "$RELEASES_REPO" --json assets --jq '.assets[].name' 2>/dev/null || true)
+          assets=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name' 2>/dev/null || true)
           files=()
           for f in out/Seraphine.7z out/Seraphine.dmg; do
             [ -f "$f" ] || continue
@@ -177,13 +359,101 @@ jobs:
               files+=("$f")
             fi
           done
+          uploaded_win=false
           if [ ${#files[@]} -eq 0 ]; then
             echo "nothing left to publish"
-          elif gh release view "v$VERSION" --repo "$RELEASES_REPO" >/dev/null 2>&1; then
-            gh release upload "v$VERSION" "${files[@]}" --repo "$RELEASES_REPO"
-            echo "::notice::uploaded ${files[*]} onto v$VERSION in $RELEASES_REPO"
           else
-            gh release create "v$VERSION" "${files[@]}" --repo "$RELEASES_REPO" \
-              --target "$GITHUB_SHA" --title "v$VERSION" --notes-file notes.md
-            echo "::notice::published v$VERSION with ${files[*]} to $RELEASES_REPO"
+            python3 tools/release_gates.py --check-full-names "${files[@]}"
+            if gh release view "v$VERSION" --repo "$RELEASES_REPO" >/dev/null 2>&1; then
+              # a new Seraphine.7z never sits next to an older delta or manifest asset
+              if printf '%s\n' "${files[@]}" | grep -qx out/Seraphine.7z; then
+                for name in $assets; do
+                  case "$name" in
+                    Seraphine.filemanifest.txt|Seraphine-*-to-"$VERSION".delta)
+                      gh release delete-asset "v$VERSION" "$name" --repo "$RELEASES_REPO" -y
+                      echo "::notice::deleted $name (it belonged to an older Seraphine.7z)"
+                      ;;
+                  esac
+                done
+              fi
+              gh release upload "v$VERSION" "${files[@]}" --repo "$RELEASES_REPO"
+              echo "::notice::uploaded ${files[*]} onto v$VERSION in $RELEASES_REPO"
+            else
+              gh release create "v$VERSION" "${files[@]}" --repo "$RELEASES_REPO" \
+                --target "$GITHUB_SHA" --title "v$VERSION" --notes-file notes.md
+              echo "::notice::published v$VERSION with ${files[*]} to $RELEASES_REPO"
+            fi
+            for f in "${files[@]}"; do
+              [ "$(basename "$f")" = Seraphine.7z ] && uploaded_win=true
+            done
           fi
+          echo "uploaded_win=$uploaded_win" >> "$GITHUB_OUTPUT"
+
+      # Then, separately: the manifest asset and (if it passed its gates) the delta,
+      # only next to a Seraphine.7z this run uploaded (a hand release's package has
+      # another manifest). A failed upload removes what it uploaded.
+      - id: extra
+        name: Publish the manifest asset and the delta
+        if: steps.full.outputs.uploaded_win == 'true' && steps.gates.outputs.publish_manifest == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_DELTA: ${{ steps.gates.outputs.publish_delta }}
+        run: |
+          if [ ! -f out/Seraphine.filemanifest.txt ]; then
+            echo "::error::the Windows artifact has no Seraphine.filemanifest.txt"
+            exit 1
+          fi
+          files=(out/Seraphine.filemanifest.txt)
+          if [ "$PUBLISH_DELTA" = true ]; then
+            for d in out/*.delta; do [ -f "$d" ] && files+=("$d"); done
+          fi
+          python3 tools/release_gates.py --check-names "${files[@]}"
+          set +e
+          gh release upload "v$VERSION" "${files[@]}" --repo "$RELEASES_REPO"
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "::error::gh release upload of ${files[*]} failed (exit $rc); removing what it uploaded"
+            have=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name')
+            for f in "${files[@]}"; do
+              name=$(basename "$f")
+              if grep -qx "$name" <<< "$have"; then
+                gh release delete-asset "v$VERSION" "$name" --repo "$RELEASES_REPO" -y \
+                  || echo "::error::could not delete $name from v$VERSION; delete it by hand"
+              fi
+            done
+            exit $rc
+          fi
+          echo "::notice::uploaded ${files[*]} onto v$VERSION in $RELEASES_REPO"
+
+      # Every self-updating version takes the first .7z / .dmg asset (older builds
+      # assets[0]): after the manifest / delta upload, also when it failed or the run
+      # was cancelled meanwhile, assets[0] must be a full package, else the manifest
+      # and delta assets of this version are removed. A cancelled upload may have
+      # left a partial asset: then they are removed whatever assets[0] is. A failed
+      # read of the assets counts as a wrong assets[0] (fail safe).
+      - name: Check that assets[0] is a full package
+        if: ${{ always() && steps.extra.outcome != '' && steps.extra.outcome != 'skipped' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXTRA_OUTCOME: ${{ steps.extra.outcome }}
+        run: |
+          # the REST API's order: what the in-app updater reads
+          first=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[0].name' || true)
+          if [ "$EXTRA_OUTCOME" != cancelled ] && { [ "$first" = Seraphine.7z ] || [ "$first" = Seraphine.dmg ]; }; then
+            echo "assets[0] of v$VERSION = $first"
+            exit 0
+          fi
+          if [ "$EXTRA_OUTCOME" = cancelled ]; then
+            echo "::error::the manifest / delta upload was cancelled; removing the manifest and delta assets"
+          else
+            echo "::error::assets[0] of v$VERSION is '$first', not a full package; removing the manifest and delta assets"
+          fi
+          for name in $(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name' || true); do
+            case "$name" in
+              Seraphine.filemanifest.txt|Seraphine-*-to-"$VERSION".delta)
+                gh release delete-asset "v$VERSION" "$name" --repo "$RELEASES_REPO" -y \
+                  || echo "::error::could not delete $name from v$VERSION; delete it by hand"
+                ;;
+            esac
+          done
+          exit 1

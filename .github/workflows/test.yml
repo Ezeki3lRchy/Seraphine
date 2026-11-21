@@ -73,3 +73,15 @@ jobs:
       # syntax error; this job (when test.yml itself is valid) checks all of them.
       - name: Check that every workflow and config YAML file parses
         run: python tools/check_yaml.py
+
+      # The release graph (release.yml: publish needs, the gate step, every download
+      # / upload condition, the noManifest flag's path), simulated over every job
+      # outcome against the publish rules. Runs here, on every push and pull request
+      # (the way release.yml changes reach main), not in the release run itself.
+      - name: Check the release graph
+        run: python tools/check_release_graph.py
+
+      # ... and that the check fails on broken copies of release.yml (its reverse
+      # cases; they need PyYAML, so they live in the tool, not in tests/).
+      - name: Check that the release graph check catches broken graphs
+        run: python tools/check_release_graph.py --self-test

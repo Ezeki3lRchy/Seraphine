@@ -3,13 +3,38 @@ name: build-windows
 # Builds the Windows Seraphine.7z on a GitHub-hosted runner so a maintainer on
 # macOS can ship both platforms from one machine. Mirrors the build / pack /
 # verify steps of release_win.ps1 (same spec, same requirements-build.txt; the
-# filelist.txt + py7zr packing is the very same script, tools/pack_win.ps1)
-# but PUBLISHES NOTHING: download the artifact and
-# upload it onto the version's release yourself:
+# filelist.txt + filemanifest.txt + packing is the very same script,
+# tools/pack_win.ps1, here with native 7-Zip) but PUBLISHES NOTHING: download the
+# artifact and upload it onto the version's release yourself. Replacing a
+# Seraphine.7z (--clobber) first deletes that version's delta, which was built
+# against the old package (any Seraphine-<base>-to-X.Y.Z.delta listed), and then
+# replaces the manifest asset after the package:
 #   gh run download <run-id> -n Seraphine-win-X.Y.Z -D /tmp/win
+#   gh release view vX.Y.Z --repo Ezeki3lRchy/Seraphine --json assets --jq '.assets[].name'
+#   gh release delete-asset vX.Y.Z Seraphine-<base>-to-X.Y.Z.delta --repo Ezeki3lRchy/Seraphine -y
 #   gh release upload vX.Y.Z /tmp/win/Seraphine.7z --repo Ezeki3lRchy/Seraphine --clobber
+#   gh release upload vX.Y.Z /tmp/win/Seraphine.filemanifest.txt --repo Ezeki3lRchy/Seraphine --clobber
+# (with no_manifest there is no manifest: delete the release's
+# Seraphine.filemanifest.txt instead, if it has one).
 # Prerequisite: VERSION in app/common/config.py on the chosen ref already equals
 # the requested version (bump + push first, like release_win.ps1's decoupled mode).
+# The artifact also holds Seraphine.filemanifest.txt (the package's filemanifest.txt)
+# unless no_manifest is set.
+#
+# The archive is checked right after packing: pack_win.ps1 requires every 7-Zip
+# coder to be plain LZMA2, and the archive must extract with the py7zr of every
+# self-updating version in the field (tools/prev_release.py --all-self-updating,
+# each tag's requirements.txt) to exactly the build; a BCJ2-filtered archive must
+# fail both checks (proof the checks can fail).
+#
+# What the local release_win.ps1 mirrors and what it does not: it runs the same
+# pack_win.ps1 (with -Packer auto: native 7-Zip and the same LZMA2 check when
+# 7-Zip is installed, else py7zr), the same check_archive.py with every distinct
+# field py7zr pin (pins equal to the build venv's py7zr reuse that venv; with
+# -DryRun and no gh it checks the local tags' pins only), and the same frozen
+# --version / --selftest with a scratch config dir. It does not run the BCJ2
+# reverse step, does not need 7-Zip, and builds on the maintainer's venv instead
+# of a clean runner.
 #
 # Also callable from release.yml (workflow_call), which publishes the
 # artifact automatically when VERSION changes on main.
@@ -20,12 +45,26 @@ on:
         description: "Version the frozen exe must report (X.Y.Z); must equal VERSION in app/common/config.py on this ref"
         required: true
         type: string
+      no_manifest:
+        description: "Escape hatch: pack without filemanifest.txt (a package like the ones before the manifest)"
+        required: false
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       version:
         description: "Version the frozen exe must report (X.Y.Z)"
         required: true
         type: string
+      no_manifest:
+        description: "Escape hatch: pack without filemanifest.txt"
+        required: false
+        type: boolean
+        default: false
+
+# checkout and the read-only gh release lookups only
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -33,8 +72,15 @@ jobs:
     timeout-minutes: 45
     env:
       TARGET_VERSION: ${{ inputs.version }}
+      NO_MANIFEST: ${{ inputs.no_manifest && 'true' || 'false' }}
     steps:
+      # Full history with tags: the archive check reads requirements.txt of every
+      # self-updating release tag (git show v<x>:requirements.txt). Nothing pushes,
+      # so the token is not left in .git/config.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
@@ -58,24 +104,115 @@ jobs:
           if ($v -ne $env:TARGET_VERSION) { throw "config.py VERSION is '$v' but the requested version is '$env:TARGET_VERSION' -- bump and push first" }
           Write-Host "VERSION $v OK"
 
+      # The only step that holds a token: read-only gh release list / view.
+      - name: List the self-updating releases (whose py7zr must read the archive)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $versions = @(python tools/prev_release.py --version $env:TARGET_VERSION --all-self-updating)
+          if ($LASTEXITCODE -ne 0 -or $versions.Count -eq 0) { throw "prev_release.py found no self-updating release" }
+          Write-Host ("self-updating releases: " + ($versions -join ', '))
+          $versions -join "`n" | Set-Content -Path (Join-Path $env:RUNNER_TEMP 'self-updating.txt')
+
       - name: Build (pyinstaller --noconfirm Seraphine.win.spec)
         run: pyinstaller --noconfirm Seraphine.win.spec
 
       # tools/pack_win.ps1 is shared with release_win.ps1: it writes the in-place
-      # updater's filelist.txt (UTF-8 BOM, CRLF, backslash paths) and packs the
-      # archive root with py7zr.
-      - name: Generate filelist.txt and pack Seraphine.7z
+      # updater's filelist.txt (UTF-8 BOM, CRLF, backslash paths) and filemanifest.txt
+      # and packs the archive root, here with native 7-Zip; after the pack it fails
+      # unless every coder is plain LZMA2 (no BCJ/BCJ2/ARM64/Delta filters).
+      - name: Generate filelist.txt and filemanifest.txt, pack Seraphine.7z with 7-Zip
         shell: pwsh
         run: |
-          ./tools/pack_win.ps1 -DistDir dist\Seraphine -Out dist\Seraphine.7z
+          $noManifest = $env:NO_MANIFEST -eq 'true'
+          ./tools/pack_win.ps1 -DistDir dist\Seraphine -Out dist\Seraphine.7z -Packer 7z -NoManifest:$noManifest
           if ($LASTEXITCODE -ne 0) { throw "filelist/pack step failed" }
-          $sizeMB = "{0:N0} MB" -f ((Get-Item dist\Seraphine.7z).Length / 1MB)
+          $sizeMB = "{0:N1} MB" -f ((Get-Item dist\Seraphine.7z).Length / 1MB)
           Write-Host "Seraphine.7z: $sizeMB"
+
+      # Immediately after the pack, before the frozen runs below (they may create log/
+      # in the build dir): extract with every distinct py7zr pin of the self-updating
+      # versions in the field, one scratch venv per pin. No token here.
+      - name: Check the archive extracts with the py7zr of every self-updating release
+        shell: pwsh
+        run: |
+          $versions = @(Get-Content (Join-Path $env:RUNNER_TEMP 'self-updating.txt') | Where-Object { $_ })
+          if ($versions.Count -eq 0) { throw "no self-updating releases listed" }
+          $pins = @()
+          foreach ($v in $versions) {
+            $req = @(git show "v${v}:requirements.txt")
+            if ($LASTEXITCODE -ne 0) { throw "git show v${v}:requirements.txt failed" }
+            $pin = $null
+            foreach ($line in $req) {
+              if ($line -match '^\s*py7zr\s*==\s*([^\s;#]+)') { $pin = $Matches[1]; break }
+            }
+            if (-not $pin) { throw "v$v requirements.txt has no py7zr==<version> pin" }
+            Write-Host "v${v}: py7zr==$pin"
+            $pins += $pin
+          }
+          $pins = @($pins | Sort-Object -Unique)
+          $checkArgs = @('dist\Seraphine.7z', 'dist\Seraphine')
+          if ($env:NO_MANIFEST -eq 'true') { $checkArgs += '--no-manifest' }
+          foreach ($pin in $pins) {
+            $venv = Join-Path $env:RUNNER_TEMP "py7zr-$pin"
+            python -m venv $venv
+            if ($LASTEXITCODE -ne 0) { throw "venv for py7zr $pin failed" }
+            & "$venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q "py7zr==$pin"
+            if ($LASTEXITCODE -ne 0) { throw "pip install py7zr==$pin failed" }
+            & "$venv\Scripts\python.exe" tools/check_archive.py @checkArgs
+            if ($LASTEXITCODE -ne 0) { throw "py7zr $pin cannot extract Seraphine.7z to exactly the build" }
+          }
+          $pins -join "`n" | Set-Content -Path (Join-Path $env:RUNNER_TEMP 'py7zr-pins.txt')
+
+      # Reverse check: both checks must FAIL on a BCJ2-filtered archive (which py7zr
+      # cannot read) and pass on the same tree packed the normal way.
+      - name: Reverse check (a BCJ2 archive must fail the archive checks)
+        shell: pwsh
+        run: |
+          $tree = Join-Path $env:RUNNER_TEMP 'bcj2-tree'
+          New-Item -ItemType Directory -Force -Path "$tree\_internal" | Out-Null
+          Copy-Item (Get-Command python).Source "$tree\Seraphine.exe"
+          Set-Content -Path "$tree\_internal\note.txt" -Value 'reverse check'
+          $good = Join-Path $env:RUNNER_TEMP 'good.7z'
+          $bad = Join-Path $env:RUNNER_TEMP 'bcj2.7z'
+          # the 7-Zip pack_win.ps1 resolved, from its "sevenzip: <path>" line
+          $lines = @(& ./tools/pack_win.ps1 -DistDir $tree -Out $good -Packer 7z 6>&1 | ForEach-Object { "$_" })
+          $rc = $LASTEXITCODE
+          $lines | ForEach-Object { Write-Host $_ }
+          if ($rc -ne 0) { throw "packing the reverse-check tree failed" }
+          $sz = @($lines | Where-Object { $_ -like 'sevenzip: *' } | ForEach-Object { $_.Substring(10) }) | Select-Object -First 1
+          if (-not $sz) { throw "pack_win.ps1 printed no 'sevenzip:' line" }
+          Push-Location $tree
+          try { & $sz a -t7z -mf=BCJ2 -bd -y $bad * ; $rc = $LASTEXITCODE } finally { Pop-Location }
+          if ($rc -ne 0) { throw "7z BCJ2 pack failed (exit $rc)" }
+          $methods = (& $sz l -slt $bad | Where-Object { $_ -like 'Method =*' }) -join ', '
+          Write-Host "BCJ2 archive methods: $methods"
+          if ($methods -notmatch 'BCJ2') { throw "the reverse-check archive does not use BCJ2" }
+          ./tools/pack_win.ps1 -CheckMethods $good
+          if ($LASTEXITCODE -ne 0) { throw "the method check rejects the normally packed reverse-check tree" }
+          ./tools/pack_win.ps1 -CheckMethods $bad
+          if ($LASTEXITCODE -eq 0) { throw "the method check PASSED the BCJ2 archive; it cannot be trusted" }
+          Write-Host "method check: BCJ2 archive rejected as expected"
+          foreach ($pin in Get-Content (Join-Path $env:RUNNER_TEMP 'py7zr-pins.txt')) {
+            $py = Join-Path $env:RUNNER_TEMP "py7zr-$pin\Scripts\python.exe"
+            & $py tools/check_archive.py $good $tree
+            if ($LASTEXITCODE -ne 0) { throw "py7zr ${pin}: the normally packed reverse-check tree should pass" }
+            & $py tools/check_archive.py $bad $tree
+            if ($LASTEXITCODE -eq 0) { throw "py7zr ${pin}: the BCJ2 archive PASSED the check; the check cannot be trusted" }
+            Write-Host "py7zr ${pin}: BCJ2 archive rejected as expected"
+          }
+          # the runner ends a pwsh step with `exit $LASTEXITCODE`, still 1 from the
+          # expected failure above
+          exit 0
 
       - name: Verify the frozen exe reports the requested version
         shell: pwsh
+        env:
+          SERAPHINE_CONFIG_DIR: ${{ runner.temp }}\cfg
         run: |
-          $reported = (& dist\Seraphine\Seraphine.exe --version | Select-Object -Last 1).Trim()
+          New-Item -ItemType Directory -Force -Path $env:SERAPHINE_CONFIG_DIR | Out-Null
+          $reported = "$(& dist\Seraphine\Seraphine.exe --version | Select-Object -Last 1)".Trim()
           if ($reported -ne $env:TARGET_VERSION) { throw "frozen exe reports '$reported', expected '$env:TARGET_VERSION'" }
           Write-Host "frozen exe reports $reported OK"
 
@@ -85,15 +222,33 @@ jobs:
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
+          SERAPHINE_CONFIG_DIR: ${{ runner.temp }}\cfg
         run: |
+          New-Item -ItemType Directory -Force -Path $env:SERAPHINE_CONFIG_DIR | Out-Null
           $out = & dist\Seraphine\Seraphine.exe --selftest 2>&1 | Out-String
           Write-Host $out
           if ($LASTEXITCODE -ne 0) { throw "frozen exe --selftest failed (exit $LASTEXITCODE)" }
 
+      # The manifest goes into the artifact under its release asset name
+      # (Seraphine.filemanifest.txt, app/common/release_names.py), next to the .7z.
+      - name: Stage filemanifest.txt for the artifact
+        shell: pwsh
+        run: |
+          if ($env:NO_MANIFEST -eq 'true') {
+            if (Test-Path dist\Seraphine\filemanifest.txt) { throw "no_manifest is set but dist\Seraphine\filemanifest.txt exists" }
+            Write-Host "no_manifest: no filemanifest.txt in this build"
+          }
+          else {
+            Copy-Item -LiteralPath dist\Seraphine\filemanifest.txt -Destination dist\Seraphine.filemanifest.txt -ErrorAction Stop
+            Write-Host ("Seraphine.filemanifest.txt: {0} lines" -f @(Get-Content dist\Seraphine.filemanifest.txt).Count)
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: Seraphine-win-${{ inputs.version }}
-          path: dist/Seraphine.7z
+          path: |
+            dist/Seraphine.7z
+            dist/Seraphine.filemanifest.txt
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
