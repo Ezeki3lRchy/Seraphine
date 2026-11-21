@@ -42,12 +42,30 @@ try {
     # Remove any stale filelist.txt first so it can't list itself.
     Remove-Item "$DistDir\filelist.txt" -ErrorAction SilentlyContinue
     $base = (Resolve-Path $DistDir).Path + "\"
+    # The root spelled the way the enumeration spells it. $base keeps an 8.3 short
+    # name given on the command line (C:\Users\RUNNER~1\...) while the wildcard
+    # enumeration returns long names, so stripping $base would leave absolute paths
+    # in the list. Take the prefix from the enumerated items themselves.
+    $top = @(Get-ChildItem -Path "$DistDir\*") | Select-Object -First 1
+    if (-not $top) { throw "$DistDir is empty" }
+    $root = (Split-Path -Parent $top.FullName).TrimEnd('\') + '\'
     $entries = @(
         Get-ChildItem -Path "$DistDir\*" -File -Recurse |
             Select-Object -ExpandProperty FullName |
-            ForEach-Object { $_.Replace($base, "") } |
+            ForEach-Object {
+                if (-not $_.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    throw "'$_' is not under '$root'"
+                }
+                $_.Substring($root.Length)
+            } |
             Where-Object { $_ -ne "filelist.txt" }
     )
+    # the updater treats every line as a path relative to the install dir
+    foreach ($e in $entries) {
+        if (-not $e -or $e.StartsWith('\') -or $e.Contains(':') -or $e.Contains('/')) {
+            throw "not a relative backslash path: '$e'"
+        }
+    }
     $text = ""
     foreach ($e in $entries) { $text += $e + "`r`n" }
     $listPath = $base + "filelist.txt"

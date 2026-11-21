@@ -96,6 +96,26 @@ class PackWinFilelistTest(unittest.TestCase):
                     self.assertNotIn('/', e)
                     self.assertFalse(e.startswith('\\') or ':' in e, e)
 
+    def test_short_name_dist_dir_still_gives_relative_entries(self):
+        # A dist dir given by its 8.3 short name, the way GitHub's runner spells its
+        # temp dir (a RUNNER~1 component): the enumeration returns long names, so a
+        # prefix taken from the path as given would not match and absolute paths
+        # would end up in filelist.txt.
+        import ctypes
+        buf = ctypes.create_unicode_buffer(1024)
+        n = ctypes.windll.kernel32.GetShortPathNameW(self.dist, buf, len(buf))
+        short = buf.value if 0 < n < len(buf) else ''
+        if not short or short.lower() == self.dist.lower():
+            self.skipTest('no 8.3 short name for the temp dir on this volume')
+        expected = sorted(rel for rel, _ in TREE)
+        for shell in _powershells():
+            with self.subTest(shell=os.path.basename(shell)):
+                r = self._run(shell, ['-File', PACK, '-DistDir', short])
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                with open(os.path.join(self.dist, 'filelist.txt'), 'rb') as f:
+                    entries = f.read()[3:].decode('utf-8')[:-2].split('\r\n')
+                self.assertEqual(sorted(entries), expected)
+
     def test_updaters_reader_returns_exactly_the_files(self):
         shell = _powershells()[0]
         self._pack(shell)
