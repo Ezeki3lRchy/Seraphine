@@ -188,6 +188,7 @@ async def parseSummonerData(summoner, rankTask, gameTask):
     return {
         'name': summoner.get("gameName") or summoner['displayName'],
         'icon': icon,
+        'iconId': iconId,
         'level': level,
         'xpSinceLastLevel': xpSinceLastLevel,
         'xpUntilNextLevel': xpUntilNextLevel,

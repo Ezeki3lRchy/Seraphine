@@ -1,0 +1,48 @@
+SavedPlayersInterface {
+    border: none;
+    background-color: transparent;
+}
+
+/* Light-theme text color is set explicitly: on macOS the native palette follows the
+   system appearance, so uncolored labels would render white in Dark Mode. */
+QLabel {
+    color: black;
+}
+
+#savedTitleLabel {
+    font: 24px 'Segoe UI', 'Microsoft YaHei';
+    font-weight: bold;
+}
+
+#savedCountLabel, #savedHintLabel, #savedEmptyLabel, #savedSubLabel {
+    font: 13px 'Segoe UI', 'Microsoft YaHei';
+    color: rgb(96, 96, 96);
+}
+
+#savedSubLabel[unreachable=true] {
+    color: rgb(196, 43, 28);
+}
+
+#savedNameLabel {
+    font: 15px 'Segoe UI', 'Microsoft YaHei';
+    font-weight: bold;
+}
+
+#savedRankLabel {
+    font: 14px 'Segoe UI', 'Microsoft YaHei';
+}
+
+#savedScrollArea, #savedScrollWidget {
+    border: none;
+    background-color: transparent;
+}
+
+SavedPlayersList {
+    border: none;
+    background-color: transparent;
+}
+
+SavedPlayerRow {
+    border: 1px solid rgba(0, 0, 0, 0.095);
+    border-radius: 6px;
+}

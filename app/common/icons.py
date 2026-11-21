@@ -27,6 +27,8 @@ class Icon(FluentIconBase, Enum):
     CERTIFICATE = 'Certificate'
     PERSONAVAILABLE = 'PersonAvailable'
     STAROFF = 'StarOff'
+    STAR = 'Star'
+    STARFILLED = 'StarFilled'
     TEXTEDIT = 'TextEdit'
     CIRCLEMARK = 'CircleMark'
     TROPHY = 'Trophy'

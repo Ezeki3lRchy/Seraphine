@@ -1,7 +1,8 @@
 # Saved players
 
-**Status: idea, not implemented.** Nothing in this note exists in the code yet. **Decided: the feature
-gets its own sidebar entry ("Saved players", star icon), not a panel inside Search.**
+**Status: the saved list is implemented** (sidebar page `app/view/saved_players_interface.py`, store `app/lol/saved_players.py`, star buttons on the Career and Search headers).
+The rank shown is the Solo/Duo rank cached when the player's Career page last loaded (no extra requests); the Game info quick-save button, export, and the relationship graph below are not built.
+**Decided: the feature gets its own sidebar entry ("Saved players", star icon), not a panel inside Search.**
 
 ## Problem
 

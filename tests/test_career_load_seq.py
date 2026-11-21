@@ -20,7 +20,7 @@ from app.view import career_interface
 
 def info(puuid, name):
     return {"name": name, "isPublic": True, "tagLine": "T1",
-            "icon": "app/resource/images/champion-0.png", "level": 30,
+            "icon": "app/resource/images/champion-0.png", "iconId": 0, "level": 30,
             "xpSinceLastLevel": 0, "xpUntilNextLevel": 1, "puuid": puuid,
             "rankInfo": {}, "games": {}}
 

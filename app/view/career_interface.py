@@ -21,7 +21,8 @@ from app.components.champion_icon_widget import RoundIcon
 from app.components.profile_level_icon_widget import RoundLevelAvatar
 from app.components.summoner_name_button import SummonerName
 from app.components.tier_graph_widget import TierGraphCard
-from app.lol import rank_history
+from app.components.save_star_button import SaveStarButton
+from app.lol import rank_history, saved_players
 from app.lol.laning import attachLaningScores
 from app.components.color_label import ColorLabel
 from app.components.animation_frame import ColorAnimationFrame
@@ -70,6 +71,7 @@ class CareerInterface(SeraphineInterface):
         # self.serviceLabel = QLabel()
         self.tagLineLabel = TagLineLabel()
         self.copyButton = ToolButton(Icon.COPY)
+        self.saveButton = SaveStarButton()
         self.nameButtonLayout = QHBoxLayout()
         self.nameTagLineLayout = QVBoxLayout()
         self.subtitleLayout = QHBoxLayout()
@@ -158,6 +160,7 @@ class CareerInterface(SeraphineInterface):
         self.copyButton.setToolTip(self.tr("Copy summoner name to ClipBoard"))
         self.copyButton.installEventFilter(
             ToolTipFilter(self.copyButton, 500, ToolTipPosition.TOP))
+        self.saveButton.setFixedSize(26, 26)
 
         self.name.setObjectName("name")
         self.name.setAlignment(Qt.AlignCenter)
@@ -262,6 +265,7 @@ class CareerInterface(SeraphineInterface):
         self.nameButtonLayout.addLayout(self.nameTagLineLayout)
         self.nameButtonLayout.addSpacing(5)
         self.nameButtonLayout.addWidget(self.copyButton)
+        self.nameButtonLayout.addWidget(self.saveButton)
 
         self.nameLevelVLayout.addSpacerItem(
             QSpacerItem(1, 25, QSizePolicy.Minimum, QSizePolicy.Fixed))
@@ -369,6 +373,7 @@ class CareerInterface(SeraphineInterface):
         self.icon.setVisible(not enable)
         self.name.setVisible(not enable)
         self.copyButton.setVisible(not enable)
+        self.saveButton.setVisible(not enable)
         self.refreshButton.setVisible(not enable)
         self.backToMeButton.setVisible(not enable)
         self.searchButton.setVisible(not enable)
@@ -521,6 +526,11 @@ class CareerInterface(SeraphineInterface):
                     return False
 
             if 'errorCode' in summoner:
+                # a saved player this client cannot find (another server, or deleted);
+                # other errors (a client still starting) say nothing about the player
+                if puuid and summoner.get('httpStatus') == 404 \
+                        and saved_players.markUnreachable(puuid):
+                    signalBus.savedPlayersChanged.emit()
                 InfoBar.error(self.tr("Get summoner infomation error"),
                               self.tr("The server returned abnormal content."),
                               orient=Qt.Vertical,
@@ -601,6 +611,19 @@ class CareerInterface(SeraphineInterface):
 
         queueMap = rankInfo.get('queueMap') or {}
         rank_history.record(puuid, queueMap)
+
+        riotId = f"{info['name']}#{info['tagLine']}" if info['tagLine'] else info['name']
+        # [] = unranked; None = the rank request failed (keeps the saved rank)
+        solo = queueMap.get('RANKED_SOLO_5x5') or {}
+        if 'queueMap' not in rankInfo:
+            rank = None
+        elif tierText(solo.get('tier'), solo.get('division')):
+            rank = (solo['tier'], solo.get('division'))
+        else:
+            rank = ()
+        self.saveButton.setPlayer(puuid, riotId, info['iconId'], rank)
+        if saved_players.refresh(puuid, riotId, info['iconId'], rank):
+            signalBus.savedPlayersChanged.emit()
         self.tierGraphCard.setPuuid(puuid)
         self.soloCard.updateRank(queueMap.get('RANKED_SOLO_5x5'))
         self.flexCard.updateRank(queueMap.get('RANKED_FLEX_SR'))

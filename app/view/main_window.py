@@ -24,6 +24,7 @@ from app.view.start_interface import StartInterface
 from app.view.setting_interface import SettingInterface
 from app.view.career_interface import CareerInterface
 from app.view.search_interface import SearchInterface
+from app.view.saved_players_interface import SavedPlayersInterface
 from app.view.game_info_interface import GameInfoInterface
 from app.view.auxiliary_interface import AuxiliaryInterface
 from app.view.opgg_window import OpggWindow
@@ -117,6 +118,7 @@ class MainWindow(FluentWindow):
         self.startInterface = StartInterface(self)
         self.careerInterface = CareerInterface(self)
         self.searchInterface = SearchInterface(self)
+        self.savedPlayersInterface = SavedPlayersInterface(self)
         self.gameInfoInterface = GameInfoInterface(self)
         self.auxiliaryFuncInterface = AuxiliaryInterface(self)
         self.settingInterface = SettingInterface(self)
@@ -265,6 +267,7 @@ class MainWindow(FluentWindow):
         self.startInterface.setObjectName("startInterface")
         self.careerInterface.setObjectName("careerInterface")
         self.searchInterface.setObjectName("searchInterface")
+        self.savedPlayersInterface.setObjectName("savedPlayersInterface")
         self.gameInfoInterface.setObjectName("gameInfoInterface")
         self.auxiliaryFuncInterface.setObjectName("auxiliaryFuncInterface")
         self.settingInterface.setObjectName("settingInterface")
@@ -280,6 +283,8 @@ class MainWindow(FluentWindow):
             self.careerInterface, Icon.PERSON, self.tr("Career"), pos)
         self.addSubInterface(
             self.searchInterface, Icon.SEARCH, self.tr("Search 👀"), pos)
+        self.addSubInterface(
+            self.savedPlayersInterface, Icon.STAR, self.tr("Saved players"), pos)
         self.addSubInterface(
             self.gameInfoInterface, Icon.GAME, self.tr("Game Information"), pos)
         self.addSubInterface(
@@ -1418,11 +1423,13 @@ class MainWindow(FluentWindow):
     def __unlockInterface(self):
         self.searchInterface.setEnabled(True)
         self.auxiliaryFuncInterface.setEnabled(True)
-        # pass
+        # the saved list stays usable offline; only opening a row needs the client
+        self.savedPlayersInterface.setClientConnected(True)
 
     def __lockInterface(self):
         self.searchInterface.setEnabled(False)
         self.auxiliaryFuncInterface.setEnabled(False)
+        self.savedPlayersInterface.setClientConnected(False)
 
     def __onSystemThemeChanged(self):
         # 监听线程已把 qconfig.theme 切到新的系统主题; 这里重新套用样式表, 并让自绘控件

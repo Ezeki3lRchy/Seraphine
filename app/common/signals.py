@@ -35,6 +35,10 @@ class SignalBus(QObject):
     toCareerInterface = Signal(str)
     toSearchInterface = Signal(str)
 
+    # saved players (app/lol/saved_players.py): a player was saved / removed or their
+    # cached name, icon or rank changed
+    savedPlayersChanged = Signal()
+
     # style:
     customColorChanged = Signal(str)
 

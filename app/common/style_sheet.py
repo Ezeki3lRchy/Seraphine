@@ -17,6 +17,7 @@ class StyleSheet(StyleSheetBase, Enum):
     SEARCH_INTERFACE = 'search_interface'
     GAME_INFO_INTERFACE = 'game_info_interface'
     AUXILIARY_INTERFACE = 'auxiliary_interface'
+    SAVED_PLAYERS_INTERFACE = 'saved_players_interface'
 
     OPGG_TIER_INTERFACE = 'opgg_tier_interface'
     OPGG_BUILD_INTERFACE = 'opgg_build_interface'

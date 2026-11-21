@@ -32,6 +32,7 @@ from app.components.scoreboard import (cachedContent, drawText, drawRuns, runsWi
                                        drawChampion, drawResultCard, stripeColor,
                                        resultType, queueShortName, compactAgo, durationText)
 from app.components.search_line_edit import SearchLineEdit
+from app.components.save_star_button import SaveStarButton
 from app.components.summoner_name_button import SummonerName
 from app.components.color_label import ColorLabel, DeathsLabel
 from app.lol.connector import connector
@@ -1319,6 +1320,7 @@ class SearchInterface(SeraphineInterface):
         self.searchLayout = QHBoxLayout()
         self.searchLineEdit = SearchLineEdit()
         self.careerButton = PushButton(self.tr("Career"))
+        self.saveButton = SaveStarButton()
         self.filterComboBox = ComboBox()
 
         self.gamesView = GamesView()
@@ -1339,6 +1341,7 @@ class SearchInterface(SeraphineInterface):
         self.searchLineEdit.setPlaceholderText(
             self.tr("Please input summoner name"))
         self.careerButton.setEnabled(False)
+        self.saveButton.setFixedSize(33, 33)
         self.filterComboBox.setEnabled(False)
 
         StyleSheet.SEARCH_INTERFACE.apply(self)
@@ -1356,6 +1359,7 @@ class SearchInterface(SeraphineInterface):
         self.searchLayout.addWidget(self.searchLineEdit)
         self.searchLayout.addSpacing(5)
         self.searchLayout.addWidget(self.careerButton)
+        self.searchLayout.addWidget(self.saveButton)
         self.searchLayout.addWidget(self.filterComboBox)
 
         self.vBoxLayout.addLayout(self.searchLayout)
@@ -1373,6 +1377,7 @@ class SearchInterface(SeraphineInterface):
 
         if not a0:
             self.filterComboBox.setEnabled(a0)
+            self.saveButton.setPlayer(None)
 
         return super().setEnabled(a0)
 
@@ -1417,6 +1422,11 @@ class SearchInterface(SeraphineInterface):
         self.gamesView.setLoadingPageEnable(True)
 
         self.careerButton.setEnabled(True)
+        tagLine = summoner.get('tagLine')
+        riotId = summoner.get('gameName') or summoner.get('displayName') or name
+        self.saveButton.setPlayer(summoner['puuid'],
+                                  f"{riotId}#{tagLine}" if tagLine else riotId,
+                                  summoner.get('profileIconId'))
         self.filterComboBox.setEnabled(True)
 
         self.gamesView.gameDetailView.clear()

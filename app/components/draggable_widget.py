@@ -2,7 +2,7 @@ from typing import List
 
 from PySide6.QtCore import (QPoint, Qt, QRect, QPropertyAnimation, QEasingCurve)
 from PySide6.QtGui import QMouseEvent
-from PySide6.QtWidgets import (QVBoxLayout, QFrame)
+from PySide6.QtWidgets import (QApplication, QVBoxLayout, QFrame)
 
 
 from app.components.animation_frame import CardWidget
@@ -33,6 +33,7 @@ class ItemsDraggableWidget(QFrame):
         self.items: List[DraggableItem] = []
 
         self.dragPos = QPoint()
+        self.pressPos = QPoint()
         self.isDragging = False
         self.currentIndex = -1
 
@@ -47,7 +48,8 @@ class ItemsDraggableWidget(QFrame):
         self.vBoxLayout.setSpacing(6)
 
     def _addItem(self, item: DraggableItem):
-        item.pressed.connect(self.__onItemPressed)
+        # PySide6's sender() is None in these slots: bind the item instead
+        item.pressed.connect(lambda i=item: self.__onItemPressed(i))
 
         self.items.append(item)
         self.vBoxLayout.addWidget(item)
@@ -60,6 +62,7 @@ class ItemsDraggableWidget(QFrame):
             return
 
         self.dragPos = e.position().toPoint()
+        self.pressPos = self.dragPos
 
     def mouseMoveEvent(self, e: QMouseEvent):
         super().mouseMoveEvent(e)
@@ -70,6 +73,11 @@ class ItemsDraggableWidget(QFrame):
 
         index = self.getCurrentIndex()
         if index == -1:
+            return
+
+        # a small wobble while clicking is not a drag
+        if not self.isDragging and (e.position().toPoint() - self.pressPos).manhattanLength() \
+                < QApplication.startDragDistance():
             return
 
         item = self.tabItem(index)
@@ -105,6 +113,8 @@ class ItemsDraggableWidget(QFrame):
         super().mouseReleaseEvent(e)
 
         if not self.isDragging:
+            # a plain click must not leave its row picked for a later press elsewhere
+            self.setCurrentIndex(-1)
             return
 
         self.isDragging = False
@@ -116,7 +126,8 @@ class ItemsDraggableWidget(QFrame):
         duration = 250
 
         item.slideTo(y, duration)
-        item.slideAni.finished.connect(self.__adjustLayout)
+        item.slideAni.finished.connect(self.__adjustLayout,
+                                       Qt.ConnectionType.SingleShotConnection)
 
         self.setCurrentIndex(-1)
 
@@ -125,6 +136,9 @@ class ItemsDraggableWidget(QFrame):
 
         self.items.pop(index)
         self.vBoxLayout.removeWidget(item)
+        # indexes shift: forget the picked row
+        self.setCurrentIndex(-1)
+        self.isDragging = False
 
         item.deleteLater()
         self.update()
@@ -141,8 +155,6 @@ class ItemsDraggableWidget(QFrame):
         swappedItem.slideTo(y)
 
     def __adjustLayout(self):
-        self.sender().disconnect()
-
         for item in self.items:
             self.vBoxLayout.removeWidget(item)
 
@@ -151,8 +163,7 @@ class ItemsDraggableWidget(QFrame):
 
         self.repaint()
 
-    def __onItemPressed(self):
-        item: DraggableItem = self.sender()
+    def __onItemPressed(self, item: DraggableItem):
         item.raise_()
 
         index = self.items.index(item)
