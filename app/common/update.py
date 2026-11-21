@@ -276,6 +276,10 @@ function Test-MergedFiles([string]$From, [string]$To, $Expected) {
     # ($Expected: lower-case relative path -> SHA-256) now has that hash in the
     # install; a mismatch or a read error -> $false
     $script:verifiedCount = 0
+    # the base path in the provider's own form, the same form as each file's
+    # FullName (Windows PowerShell expands an 8.3 short name such as RUNNER~1 in
+    # FullName): otherwise every relative path is cut wrong and no file is checked
+    $From = (Get-Item -LiteralPath $From -Force).FullName.TrimEnd('\')
     foreach ($f in @(Get-ChildItem -LiteralPath $From -Recurse -File -Force)) {
         $rel = $f.FullName.Substring($From.Length + 1)
         $sha = $Expected[$rel.ToLowerInvariant()]

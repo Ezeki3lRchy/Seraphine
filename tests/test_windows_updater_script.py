@@ -414,9 +414,11 @@ class WindowsUpdaterScriptTest(unittest.TestCase):
                b"'ConvertFrom-Json','New-Object'); FunctionsToExport=@() }\r\n")
         _write(os.path.join(module, 'Microsoft.PowerShell.Commands.Utility.dll'),
                b'not an assembly')
-        env = dict(os.environ)
+        # os.environ holds Windows names upper-cased (PSMODULEPATH): replace that
+        # entry instead of adding a second spelling next to it
+        env = {k: v for k, v in os.environ.items() if k.upper() != 'PSMODULEPATH'}
         env['PSModulePath'] = os.path.dirname(module) + os.pathsep + \
-            env.get('PSModulePath', '')
+            os.environ.get('PSModulePath', '')
 
         probe = subprocess.run(
             ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
