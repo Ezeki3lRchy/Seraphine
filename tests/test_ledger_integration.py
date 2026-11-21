@@ -362,6 +362,28 @@ class LedgerSettingsTest(unittest.TestCase):
                 self.assertNotIn(card.configItem, (cfg.enableGoldOverlay, cfg.goldOverlayOpacity,
                                                    cfg.goldOverlayLocked, cfg.enableCooldownLedger))
 
+    def test_panel_cards_stay_usable_without_a_client(self):
+        page = self.buildPage()
+        panelCards = {page.goldOverlayCard, page.goldOverlayOpacityCard, page.goldOverlayLockCard,
+                      page.cooldownLedgerCard, page.cooldownLedgerScaleCard}
+        cards = [w for w in page.findChildren(QWidget) if hasattr(w, 'titleLabel') and hasattr(w, 'iconLabel')]
+        self.assertTrue(panelCards <= set(cards))
+        for connected in (False, True, False):
+            page.setClientConnected(connected)
+            for card in cards:
+                with self.subTest(connected=connected, card=card.titleLabel.text()):
+                    self.assertEqual(card.isEnabled(), connected or card in panelCards)
+
+    def test_main_window_locks_through_set_client_connected(self):
+        fake = types.SimpleNamespace(searchInterface=mock.Mock(), auxiliaryFuncInterface=mock.Mock(),
+                                     savedPlayersInterface=mock.Mock())
+        mw.MainWindow._MainWindow__lockInterface(fake)
+        fake.auxiliaryFuncInterface.setClientConnected.assert_called_once_with(False)
+        fake.auxiliaryFuncInterface.setEnabled.assert_not_called()
+        mw.MainWindow._MainWindow__unlockInterface(fake)
+        fake.auxiliaryFuncInterface.setClientConnected.assert_called_with(True)
+        fake.auxiliaryFuncInterface.setEnabled.assert_not_called()
+
     def test_size_card_sets_the_panel_size(self):
         saved = cfg.cooldownLedgerScale.value
         self.addCleanup(setattr, cfg.cooldownLedgerScale, 'value', saved)

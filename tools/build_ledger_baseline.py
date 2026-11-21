@@ -55,7 +55,11 @@ NO_CELL_ACTIVE = re.compile(r'Consume|Single use', re.I)
 # Spells the live API reports after an in-place upgrade -> the spell they upgrade from (its id is
 # used for the icon: the client lists no id of their own)
 UNLEASHED = {'S12_SummonerTeleportUpgrade': 'SummonerTeleport',
-             'S5_SummonerSmitePlayerGanker': 'SummonerSmite'}
+             'S5_SummonerSmitePlayerGanker': 'SummonerSmite',
+             # Primal Smite, one per jungle pet
+             'SummonerSmiteAvatarOffensive': 'SummonerSmite',
+             'SummonerSmiteAvatarUtility': 'SummonerSmite',
+             'SummonerSmiteAvatarDefensive': 'SummonerSmite'}
 # Ability cooldowns whose longest rank is below this are toggles, recast lockouts or spammable
 # spells: nothing to time
 MIN_COOLDOWN = 2.0
@@ -121,11 +125,15 @@ def abilityCooldown(spell, clientSpell, maxRank, stats, name, keepShort=False):
         ranks = slice(1, maxRank + 1)
         raw = clientSpell.get('mMaxAmmo')
         ammo = raw[ranks] if isinstance(raw, list) else [raw or 0]
-        recharge = (clientSpell.get('mAmmoRechargeTime') or [])[ranks]
+        rawRecharge = clientSpell.get('mAmmoRechargeTime')
+        recharge = rawRecharge[ranks] if isinstance(rawRecharge, list) \
+            else [rawRecharge] * maxRank if rawRecharge else []
         lockout = (clientSpell.get('cooldownTime') or [])[ranks] or values or [0]
         if recharge and max(recharge) > max(lockout):
-            stats['charges' if ammo and max(ammo) > 1 else 'recharge'].append(f'{name} {recharge}')
-            values = recharge
+            result = cooldowns(recharge, stats, name, keepShort)
+            if result is not None:
+                stats['charges' if ammo and max(ammo) > 1 else 'recharge'].append(f'{name} {recharge}')
+            return result
     return cooldowns(values, stats, name, keepShort)
 
 
@@ -191,16 +199,20 @@ def buildChampions(full, builds, stats, previous=None, clientSpell=None):
     return champions
 
 
+def hasCharges(shared, key):
+    """True for a summoner spell the client lists with more than one charge (Smite)"""
+    ammo = ((shared.get(f'Shared/Spells/{key}') or {}).get('mSpell') or {}).get('mMaxAmmo') or 0
+    return (ammo[0] if isinstance(ammo, list) else ammo) > 1
+
+
 def clientSpellCooldown(shared, key):
     """(seconds | None, found) from the client's spell data: for a spell with charges (Smite) the
     time one charge takes to come back, None when the client lists no recharge time"""
     spell = (shared.get(f'Shared/Spells/{key}') or {}).get('mSpell')
     if not spell:
         return None, False
-    ammo = spell.get('mMaxAmmo') or 0
-    times = spell.get('cooldownTime') or []
-    if (ammo[0] if isinstance(ammo, list) else ammo) > 1:
-        times = spell.get('mAmmoRechargeTime') or []
+    times = spell.get('mAmmoRechargeTime' if hasCharges(shared, key) else 'cooldownTime') or []
+    times = times if isinstance(times, list) else [times]
     cd = next((v for v in times if v), None)
     return (_number(cd) if cd else None), True
 
@@ -216,7 +228,9 @@ def buildSummonerSpells(summoner, shared=None, stats=None):
         cd, found = clientSpellCooldown(shared, key)
         if not found:
             cd = (s.get('cooldown') or [None])[0] or None
-        elif stats is not None and cd is not None and cd != (s.get('cooldown') or [None])[0]:
+        elif stats is not None and cd is not None and not hasCharges(shared, key) \
+                and cd != (s.get('cooldown') or [None])[0]:
+            # (a spell with charges is timed by its recharge; Data Dragon lists its lockout)
             stats['spellMismatch'].append(f'{key}: client {cd}, Data Dragon {s.get("cooldown")}')
         spells[key] = {'id': int(s['key']), 'cooldown': cd}
     for key, base in UNLEASHED.items():
@@ -279,7 +293,9 @@ def mainPositions(tierList):
 def applyManualAbilities(champions, abilities):
     """Hand-entered ability cooldowns {champion name: {slot: [seconds per rank]}} over the built
     champions; an unknown champion or slot, or a list that is not one positive number per rank,
-    raises ValueError"""
+    raises ValueError. Returns ['<name> <slot>: <built> -> <manual>'] for every hand-entered value
+    that replaced a cooldown the patch data did give (the manual entry may be out of date)"""
+    replaced = []
     for name, slots in abilities.items():
         entry = champions.get(name)
         if entry is None:
@@ -291,7 +307,11 @@ def applyManualAbilities(champions, abilities):
             if not isinstance(values, list) or len(values) != ranks \
                     or not all(isinstance(v, (int, float)) and v > 0 for v in values):
                 raise ValueError(f'manual ability {name} {slot}: needs {ranks} positive numbers, got {values!r}')
+            built = entry['spells'][slot]['cooldown']
+            if built is not None:
+                replaced.append(f'{name} {slot}: {built} -> {values}')
             entry['spells'][slot]['cooldown'] = [_number(v) for v in values]
+    return replaced
 
 
 def readPrevious(path):
@@ -398,8 +418,12 @@ def main(argv=None):
             db['summonerSpells'].setdefault(key, {'id': 0})['cooldown'] = cd
         for key, cd in (manual.get('items') or {}).items():
             db['items'].setdefault(str(key), {'haste': 0, 'ultHaste': 0, 'spellHaste': 0})['active'] = cd
-        applyManualAbilities(db['champions'], manual.get('abilities') or {})
+        for line in applyManualAbilities(db['champions'], manual.get('abilities') or {}):
+            print(f'manual value replaces the patch data (check whether it is still needed): {line}',
+                  file=sys.stderr)
         db['sources']['manual'] = os.path.basename(args.manual)
+    stats['nullCooldowns'] = sum(1 for e in db['champions'].values()
+                                 for s in e['spells'].values() if s['cooldown'] is None)
 
     writeAtomic(args.out, db)
 

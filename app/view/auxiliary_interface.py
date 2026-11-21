@@ -224,6 +224,15 @@ class AuxiliaryInterface(SeraphineInterface):
         self.expandLayout.addWidget(self.clientGroup)
         self.expandLayout.addWidget(self.profileGroup)
 
+    def setClientConnected(self, connected):
+        """Every card here needs the League client except the in-game panels' cards (item value
+        overlay, cooldown ledger and its size): those panels read the game's Live Client Data
+        API, and the overlay's lock card is the only way to make a locked, click-through
+        overlay clickable again, so they stay usable while no client is connected"""
+        for widget in (self.profileGroup, self.bpGroup, self.clientGroup, self.autoReconnectCard,
+                       self.createPracticeLobbyCard, self.spectateCard, self.lockConfigCard):
+            widget.setEnabled(connected)
+
     async def initChampionList(self):
         champions = await self.autoSelectChampionCard.initChampionList()
         await self.autoBanChampionsCard.initChampionList(champions)

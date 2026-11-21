@@ -76,7 +76,9 @@ HEIGHT = 2 * PAD + len(LANES) * ROW_H
 SPELL_LABELS = {
     'SummonerFlash': 'Fl', 'SummonerDot': 'Ig', 'SummonerTeleport': 'TP',
     'S12_SummonerTeleportUpgrade': 'TP', 'SummonerSmite': 'Sm',
-    'S5_SummonerSmitePlayerGanker': 'Sm', 'SummonerHeal': 'He', 'SummonerBarrier': 'Ba',
+    'S5_SummonerSmitePlayerGanker': 'Sm', 'SummonerSmiteAvatarOffensive': 'Sm',
+    'SummonerSmiteAvatarUtility': 'Sm', 'SummonerSmiteAvatarDefensive': 'Sm',
+    'SummonerHeal': 'He', 'SummonerBarrier': 'Ba',
     'SummonerExhaust': 'Ex', 'SummonerHaste': 'Gh', 'SummonerBoost': 'Cl',
     'SummonerMana': 'Cr',
 }
@@ -421,8 +423,9 @@ class LedgerPanel(QWidget):
         return cfg.get(cfg.cooldownLedgerScale) / 100
 
     def __applyScale(self):
+        # rounded up, so the scaled border is never cut at the right or bottom edge
         s = self.scale()
-        self.setFixedSize(round(WIDTH * s), round(HEIGHT * s))
+        self.setFixedSize(math.ceil(round(WIDTH * s, 6)), math.ceil(round(HEIGHT * s, 6)))
 
     def __onScaleChanged(self, _):
         self.__applyScale()
@@ -684,9 +687,10 @@ class LedgerPanel(QWidget):
         p.drawRoundedRect(QRectF(0, 0, WIDTH, HEIGHT).adjusted(0.5, 0.5, -0.5, -0.5), 6, 6)
         device = p.device()  # the painted device's ratio (a widget, or an image in tests)
         dpr = device.devicePixelRatioF() if device is not None else self.devicePixelRatioF()
-        # device pixels per layout unit: icons and outlined labels are rendered at this
-        # density, so a scaled-up panel stays sharp
-        dpr *= abs(p.worldTransform().m11()) or 1.0
+        # device pixels per layout unit, rounded up to a step of 0.5: icons and outlined labels
+        # are rendered at this density, so a scaled-up panel stays sharp, and the icon caches
+        # get one entry per step, not one per size percent
+        dpr = math.ceil(dpr * (abs(p.worldTransform().m11()) or 1.0) * 2) / 2
         for row in range(len(LANES)):
             for column, _, _ in COLUMNS:
                 view = self.cellView(row, column)

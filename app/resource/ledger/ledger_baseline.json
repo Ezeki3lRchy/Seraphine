@@ -9620,6 +9620,18 @@
    "cooldown": 90,
    "id": 11
   },
+  "SummonerSmiteAvatarDefensive": {
+   "cooldown": 90,
+   "id": 11
+  },
+  "SummonerSmiteAvatarOffensive": {
+   "cooldown": 90,
+   "id": 11
+  },
+  "SummonerSmiteAvatarUtility": {
+   "cooldown": 90,
+   "id": 11
+  },
   "SummonerTeleport": {
    "cooldown": 300,
    "id": 12

@@ -250,11 +250,19 @@ class LedgerPanelTest(unittest.TestCase):
         self.assertEqual(P.columnRect('TP', 0).right() + P.PAD, P.WIDTH)
         self.assertEqual((self.panel.width(), self.panel.height()), (P.WIDTH, P.HEIGHT))
 
+        # every point of the grid hits exactly the cell it is drawn in
+        for row in range(5):
+            for key, x, w in P.COLUMNS:
+                r = P.columnRect(key, row)
+                for px, py in ((r.left(), r.top()), (r.right() - 0.5, r.bottom() - 0.5)):
+                    self.assertEqual(P.LedgerPanel.gridAt(QPointF(px, py)), (row, key))
+        self.assertIsNone(P.LedgerPanel.gridAt(QPointF(1, 1)))  # padding
+
     # ---------------- size setting ----------------
 
     def test_size_setting_scales_the_window_at_once(self):
         self.assertEqual(cfg.cooldownLedgerScale.value, 100)       # the default: normal size
-        for percent, size in ((150, (540, 222)), (80, (288, 118)), (200, (720, 296)),
+        for percent, size in ((150, (540, 222)), (80, (288, 119)), (200, (720, 296)),
                               (100, (P.WIDTH, P.HEIGHT))):
             with self.subTest(percent=percent):
                 cfg.set(cfg.cooldownLedgerScale, percent)
@@ -298,13 +306,34 @@ class LedgerPanelTest(unittest.TestCase):
         # lane icons drawn at 2 (device) x 1.5 (size setting) pixels per layout unit
         self.assertTrue(P._tinted)
         self.assertEqual({key[2] for key in P._tinted}, {3.0})
-        # every point of the grid hits exactly the cell it is drawn in
-        for row in range(5):
-            for key, x, w in P.COLUMNS:
-                r = P.columnRect(key, row)
-                for px, py in ((r.left(), r.top()), (r.right() - 0.5, r.bottom() - 0.5)):
-                    self.assertEqual(P.LedgerPanel.gridAt(QPointF(px, py)), (row, key))
-        self.assertIsNone(P.LedgerPanel.gridAt(QPointF(1, 1)))  # padding
+        # densities go in steps of 0.5: sizes 101 % to 125 % share one cache entry
+        for percent in range(101, 126):
+            cfg.set(cfg.cooldownLedgerScale, percent)
+            image = QImage(self.panel.width(), self.panel.height(), QImage.Format_ARGB32_Premultiplied)
+            image.fill(QColor('#3A4A3C'))
+            p = QPainter(image)
+            try:
+                p.scale(self.panel.scale(), self.panel.scale())
+                self.panel.drawContent(p)
+            finally:
+                p.end()
+        self.assertEqual({key[2] for key in P._tinted}, {3.0, 1.5})
+
+    def test_window_paint_uses_the_size_setting(self):
+        # the real paintEvent: a running Q cell, painted at 150 %, is blue where the scaled
+        # cell is, and the right border sits inside the window
+        self.show()
+        self.panel.clickCell(0, 'Q')
+        cfg.set(cfg.cooldownLedgerScale, 150)
+        image = self.panel.grab().toImage()
+        self.assertEqual((image.width(), image.height()), (540, 222))
+        q = P.columnRect('Q', 0)
+        inside = image.pixelColor(int((q.right() - 4) * 1.5), int((q.bottom() - 4) * 1.5))
+        self.assertGreater(inside.blue(), inside.red() + 40, inside.name())
+        # unscaled, that point lies in another cell, which is not running
+        w = P.columnRect(*P.LedgerPanel.gridAt(QPointF((q.right() - 4) * 1.5, (q.bottom() - 4) * 1.5))[::-1])
+        self.assertNotEqual(w, q)
+        self.assertGreater(image.pixelColor(539, 111).alpha(), 0)   # the right border is painted
 
     def test_rows_are_top_jungle_mid_bottom_support_with_flash_left(self):
         enemies = list(reversed(ENEMIES))  # API order must not matter
