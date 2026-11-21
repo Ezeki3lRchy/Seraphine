@@ -21,8 +21,9 @@ release.yml change reaches main); it does not run inside the release itself.
    out/Seraphine.7z / out/Seraphine.dmg, checks them with --check-full-names and
    deletes the version's old delta and manifest before uploading; the manifest /
    delta upload takes only those and checks --check-names; an always() guard after
-   it reads assets[0] from the REST API and deletes the version's manifest and
-   delta unless it is Seraphine.7z / Seraphine.dmg;
+   it reads the asset names from the REST API and deletes the version's manifest
+   and delta unless `release_gates.py --check-first-packages` accepts them (the
+   first .7z is Seraphine.7z, the first .dmg Seraphine.dmg);
    build_windows.yml turns its no_manifest input into -NoManifest for the pack
    and --no-manifest for the archive check.
 2. Simulation: every combination of the check result, need_win / need_mac, the
@@ -249,7 +250,7 @@ def classify(step):
     if 'gh release upload' in run:
         return 'extra' if 'filemanifest' in run else 'unknown-upload'
     if 'gh release delete-asset' in run:
-        return 'guard' if '.assets[0].name' in run else 'unknown-upload'
+        return 'guard' if '--check-first-packages' in run else 'unknown-upload'
     return None
 
 
@@ -301,8 +302,8 @@ EXTRA_LINES = [
     'gh release upload "v$VERSION" "${files[@]}" --repo "$RELEASES_REPO"',
 ]
 GUARD_LINES = [
-    "first=$(%s '.assets[0].name' || true)" % ASSETS_REST,
-    'if [ "$EXTRA_OUTCOME" != cancelled ] && { [ "$first" = Seraphine.7z ] || [ "$first" = Seraphine.dmg ]; }; then',
+    "names=$(%s '.assets[].name' || true)" % ASSETS_REST,
+    'if [ "$EXTRA_OUTCOME" != cancelled ] && python3 tools/release_gates.py --check-first-packages -- $names; then',
     'exit 0',
     'fi',
     "for name in $(%s '.assets[].name' || true); do" % ASSETS_REST,
@@ -376,7 +377,7 @@ def structure(rel, win):
         problems.append('publish has an upload step this check does not know')
     if kinds.count('full') != 1 or kinds.count('extra') != 1 or kinds.count('guard') != 1:
         problems.append('publish must have one full-package upload, one manifest / delta upload and one '
-                        'assets[0] guard step')
+                        'first-package guard step')
         return problems
     for s, kind in zip(steps, kinds):
         if kind in ('download', 'full', 'extra') and 'steps.gates.outputs.' not in str(s.get('if') or ''):
@@ -388,10 +389,10 @@ def structure(rel, win):
     if extra.get('id') != 'extra':
         problems.append('the manifest / delta upload step must have id extra')
     if not kinds.index('full') < kinds.index('extra') < kinds.index('guard'):
-        problems.append('order: full packages, then the manifest / delta, then the assets[0] guard')
+        problems.append('order: full packages, then the manifest / delta, then the first-package guard')
     for what, step, wanted in (('full-package upload', full, FULL_LINES),
                                ('manifest / delta upload', extra, EXTRA_LINES),
-                               ('assets[0] guard', guard, GUARD_LINES)):
+                               ('first-package guard', guard, GUARD_LINES)):
         lost = missingInOrder(runLines(step), wanted)
         if lost:
             problems.append('the %s step lacks (in order) the line: %s' % (what, lost))
@@ -410,12 +411,12 @@ def structure(rel, win):
         problems.append('the manifest / delta upload must have exactly one `gh release upload` line, '
                         'right after `set +e` (so a failed upload reaches its clean-up)')
     guardLines = runLines(guard)
-    if [ln for ln in guardLines if ln.startswith('first=')] != GUARD_LINES[:1] or guardLines[-1:] != ['exit 1']:
-        problems.append('the assets[0] guard must read assets[0] from the REST API once and end with exit 1')
+    if [ln for ln in guardLines if ln.startswith('names=')] != GUARD_LINES[:1] or guardLines[-1:] != ['exit 1']:
+        problems.append('the first-package guard must read the asset names from the REST API once and end with exit 1')
     if tokens(unwrap(guard.get('if') or '')) != tokens(GUARD_IF):
-        problems.append('the assets[0] guard must run on exactly `${{ %s }}`' % GUARD_IF)
+        problems.append('the first-package guard must run on exactly `${{ %s }}`' % GUARD_IF)
     if str((guard.get('env') or {}).get('EXTRA_OUTCOME')) != '${{ steps.extra.outcome }}':
-        problems.append('the assets[0] guard must get EXTRA_OUTCOME = ${{ steps.extra.outcome }} '
+        problems.append('the first-package guard must get EXTRA_OUTCOME = ${{ steps.extra.outcome }} '
                         '(a cancelled upload removes the manifest and delta)')
 
     # build_windows.yml: the flag reaches the pack step and the archive check
@@ -704,9 +705,9 @@ def check(releasePath, buildWindowsPath):
 #      of the gate); C2 the gate kept but `|| build-win succeeded` added
 #   G  no_manifest no longer reaches delta-win's `if`
 #   J  the manifest / delta upload no longer requires that this run uploaded Seraphine.7z
-#   K  the assets[0] guard uses a constant instead of the REST API read
+#   K  the first-package guard uses a constant instead of the REST API read
 #   L  publish on always() again (a cancelled run would publish); L2 verify-full-win
-#   M  the assets[0] guard step removed
+#   M  the first-package guard step removed
 #   N  build-win waits for test-win again
 #   O  the full-package upload no longer deletes the version's old delta / manifest
 #   P  the full-package upload checks names with --check-names (accepts a delta)
@@ -714,8 +715,9 @@ def check(releasePath, buildWindowsPath):
 #   X1 the guard's `if` narrowed to a failed upload only; X9 to `!= 'skipped'` only
 #   X3 `set +e` removed before the manifest / delta upload
 #   X5 a second `gh release upload` (of out/*.delta) in the full-package upload
-#   R  the guard's assets[0] read without `|| true` (a failed read would skip the clean-up)
+#   R  the guard's read of the asset names without `|| true` (a failed read would skip the clean-up)
 #   S  the guard ignores a cancelled upload (EXTRA_OUTCOME not checked)
+#   T  the guard passes the asset names without `--` (a name starting with `-` would be read as an option)
 _WIN_DOWNLOAD = """      - if: steps.gates.outputs.publish_win == 'true'
         uses: actions/download-artifact@v4"""
 SELF_TEST_CASES = {
@@ -732,21 +734,21 @@ SELF_TEST_CASES = {
           "needs.build-win.result == 'success' }}", 'delta-win ran (noManifest=True)'),
     'J': ("if: steps.full.outputs.uploaded_win == 'true' && steps.gates.outputs.publish_manifest == 'true'",
           "if: steps.gates.outputs.publish_manifest == 'true'", 'publishes'),
-    'K': ("""first=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[0].name' || true)""",
-          'first=Seraphine.7z', 'assets[0] guard'),
+    'K': ("""names=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name' || true)""",
+          'names=Seraphine.7z', 'first-package guard'),
     'L': ("if: ${{ !cancelled() && needs.check.result == 'success' && github.ref == 'refs/heads/main' }}",
           "if: always() && needs.check.result == 'success' && github.ref == 'refs/heads/main'",
           'publish must run on `!cancelled() && ...`'),
     'L2': ("if: ${{ !cancelled() && needs.build-win.result == 'success' }}",
            "if: always() && needs.build-win.result == 'success'",
            'verify-full-win must run on `!cancelled() && ...`'),
-    'M': ("""      - name: Check that assets[0] is a full package
+    'M': ("""      - name: Check that the first .7z / .dmg asset is the full package
         if: ${{ always() && steps.extra.outcome != '' && steps.extra.outcome != 'skipped' }}""",
-          """      - name: Check that assets[0] is a full package
+          """      - name: Check that the first .7z / .dmg asset is the full package
         if: ${{ false }}
         run: echo none
       - name: unused
-        if: ${{ false }}""", 'assets[0] guard'),
+        if: ${{ false }}""", 'first-package guard'),
     'N': ("""  build-win:
     needs: [check]""", """  build-win:
     needs: [check, test-win]""", 'build-win must need only check'),
@@ -760,9 +762,9 @@ SELF_TEST_CASES = {
     'Q': ("no_manifest: ${{ needs.check.outputs.no_manifest == 'true' }}", 'no_manifest: false',
           'build-win gets no_manifest=False'),
     'X1': ("if: ${{ always() && steps.extra.outcome != '' && steps.extra.outcome != 'skipped' }}",
-           "if: ${{ always() && steps.extra.outcome == 'failure' }}", 'the assets[0] guard must run on exactly'),
+           "if: ${{ always() && steps.extra.outcome == 'failure' }}", 'the first-package guard must run on exactly'),
     'X9': ("if: ${{ always() && steps.extra.outcome != '' && steps.extra.outcome != 'skipped' }}",
-           "if: ${{ always() && steps.extra.outcome != 'skipped' }}", 'the assets[0] guard must run on exactly'),
+           "if: ${{ always() && steps.extra.outcome != 'skipped' }}", 'the first-package guard must run on exactly'),
     'X3': ('''          set +e
           gh release upload "v$VERSION" "${files[@]}" --repo "$RELEASES_REPO"
           rc=$?''', '''          gh release upload "v$VERSION" "${files[@]}" --repo "$RELEASES_REPO"
@@ -773,9 +775,11 @@ SELF_TEST_CASES = {
               gh release upload "v$VERSION" out/*.delta --repo "$RELEASES_REPO"
               echo "::notice::uploaded ${files[*]} onto v$VERSION in $RELEASES_REPO"''',
            'exactly one `gh release upload` line'),
-    'R': ('''--jq '.assets[0].name' || true)''', '''--jq '.assets[0].name')''', 'assets[0] guard'),
-    'S': ('''          if [ "$EXTRA_OUTCOME" != cancelled ] && { [ "$first" = Seraphine.7z ] || [ "$first" = Seraphine.dmg ]; }; then''',
-          '''          if [ "$first" = Seraphine.7z ] || [ "$first" = Seraphine.dmg ]; then''', 'assets[0] guard'),
+    'R': ('''names=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name' || true)''',
+          '''names=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name')''', 'first-package guard'),
+    'S': ('''          if [ "$EXTRA_OUTCOME" != cancelled ] && python3 tools/release_gates.py --check-first-packages -- $names; then''',
+          '''          if python3 tools/release_gates.py --check-first-packages -- $names; then''', 'first-package guard'),
+    'T': ('''--check-first-packages -- $names; then''', '''--check-first-packages $names; then''', 'first-package guard'),
 }
 
 

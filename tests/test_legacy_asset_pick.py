@@ -17,6 +17,8 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
+import importlib.util
+
 from app.common import platform
 from app.common import util
 from app.common.release_names import FULL_MAC, FULL_WIN, MANIFEST_ASSET, deltaName
@@ -31,6 +33,15 @@ SNAPSHOTS = {
 
 DELTA = deltaName('1.4.10', '1.4.11')
 NAMES = (DELTA, MANIFEST_ASSET, FULL_WIN, FULL_MAC)
+
+_GATES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools', 'release_gates.py')
+
+
+def _releaseGates():
+    spec = importlib.util.spec_from_file_location('release_gates_for_legacy_pick', _GATES)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _asset(name):
@@ -76,6 +87,26 @@ class LegacyPickTest(unittest.TestCase):
                         chosen = pick([_asset(n) for n in order])
                         self.assertIsNotNone(chosen)
                         self.assertEqual(chosen['name'], expected)
+
+    def test_publish_check_accepts_exactly_what_the_legacy_pickers_handle(self):
+        # tools/release_gates.py --check-first-packages (release.yml's last publish
+        # step) against the pickers themselves: every order of every subset of a
+        # release's names plus two names that must never be published
+        problems = _releaseGates().firstPackageProblems
+        pickers = [(_legacyPicker(snapshot, isMac), full)
+                   for snapshot in SNAPSHOTS for isMac, full in ((False, FULL_WIN), (True, FULL_MAC))]
+        pool = NAMES + ('Seraphine-win.7z', 'old.dmg')
+        count = 0
+        for size in range(len(pool) + 1):
+            for order in itertools.permutations(pool, size):
+                picked = [(pick([_asset(n) for n in order]), full) for pick, full in pickers]
+                fine = any(p is not None for p, _ in picked) \
+                    and all(p is None or p['name'] == full for p, full in picked)
+                count += 1
+                if (not problems(list(order))) != fine:
+                    self.fail('order %r: check says %r, the legacy pickers say %s'
+                              % (order, problems(list(order)), 'fine' if fine else 'wrong'))
+        self.assertEqual(count, 1957)
 
     def test_current_picker_agrees_in_every_order(self):
         for isMac, expected in ((False, FULL_WIN), (True, FULL_MAC)):
