@@ -41,6 +41,11 @@ class SignalBus(QObject):
     # manual update check: setting_interface -> main_window, and back when done
     checkUpdateRequested = Signal()
     checkUpdateFinished = Signal()
+    # update download progress (dict from update_progress.progressPayload), throttled
+    # by the sender: MainWindow (background download) and UpdateMessageBox (dialog)
+    updateProgressChanged = Signal(object)
+    # the settings card's "Restart to update": setting_interface -> main_window
+    restartToUpdateRequested = Signal()
 
     # OPGG:
     toOpggBuildInterface = Signal(int, str, str)
