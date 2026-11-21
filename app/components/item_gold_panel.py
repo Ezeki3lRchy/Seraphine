@@ -15,7 +15,8 @@ from app.common.signals import signalBus
 from app.common.logger import logger
 from app.components.design_tokens import numberFont, textFont, resultColor, tint
 from app.components.rich_tooltip import RichToolTip
-from app.components.scoreboard import drawText, drawChampion, cachedContent
+from app.components.paint import drawText, drawChampion
+from app.components.scoreboard import cachedContent
 from app.lol.live_client import resolveChampionId, EVEN_GOLD, EVEN_SHARE
 from app.lol.tools import translatePositionKey
 

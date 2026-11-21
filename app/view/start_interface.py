@@ -1,14 +1,11 @@
 import subprocess
 import os
-import threading
 
-import pyperclip
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QWidget, QVBoxLayout,
                              QSpacerItem, QSizePolicy)
 
-from app.common.qfluentwidgets import (InfoBar, InfoBarPosition, PushButton, SmoothScrollArea,
-                                       IndeterminateProgressBar, ComboBox)
+from app.common.qfluentwidgets import (InfoBar, InfoBarPosition, PushButton, IndeterminateProgressBar, ComboBox)
 from app.components.seraphine_interface import SeraphineInterface
 
 from app.lol.connector import connector

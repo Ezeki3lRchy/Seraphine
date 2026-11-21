@@ -24,15 +24,18 @@ from app.components.tier_graph_widget import TierGraphCard
 from app.lol import rank_history
 from app.lol.laning import attachLaningScores
 from app.components.color_label import ColorLabel
-from app.components.animation_frame import CardWidget, ColorAnimationFrame
+from app.components.animation_frame import ColorAnimationFrame
 from app.common.style_sheet import StyleSheet
 from app.common.icons import Icon
 from app.common.signals import signalBus
 from app.common.config import cfg
+from app.common.logger import logger
 from app.lol.connector import connector
 from app.lol.tools import (parseGames, parseSummonerData,
-                           getRecentTeammates, parseDetailRankInfo, SERVERS_NAME, SERVERS_SUBSET)
+                           getRecentTeammates, parseDetailRankInfo)
 from ..components.seraphine_interface import SeraphineInterface
+
+TAG = "CareerInterface"
 
 
 class NameLabel(QLabel):
@@ -705,7 +708,8 @@ class CareerInterface(SeraphineInterface):
             # LCU 战绩列表没有全队击杀: 近期参团率 + 少量补拉完整对局
             try:
                 await season_stats.fillLcuKp(games, recentGames, puuid)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"kill participation fill failed: {type(e).__name__}", TAG)
                 return
             if puuid == self.puuid:
                 self.performancePanel.setSeason(season_stats.aggregate(games), source, capped)
@@ -715,7 +719,8 @@ class CareerInterface(SeraphineInterface):
     async def __loadPlayStyleIcons(self, puuid, games):
         try:
             icons = await play_style.championIcons(play_style.topChampionIds(games))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"play style icons failed: {type(e).__name__}", TAG)
             return
         if puuid == self.puuid:
             self.playStyleView.setChampionIcons(icons)
@@ -724,7 +729,8 @@ class CareerInterface(SeraphineInterface):
         """Champions view icons: its rows up front, a row's lane opponents when expanded"""
         try:
             icons = await play_style.championIcons(championIds)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"champion view icons failed: {type(e).__name__}", TAG)
             return
         if puuid == self.puuid:
             self.championsView.setChampionIcons(icons)
@@ -768,8 +774,8 @@ class CareerInterface(SeraphineInterface):
 
         try:
             await attachLaningScores(games, puuid, onGame)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"laning scores failed: {type(e).__name__}", TAG)
 
     def __updateGameInfo(self):
         while self.gameInfoLayout.count():

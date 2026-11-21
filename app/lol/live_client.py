@@ -279,6 +279,7 @@ class LiveClient:
         except asyncio.CancelledError:
             raise
         except Exception:
+            # not logged: refused on every poll until the game's live API is up (loading screen)
             return None
 
     async def close(self):
@@ -288,8 +289,19 @@ class LiveClient:
         if session is not None:
             try:
                 await session.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"live client session close failed: {type(e).__name__}", TAG)
+
+
+def _displayKey(summary):
+    """the summary as the panel and overlay show it: game time as whole seconds (m:ss)
+    and unspent gold as whole gold, so a poll that changes neither fraction is skipped"""
+    if summary is None:
+        return None
+    key = dict(summary, gameTime=int(summary['gameTime']))
+    if key.get('currentGold') is not None:
+        key['currentGold'] = int(round(key['currentGold']))
+    return key
 
 
 class LiveClientPoller:
@@ -350,7 +362,8 @@ class LiveClientPoller:
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
-                    logger.warning(f"live client poll failed: {e!r}", TAG)
+                    logger.warning(f"live client poll failed: {type(e).__name__}, "
+                                   f"status={getattr(e, 'status', None)}", TAG)
                     summary = None
                 self.__publish(summary)
                 await asyncio.sleep(self.interval)
@@ -358,13 +371,14 @@ class LiveClientPoller:
             pass
 
     def __publish(self, summary):
-        if summary == self.last:
+        key = _displayKey(summary)
+        if key == self.last:
             return
-        self.last = summary
+        self.last = key
         try:
             self.onData(summary)
         except Exception as e:
-            logger.error(f"live client update failed: {e!r}", TAG)
+            logger.error(f"live client update failed: {type(e).__name__}", TAG)
 
 
 liveClientPoller = LiveClientPoller()

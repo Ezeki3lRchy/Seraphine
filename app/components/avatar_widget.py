@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QRect, Signal
+from PySide6.QtCore import Qt, QRect
 from PySide6.QtGui import QPainter, QImage, QBrush, QColor
 
 from ..common.qfluentwidgets import NavigationWidget, isDarkTheme

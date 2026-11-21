@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QFrame
 from PySide6.QtCore import Qt, Signal, Property
-from PySide6.QtGui import QColor, QPainter, QPainterPath
+from PySide6.QtGui import QColor, QPainter
 from app.common.qfluentwidgets import BackgroundAnimationWidget, isDarkTheme
 
 from app.common.style_sheet import ColorChangeable

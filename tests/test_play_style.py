@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta, timezone
 
 from app.lol import play_style
@@ -262,6 +263,46 @@ class PlayStyleViewTest(unittest.TestCase):
         self.assertEqual(v.queueId, 420)
         v.setLoading([])
         self.assertIsNone(v.queueId)
+
+    def test_hover_is_an_overlay_on_the_cached_card(self):
+        """moving over a (?) icon or a chip repaints only the highlight: the card is not
+        redrawn, and the highlight is drawn inside the hovered element's own pixels"""
+        from app.components.play_style_widget import PlayStyleView
+
+        draws = []
+        real = PlayStyleView._PlayStyleView__draw
+
+        def draw(self, p, pal):
+            draws.append(1)
+            return real(self, p, pal)
+
+        games = [g(queue=420, champ=i % 4 + 1, when=MONDAY + timedelta(hours=i), kp=0.5)
+                 for i in range(12)]
+        v = PlayStyleView()
+        v.resize(1000, 100)
+        v.setSample(games, 'lcu')
+        v.resize(1000, v.layoutHeight(1000))
+        with unittest.mock.patch.object(PlayStyleView, '_PlayStyleView__draw', draw):
+            v._chipHover = 'none'
+            base = v.grab().toImage()
+            self.assertEqual(len(draws), 1)
+            helps = [(i, rect) for i, (rect, _, isHelp) in enumerate(v.tips) if isHelp]
+            chips = [(rect, q) for rect, q in v.chipRects if q != v.queueId]
+            self.assertTrue(helps and chips)
+
+            for (index, tipRect), (chipRect, q) in zip(helps, chips):
+                for hover, chip, area in ((index, 'none', tipRect), (-1, q, chipRect)):
+                    v._hover, v._chipHover = hover, chip
+                    img = v.grab().toImage()
+                    self.assertEqual(len(draws), 1)  # served from the cache
+                    changed = [(x, y) for y in range(img.height()) for x in range(img.width())
+                               if img.pixel(x, y) != base.pixel(x, y)]
+                    self.assertTrue(changed, (hover, chip))
+                    inside = area.adjusted(-1, -1, 1, 1)
+                    self.assertTrue(all(inside.contains(x, y) for x, y in changed))
+            v._hover, v._chipHover = -1, 'none'
+            self.assertEqual(v.grab().toImage(), base)
+            self.assertEqual(len(draws), 1)
 
 
 if __name__ == '__main__':

@@ -228,6 +228,27 @@ class ModeAndEvenTest(unittest.TestCase):
         self.assertEqual(len(summary["enemyPlayers"]), 5)
 
 
+async def until(predicate, what, timeout=10):
+    """Waits for a condition, polling under a bound that fails with a clear message (a
+    fixed sleep would be a guess how long a loaded CI runner needs)"""
+    async def poll():
+        while not predicate():
+            await asyncio.sleep(0.005)
+
+    try:
+        await asyncio.wait_for(poll(), timeout)
+    except asyncio.TimeoutError:
+        raise AssertionError(f"timed out after {timeout}s waiting for: {what}") from None
+
+
+# Simulated backend latency, longer than the poll interval so a poll is still running when
+# the next one is due. No assertion depends on how long it really takes.
+SLOW_FETCH = 0.02
+# How long a stopped poller is watched to prove it makes no further request: an assertion
+# that nothing happens can only be bounded in time.
+QUIET_WINDOW = 0.05
+
+
 class FakeResponse:
     def __init__(self, status=200, payload=None, error=None):
         self.status, self.payload, self.error = status, payload, error
@@ -249,6 +270,7 @@ class FakeSession:
 
     def __init__(self, *args, **kwargs):
         self.closed = False
+        self.closing = False
         self.response = FakeResponse(payload={"ok": 1})
         self.gets = 0
         FakeSession.instances.append(self)
@@ -260,6 +282,7 @@ class FakeSession:
         return self.response
 
     async def close(self):
+        self.closing = True
         await asyncio.sleep(0)
         self.closed = True
 
@@ -309,7 +332,7 @@ class LiveClientTest(unittest.TestCase):
 
         async def scenario():
             closing = asyncio.ensure_future(client.close())
-            await asyncio.sleep(0)  # close() is now awaiting session.close()
+            await until(lambda: first.closing, "close() to start closing the session")
             self.assertIsNone(client.session)
             result = await client.allGameData()  # opens a fresh session
             await closing
@@ -331,7 +354,7 @@ class LiveClientTest(unittest.TestCase):
 
         async def scenario():
             poller.start()
-            await asyncio.sleep(0.02)
+            await until(lambda: published, "the poller to publish once")
             poller.client.session = FakeSession()
             await poller.aclose()
 
@@ -361,7 +384,7 @@ class PollerTest(unittest.TestCase):
             state["active"] += 1
             state["maxActive"] = max(state["maxActive"], state["active"])
             try:
-                await asyncio.sleep(0.02)  # slower than the poll interval
+                await asyncio.sleep(SLOW_FETCH)
                 if state["calls"] == 2:
                     raise RuntimeError("boom")
                 if state["calls"] == 3:
@@ -376,15 +399,15 @@ class PollerTest(unittest.TestCase):
             poller = L.LiveClientPoller(fetch=fetch, onData=published.append, interval=0.005)
             poller.start()
             poller.start()  # second start is a no-op
-            for _ in range(200):  # until the loop got past the failing and the None fetch
-                if state["calls"] >= 5:
-                    break
-                await asyncio.sleep(0.01)
+            # until the loop got past the failing and the None fetch
+            await until(lambda: state["calls"] >= 5, "five polls")
             self.assertTrue(poller.running)
+            task = poller.task
             poller.stop()
-            await asyncio.sleep(0.05)
+            await asyncio.wait({task}, timeout=10)
+            self.assertTrue(task.done(), "the poll task did not end after stop()")
             calls = state["calls"]
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(QUIET_WINDOW)
             self.assertFalse(poller.running)
             self.assertEqual(state["calls"], calls)  # no polls after stop
             return poller
@@ -400,13 +423,16 @@ class PollerTest(unittest.TestCase):
         published = []
         payload = load()
 
+        fetches = []
+
         async def fetch():
+            fetches.append(1)
             return payload
 
         async def scenario():
             poller = L.LiveClientPoller(fetch=fetch, onData=published.append, interval=0.001)
             poller.start()
-            await asyncio.sleep(0.05)
+            await until(lambda: len(fetches) >= 5, "five polls of the same data")
             poller.stop()
             poller.stop()  # idempotent
 
@@ -414,6 +440,32 @@ class PollerTest(unittest.TestCase):
         self.assertEqual(len(published), 2)
         self.assertEqual(published[0]["diff"], 8375)
         self.assertIsNone(published[1])
+
+    def test_publish_compares_at_the_displayed_granularity(self):
+        """game time is drawn as m:ss and unspent gold as whole gold: a poll that only
+        moves their fractions is not re-published; a change that shows is"""
+        published = []
+        times = iter([(61.2, 500.1), (61.9, 500.4),   # first, then same m:ss / gold
+                      (62.0, 500.4),                   # clock ticks
+                      (62.5, 500.4),                   # nothing shown changed
+                      (62.6, 620.0)])                  # unspent gold changed
+
+        async def fetch():
+            gameTime, gold = next(times)
+            data = load()
+            data["gameData"]["gameTime"] = gameTime
+            data["activePlayer"]["currentGold"] = gold
+            return data
+
+        async def scenario():
+            poller = L.LiveClientPoller(fetch=fetch, onData=published.append, interval=0)
+            for _ in range(5):
+                summary = L.summarizeGameData(await poller.fetch())
+                poller._LiveClientPoller__publish(summary)
+
+        self.run_async(scenario())
+        self.assertEqual([(s["gameTime"], s["currentGold"]) for s in published],
+                         [(61.2, 500.1), (62.0, 500.4), (62.6, 620.0)])
 
     def test_failing_callback_does_not_kill_loop(self):
         calls = []
@@ -430,7 +482,7 @@ class PollerTest(unittest.TestCase):
         async def scenario():
             poller = L.LiveClientPoller(fetch=fetch, onData=onData, interval=0.001)
             poller.start()
-            await asyncio.sleep(0.05)
+            await until(lambda: len(calls) > 2, "the callback to run more than twice")
             self.assertTrue(poller.running)
             poller.stop()
 

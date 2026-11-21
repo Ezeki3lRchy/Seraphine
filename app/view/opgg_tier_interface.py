@@ -1,9 +1,7 @@
 
-from PySide6.QtWidgets import (QHBoxLayout, QWidget, QFrame, QVBoxLayout, QSpacerItem,
-                             QSizePolicy, QLabel, QHBoxLayout, QWidget, QLabel, QFrame,
+from PySide6.QtWidgets import (QHBoxLayout, QWidget, QLabel, QFrame,
                              QVBoxLayout, QSpacerItem, QSizePolicy)
 from PySide6.QtCore import Qt, Signal, QEasingCurve
-from PySide6.QtGui import QPixmap
 from qasync import asyncSlot
 
 from app.components.animation_frame import ColorAnimationFrame
@@ -11,7 +9,7 @@ from app.components.transparent_button import TransparentButton
 from app.components.champion_icon_widget import RoundIcon, RoundedLabel
 from app.common.signals import signalBus
 from app.common.style_sheet import StyleSheet
-from app.common.qfluentwidgets import BodyLabel, SmoothScrollArea, FlowLayout, IconWidget
+from app.common.qfluentwidgets import BodyLabel, SmoothScrollArea, FlowLayout
 
 
 class TierInterface(QFrame):

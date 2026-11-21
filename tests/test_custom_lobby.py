@@ -196,6 +196,7 @@ class MainWindowLobbyRefreshTest(unittest.TestCase):
 
         self.lobbies = []
         self.gates = {}
+        self.entered = {}   # tag -> Event, set once that lobby's parse is blocked on its gate
 
         async def getLobby():
             return self.lobbies.pop(0)
@@ -206,6 +207,9 @@ class MainWindowLobbyRefreshTest(unittest.TestCase):
                 members = lobby.get("members") or []
             gate = self.gates.get(lobby["tag"])
             if gate is not None:
+                entered = self.entered.get(lobby["tag"])
+                if entered is not None:
+                    entered.set()
                 await gate.wait()
             info = {"summoners": [dict(m, tag=lobby["tag"]) for m in members],
                     "champions": {}, "order": [], "isAram": False}
@@ -219,6 +223,11 @@ class MainWindowLobbyRefreshTest(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
+    async def stuckFetching(self, tag):
+        """Waits until the refresh of lobby `tag` is blocked on its gate (a bounded wait
+        on the condition itself, not a guess how long the loop needs to get there)"""
+        await asyncio.wait_for(self.entered[tag].wait(), timeout=10)
+
     def tags(self, method):
         return [{s["tag"] for s in call.args[0]["summoners"]}
                 for call in method.call_args_list]
@@ -229,8 +238,9 @@ class MainWindowLobbyRefreshTest(unittest.TestCase):
 
         async def scenario():
             self.gates["old"] = asyncio.Event()
+            self.entered["old"] = asyncio.Event()
             first = asyncio.ensure_future(self.refreshFn(self.fake))
-            await asyncio.sleep(0.01)   # old refresh is now stuck fetching
+            await self.stuckFetching("old")
             await self.refreshFn(self.fake)
             self.gates["old"].set()
             await first
@@ -298,8 +308,9 @@ class MainWindowLobbyRefreshTest(unittest.TestCase):
 
         async def scenario():
             self.gates["old"] = asyncio.Event()
+            self.entered["old"] = asyncio.Event()
             task = asyncio.ensure_future(self.refreshFn(self.fake))
-            await asyncio.sleep(0.01)
+            await self.stuckFetching("old")
             self.fake._champSelectEpoch += 1
             self.gates["old"].set()
             await task
@@ -336,8 +347,9 @@ class MainWindowLobbyRefreshTest(unittest.TestCase):
 
             async def scenario():
                 self.gates["old"] = asyncio.Event()
+                self.entered["old"] = asyncio.Event()
                 task = asyncio.ensure_future(self.refreshFn(self.fake))
-                await asyncio.sleep(0.01)
+                await self.stuckFetching("old")
                 self.fake._gameStatus = "ChampSelect"   # epoch deliberately unchanged
                 self.gates["old"].set()
                 await task

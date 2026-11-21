@@ -13,11 +13,11 @@ from app.components.rich_tooltip import RichToolTip
 
 from app.common.signals import signalBus
 from app.components.design_tokens import (numberFont, textFont, resultColor, tint, deathsColor,
-                                          opScoreColor)
+                                          opScoreColor, kdaColor)
 from app.components.match_widgets import (itemTooltipHtml, rankMiniPixmap, ordinal, TAG_COLORS,
                                           tierText)
-from app.components.scoreboard import (cachedContent, drawText, drawRuns, runsWidth,
-                                       drawRoundedPixmap, drawChampion, drawItemSlot, drawTag,
+from app.components.paint import drawText, drawRuns, drawRoundedPixmap, drawChampion
+from app.components.scoreboard import (cachedContent, runsWidth, drawItemSlot, drawTag,
                                        drawResultCard, stripeColor)
 
 STRIPE = 4                      # 左侧结果色边条
@@ -52,16 +52,6 @@ def columns(width):
         x += w + extra
     cols['items'] = (x, ITEMS_W)
     return cols
-
-
-def kdaColor(kda):
-    if 3 <= kda < 4:
-        return QColor(0, 163, 80)
-    elif 4 <= kda < 5:
-        return QColor(0, 147, 255)
-    elif 5 <= kda:
-        return QColor(240, 111, 0)
-    return None
 
 
 class DetailTeamHeader(QWidget):

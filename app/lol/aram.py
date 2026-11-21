@@ -1,11 +1,11 @@
+import asyncio
 import json
 import os
-import re
-from functools import lru_cache, wraps
+from functools import lru_cache
 
 import aiohttp
 
-from app.common.config import cfg, LOCAL_PATH
+from app.common.config import LOCAL_PATH
 from app.common.logger import logger
 from app.common.util import getLolClientVersion
 
@@ -81,8 +81,10 @@ class AramBuff:
             async with aiohttp.ClientSession() as session:
                 res = await session.get(url, params=params, proxy=None, ssl=False)
                 data = await res.json()
-        except:
-            logger.warning(f"Getting Aram buff failed", self.TAG)
+        except asyncio.CancelledError:
+            raise
+        except BaseException:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+            logger.warning("Getting Aram buff failed", self.TAG)
             return
 
         if data.get('code') != 1:

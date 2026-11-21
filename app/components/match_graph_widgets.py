@@ -21,7 +21,8 @@ from app.components.rich_tooltip import RichToolTip
 from app.common.qfluentwidgets import isDarkTheme
 from app.components.design_tokens import numberFont, textFont, tint, palette
 from app.components.match_build_widgets import MessageCard, drawCard, PAD
-from app.components.scoreboard import cachedContent, drawText, drawRoundedPixmap, drawChampion
+from app.components.paint import drawText, drawRoundedPixmap, drawChampion
+from app.components.scoreboard import cachedContent
 
 # 选中英雄的颜色 (色位 0 / 1 / 2). 全部两两组合在两种底色上都过了 CVD / 常规视觉 / 对比度检查
 SERIES_COLORS = {

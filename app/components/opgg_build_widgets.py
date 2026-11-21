@@ -16,6 +16,7 @@ from app.common.signals import signalBus
 from app.common.qfluentwidgets import isDarkTheme, themeColor
 from app.components.design_tokens import palette, numberFont, textFont, resultColor, tint
 from app.components.match_widgets import itemTooltipHtml
+from app.components.paint import drawText, drawRuns
 
 PAD = 16
 RADIUS = 8
@@ -106,20 +107,6 @@ def svgPixmap(path, size, dpr):
 
 
 # ---------------- 绘制小工具 ----------------
-
-def drawText(p, rect, string, font, color, align=Qt.AlignLeft | Qt.AlignVCenter):
-    p.setFont(font)
-    p.setPen(color)
-    p.drawText(rect, align, string)
-
-
-def drawRuns(p, x, y, h, runs):
-    """一行里多段不同字体 / 颜色的文字, 依次排开; 返回结束的 x"""
-    for string, font, color in runs:
-        drawText(p, QRectF(x, y, 1000, h), string, font, color)
-        x += QFontMetrics(font).horizontalAdvance(string)
-    return x
-
 
 def elide(string, font, width):
     return QFontMetrics(font).elidedText(string, Qt.ElideRight, int(width))

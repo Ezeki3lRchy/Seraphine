@@ -15,7 +15,7 @@ from app.common.logger import logger
 from app.common.signals import signalBus
 from app.components.design_tokens import numberFont, textFont, resultColor
 from app.components.item_gold_panel import goldText, diffText, diffColor
-from app.components.scoreboard import drawText
+from app.components.paint import drawText
 from app.lol.tools import translatePositionKey
 
 TAG = "GoldOverlay"

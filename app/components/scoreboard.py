@@ -12,6 +12,8 @@ from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics, QP
 from app.common.qfluentwidgets import isDarkTheme
 from app.components.design_tokens import palette, resultColor, deathsColor
 from app.components.match_widgets import TAG_COLORS
+# defined in paint.py; still importable from here (search_interface, match_build_widgets)
+from app.components.paint import drawText, drawRuns, drawRoundedPixmap, drawChampion  # noqa: F401
 
 # 英文客户端的模式简称; 中文名 / 未收录的队列退回 "去掉 '排位赛 ' 前缀" 的原名
 QUEUE_SHORT_NAMES = {
@@ -75,49 +77,8 @@ def stripeColor(type, pal):
 
 # ---------------- 绘制 ----------------
 
-def drawText(p, rect, string, font, color, align=Qt.AlignLeft | Qt.AlignVCenter):
-    p.setFont(font)
-    p.setPen(color)
-    p.drawText(rect, align, string)
-
-
 def runsWidth(runs):
     return sum(QFontMetrics(font).horizontalAdvance(string) for string, font, _ in runs)
-
-
-def drawRuns(p, x, y, h, runs):
-    """一行里多段不同字体 / 颜色的文字, 依次排开; 返回结束的 x"""
-    for string, font, color in runs:
-        drawText(p, QRectF(x, y, 1000, h), string, font, color)
-        x += QFontMetrics(font).horizontalAdvance(string)
-    return x
-
-
-def drawRoundedPixmap(p, pixmap, rect, radius):
-    if pixmap is None or pixmap.isNull():
-        return
-    p.save()
-    clip = QPainterPath()
-    clip.addRoundedRect(rect, radius, radius)
-    p.setClipPath(clip)
-    p.drawPixmap(rect.toRect(), pixmap)
-    p.restore()
-
-
-def drawChampion(p, pixmap, rect, gold, ring=1.5, crop=0):
-    """圆形英雄头像 + 海克斯金描边"""
-    if pixmap is not None and not pixmap.isNull():
-        src = pixmap.copy(crop, crop, pixmap.width() - 2 * crop,
-                          pixmap.height() - 2 * crop) if crop else pixmap
-        p.save()
-        clip = QPainterPath()
-        clip.addEllipse(rect)
-        p.setClipPath(clip)
-        p.drawPixmap(rect.toRect(), src)
-        p.restore()
-    p.setPen(QPen(gold, ring))
-    p.setBrush(Qt.NoBrush)
-    p.drawEllipse(rect.adjusted(ring / 2, ring / 2, -ring / 2, -ring / 2))
 
 
 def drawItemSlot(p, pixmap, itemId, rect, radius, pal):

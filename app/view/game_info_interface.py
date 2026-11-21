@@ -1,6 +1,8 @@
 import asyncio
 from typing import Dict
 
+import shiboken6
+
 from PySide6.QtCore import Qt, QRectF, QRect, QPointF, QEvent, QCoreApplication
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QFrame, QVBoxLayout,
                                QSizePolicy, QStackedWidget, QWidget)
@@ -17,7 +19,7 @@ from app.components.match_widgets import (TagPill, gameTags, itemTooltipHtml, ra
                                           rankMiniPixmap, tierText)
 from app.components.rich_tooltip import RichToolTip
 from app.components.design_tokens import (deathsColor, palette, numberFont, textFont,
-                                         resultColor, pillColor)
+                                         resultColor, pillColor, kdaColor)
 from app.components.scoreboard import drawTag, tagWidth, fitPills
 from app.lol.tools import (parseSummonerOrder, summarizeGames, translatePositionKey,
                            needsScores, attachSummonerScores, playerInsights)
@@ -206,12 +208,42 @@ class GameInfoInterface(SeraphineInterface):
 
             newChampionId = new['championId']
 
-            if orig != newChampionId and newChampionId:  # 若新头像是 0, 那就也不更新
-                icon = await connector.getChampionIcon(newChampionId)
+            # What the column shows, kept apart from `champions` (the newest request, and a
+            # map that a reload can replace): until its first update it shows the champion it
+            # was built with. Decide on the pick in flight, else on what is drawn
+            if not hasattr(column, 'drawnChampionId'):
+                column.drawnChampionId = orig
+            newest = getattr(column, 'pendingChampionId', None) or column.drawnChampionId
+
+            if newest != newChampionId and newChampionId:  # 若新头像是 0, 那就也不更新
+                # Record the newest request before the await: a slower icon of an earlier
+                # pick (A -> B -> C, B slower than C) must not overwrite the newer one
                 champions[summonerId] = newChampionId
+                column.pendingChampionId = newChampionId
+                try:
+                    icon = await connector.getChampionIcon(newChampionId)
+                except BaseException:
+                    # back to what is drawn, so the next event retries any other pick
+                    if champions.get(summonerId) == newChampionId:
+                        champions[summonerId] = column.drawnChampionId
+                    if column.pendingChampionId == newChampionId:
+                        column.pendingChampionId = None
+                    raise
+
+                # A newer pick was requested meanwhile, or the view rebuilt / cleared its
+                # columns during the await
+                if column.pendingChampionId != newChampionId:
+                    continue
+                column.pendingChampionId = None
+                if champions.get(summonerId) != newChampionId:
+                    continue
+                if view.items.get(summonerId) is not column or not shiboken6.isValid(column):
+                    continue
+
                 aramInfo = AramBuff.getInfoByChampionId(newChampionId) \
                     if self.isAram else None
                 column.updateChampion(newChampionId, icon, aramInfo)
+                column.drawnChampionId = newChampionId
 
     def __fillScoresLater(self, view, summoners):
         """
@@ -230,7 +262,8 @@ class GameInfoInterface(SeraphineInterface):
             try:
                 await attachSummonerScores(pending)
             except Exception as e:
-                logger.error(f"fill scores failed: {e!r}", "GameInfoInterface")
+                logger.error(f"fill scores failed: {type(e).__name__}, "
+                             f"status={getattr(e, 'status', None)}", "GameInfoInterface")
                 return
             finally:
                 self._scoring -= puuids
@@ -410,18 +443,6 @@ class PlayerColumn(QFrame):
             row.refreshScores()
 
 
-def kdaColor(kda):
-    """KDA 数值的颜色分档; 普通档位返回 None (用默认文字色)"""
-    if 3 <= kda < 4:
-        return QColor(0, 163, 80)
-    elif 4 <= kda < 5:
-        return QColor(0, 147, 255)
-    elif 5 <= kda:
-        return QColor(240, 111, 0)
-
-    return None
-
-
 def winRateColor(winRate):
     if winRate >= 60:
         return QColor(240, 111, 0)
@@ -543,7 +564,8 @@ class ComposedCardMixin:
         self._composedKey = None
         try:
             self._updateBackgroundColor()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"card background update failed: {type(e).__name__}", "GameInfoInterface")
             return
 
     def _composed(self):

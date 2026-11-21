@@ -1,12 +1,11 @@
 import sys
 import traceback
 
-from qasync import asyncSlot, asyncClose
+from qasync import asyncSlot
 from PySide6.QtGui import QColor, QPainter, QIcon, QShowEvent, QGuiApplication
 from PySide6.QtCore import Qt, Signal, QSize, QRect, QEvent
 from PySide6.QtWidgets import (QHBoxLayout, QStackedWidget, QWidget, QLabel,
-                             QFrame, QVBoxLayout, QSpacerItem, QSizePolicy,
-                             QApplication)
+                             QFrame, QVBoxLayout, QSpacerItem, QSizePolicy)
 
 
 from app.common.icons import Icon
@@ -21,11 +20,9 @@ from app.common.util import getLolClientWindowPos
 from app.common import platform
 from app.common.qfluentwidgets import (FramelessWindow, isDarkTheme, BackgroundAnimationWidget,
                                        FluentTitleBar,  ComboBox, BodyLabel, ToolTipFilter,
-                                       ToolTipPosition, IndeterminateProgressRing, setTheme,
-                                       Theme, PushButton, SearchLineEdit, ToolButton,
-                                       FlyoutViewBase, Flyout, FlyoutAnimationType)
+                                       ToolTipPosition, IndeterminateProgressRing, PushButton, SearchLineEdit, ToolButton,
+                                       FlyoutViewBase, Flyout)
 from app.components.transparent_button import TransparentToggleButton
-from app.components.multi_champion_select import ChampionSelectFlyout
 from app.view.opgg_tier_interface import TierInterface
 from app.view.opgg_build_interface import BuildInterface
 

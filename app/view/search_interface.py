@@ -1,5 +1,4 @@
 import re
-import threading
 import time
 import traceback
 from asyncio import CancelledError, LifoQueue
@@ -17,8 +16,7 @@ from ..common.logger import logger
 from ..common.qfluentwidgets import (SmoothScrollArea, PushButton, ToolButton, InfoBar,
                                      InfoBarPosition, ToolTipFilter, ToolTipPosition,
                                      isDarkTheme, FlyoutViewBase, Flyout, Theme,
-                                     IndeterminateProgressRing, ComboBox, StateToolTip,
-                                     setCustomStyleSheet, TransparentPushButton)
+                                     IndeterminateProgressRing, ComboBox, TransparentPushButton)
 
 from app.common.style_sheet import StyleSheet, ColorChangeable
 from app.common.icons import Icon
@@ -37,8 +35,8 @@ from app.components.search_line_edit import SearchLineEdit
 from app.components.summoner_name_button import SummonerName
 from app.components.color_label import ColorLabel, DeathsLabel
 from app.lol.connector import connector
-from app.lol.exceptions import SummonerGamesNotFound, SummonerNotFound
-from app.lol.tools import (parseGameData, parseGameDetailData, parseGamesDataConcurrently,
+from app.lol.exceptions import SummonerGamesNotFound
+from app.lol.tools import (parseGameDetailData, parseGamesDataConcurrently,
                            loadGameBuildData)
 from ..components.seraphine_interface import SeraphineInterface
 

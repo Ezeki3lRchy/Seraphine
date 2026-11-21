@@ -12,12 +12,12 @@ from app.components.rich_tooltip import RichToolTip
 
 from app.common.qfluentwidgets import isDarkTheme
 from app.common.signals import signalBus
-from app.common.style_sheet import colorManager
 from app.components.animation_frame import ColorAnimationFrame
 from app.components.design_tokens import (palette, numberFont, textFont, resultColor, tint,
-                                          opScoreColor)
+                                          opScoreColor, deathsColor, kdaColor)
 from app.components.match_widgets import (rankEmblemPath, gameTags, itemTooltipHtml, TAG_COLORS,
                                           tierText)
+from app.components.paint import drawCard, drawText, drawRuns, drawRoundedPixmap, drawChampion
 from app.components.scoreboard import durationText
 from app.lol.activity import activityByHour, activityByWeekday, winRate
 from app.lol.connector import connector
@@ -48,16 +48,6 @@ def resultType(game):
     return 'win' if game.get('win') else 'lose'
 
 
-def kdaColor(kda):
-    if 3 <= kda < 4:
-        return QColor(0, 163, 80)
-    elif 4 <= kda < 5:
-        return QColor(0, 147, 255)
-    elif 5 <= kda:
-        return QColor(240, 111, 0)
-    return None
-
-
 def contrast(a, b):
     """两种不透明色的 WCAG 对比度"""
     def luminance(c):
@@ -67,54 +57,6 @@ def contrast(a, b):
 
     la, lb = luminance(a), luminance(b)
     return max(la, lb) / min(la, lb)
-
-
-def drawCard(p, rect, pal, radius=10):
-    """卡片底: 纸面 + 发丝线描边, 不加阴影"""
-    p.setPen(QPen(pal['hairline'], 1))
-    p.setBrush(pal['sheet'])
-    p.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius)
-
-
-def drawText(p, rect, string, font, color, align=Qt.AlignLeft | Qt.AlignVCenter):
-    p.setFont(font)
-    p.setPen(color)
-    p.drawText(rect, align, string)
-
-
-def drawRuns(p, x, y, h, runs):
-    """一行里多段不同字体 / 颜色的文字, 依次排开; 返回结束的 x"""
-    for string, font, color in runs:
-        drawText(p, QRectF(x, y, 1000, h), string, font, color)
-        x += QFontMetrics(font).horizontalAdvance(string)
-    return x
-
-
-def drawRoundedPixmap(p, pixmap, rect, radius):
-    if pixmap is None or pixmap.isNull():
-        return
-    p.save()
-    clip = QPainterPath()
-    clip.addRoundedRect(rect, radius, radius)
-    p.setClipPath(clip)
-    p.drawPixmap(rect.toRect(), pixmap)
-    p.restore()
-
-
-def drawChampion(p, pixmap, rect, gold, ring=2, crop=0):
-    """圆形英雄头像 + 海克斯金描边"""
-    if pixmap is not None and not pixmap.isNull():
-        src = pixmap.copy(crop, crop, pixmap.width() - 2 * crop,
-                          pixmap.height() - 2 * crop) if crop else pixmap
-        p.save()
-        clip = QPainterPath()
-        clip.addEllipse(rect)
-        p.setClipPath(clip)
-        p.drawPixmap(rect.toRect(), src)
-        p.restore()
-    p.setPen(QPen(gold, ring))
-    p.setBrush(Qt.NoBrush)
-    p.drawEllipse(rect.adjusted(ring / 2, ring / 2, -ring / 2, -ring / 2))
 
 
 class RankCard(QFrame):
@@ -746,10 +688,10 @@ class CareerGameRow(ColorAnimationFrame):
     def __content(self):
         dark = isDarkTheme()
         pal = palette(dark)
-        deathsColor = colorManager.getColor('deaths')[0]
+        deaths = deathsColor()
         color = resultColor(self.resultType)
         dpr = self.devicePixelRatioF()
-        key = (self.width(), self.height(), dpr, dark, deathsColor.rgba(), color.rgba(),
+        key = (self.width(), self.height(), dpr, dark, deaths.rgba(), color.rgba(),
                resultColor('win').rgba(), resultColor('lose').rgba())
         if key == self._cacheKey:
             return self._cache
@@ -801,7 +743,7 @@ class CareerGameRow(ColorAnimationFrame):
         bold, thin = numberFont(21), numberFont(21, 300)
         drawRuns(p, x, kdaTop, 28, ((str(self.game['kills']), bold, ink),
                                     (" / ", thin, muted),
-                                    (str(self.game['deaths']), bold, deathsColor),
+                                    (str(self.game['deaths']), bold, deaths),
                                     (" / ", thin, muted),
                                     (str(self.game['assists']), bold, ink)))
         kda = (self.game['kills'] + self.game['assists']) / max(self.game['deaths'], 1)

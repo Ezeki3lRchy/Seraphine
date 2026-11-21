@@ -1,7 +1,6 @@
 import os
 import sys
 import subprocess
-import traceback
 import time
 import copy
 import webbrowser
@@ -10,16 +9,14 @@ from pathlib import Path
 import pyperclip
 
 import asyncio
-from aiohttp.client_exceptions import ClientConnectorError
 from qasync import asyncClose, asyncSlot
-from PySide6.QtCore import Qt, Signal, QSize, QEvent, QTimer, QPoint, QRect
+from PySide6.QtCore import Qt, Signal, QSize, QEvent, QTimer, QRect
 from PySide6.QtGui import QIcon, QImage, QGuiApplication
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QWidget, QHBoxLayout
 
 from app.common.qfluentwidgets import (NavigationItemPosition, InfoBar, InfoBarPosition, Action,
                                        FluentWindow, SplashScreen, MessageBox, SmoothScrollArea,
-                                       ToolTipFilter, FluentIcon, ToolTipPosition, FluentWindowBase,
-                                       SystemThemeListener, qconfig, PushButton,
+                                       ToolTipFilter, FluentIcon, ToolTipPosition, SystemThemeListener, qconfig, PushButton,
                                        PrimaryPushButton)
 from qfluentwidgets.common.style_sheet import updateStyleSheet
 
@@ -40,6 +37,8 @@ from app.common.icons import Icon
 from app.common.config import cfg, VERSION, BETA, GITHUB_URL
 from app.common.logger import logger
 from app.common.signals import signalBus
+from app.common import error_policy
+from app.common.error_policy import ErrorPolicy
 from app.components.message_box import (UpdateMessageBox, NoticeMessageBox,
                                         WaitingForLolMessageBox, ExceptionMessageBox,
                                         ChangeDpiMessageBox, isPackaged)
@@ -49,7 +48,7 @@ from app.common.update_stage import (BackgroundUpdater, GAME_PHASES, stagedUpdat
 from app.lol.exceptions import (SummonerGamesNotFound, RetryMaximumAttempts,
                                 SummonerNotFound, SummonerNotInGame, SummonerRankInfoNotFound)
 from app.lol.listener import (LolProcessExistenceListener, StoppableThread)
-from app.lol.connector import connector
+from app.lol.connector import connector, errorSummary, isReported
 from app.lol.tools import (parseAllyGameInfo, parseLobbyGameInfo, parseGameInfoByGameflowSession,
                            getAllyOrderByGameRole, getTeamColor, autoBan, autoPick,
                            autoComplete, autoSwap, autoTrade, ChampionSelection,
@@ -80,6 +79,8 @@ class MainWindow(FluentWindow):
     fetchNoticeFailed = Signal()
     # Routes exceptHook's dialog to the GUI thread (see exceptHook / __onShowExceptionMessageBox).
     showExceptionMessageBox = Signal(str)
+    # Same routing for the non-fatal outcomes: (error_policy action, reason, text)
+    showExceptionNotice = Signal(str, str, str)
 
     def __init__(self):
         super().__init__()
@@ -109,6 +110,8 @@ class MainWindow(FluentWindow):
 
         # create listener
         self.isClientProcessRunning = False
+        # pid -> consecutive failed start-ups of that client (see __onClientStartFailed)
+        self._clientStartFailures = {}
         self.processListener = LolProcessExistenceListener(self)
         self.checkUpdateThread = StoppableThread(
             target=self.checkUpdate, parent=self)
@@ -150,6 +153,8 @@ class MainWindow(FluentWindow):
         self.goldOverlay = GoldOverlay()
 
         logger.critical("Seraphine initialized", TAG)
+        # From here an uncaught exception no longer ends the session (see exceptHook)
+        self.errorPolicy.finishStartup()
 
         QTimer.singleShot(0, self.__offerStagedUpdate)
 
@@ -284,6 +289,9 @@ class MainWindow(FluentWindow):
         self._lobbyRefreshSeq = 0
         # Last gameflow status seen by __onGameStatusChanged (None until the first one)
         self._gameStatus = None
+        # Bumped by every __onGameStatusChanged: events run as concurrent tasks, and after
+        # an await only the newest may commit isGaming / the title / the champ select start
+        self._gameStatusSeq = 0
         # 这次选人的队列, 己方 / 敌方战绩都按它过滤
         self._champSelectQueueId = None
 
@@ -337,6 +345,7 @@ class MainWindow(FluentWindow):
         signalBus.checkUpdateFinished.connect(self.__onManualCheckFinished)
         self.fetchNoticeFailed.connect(self.__onFetchNoticeFailed)
         self.showExceptionMessageBox.connect(self.__onShowExceptionMessageBox)
+        self.showExceptionNotice.connect(self.__onShowExceptionNotice)
         self.stackedWidget.currentChanged.connect(
             self.__onCurrentStackedChanged)
         self.mainWindowHide.connect(self.__onWindowHide)
@@ -388,6 +397,8 @@ class MainWindow(FluentWindow):
         QApplication.processEvents()
 
         self.oldHook = sys.excepthook
+        # connector's @retry marks the exception it already showed as "LCU request error"
+        self.errorPolicy = ErrorPolicy(alreadyReported=isReported)
         sys.excepthook = self.exceptHook
 
     def systemTitleBarRect(self, size: QSize) -> QRect:
@@ -421,11 +432,12 @@ class MainWindow(FluentWindow):
         elif type(obj) in [SummonerNotFound, SummonerNotInGame]:
             return
         else:
-            msg = repr(obj)
+            # not repr(obj): an aiohttp error's repr carries the request headers (token)
+            msg = errorSummary(obj)
 
         InfoBar.error(
             self.tr("LCU request error"),
-            self.tr(f"Connect API") + f" {api}: {msg}",
+            self.tr("Connect API") + f" {api}: {msg}",
             duration=5000,
             orient=Qt.Vertical,
             parent=self,
@@ -883,20 +895,89 @@ class MainWindow(FluentWindow):
     async def __changeCareerToCurrentSummoner(self):
         summoner = await connector.getCurrentSummoner()
         self.currentSummoner = summoner
-        name = summoner.get("gameName") or summoner['displayName']
         self.careerInterface.setLoginSummonerPuuid(summoner['puuid'])
 
         asyncio.create_task(self.careerInterface.updateInterface(
             summoner=summoner))
 
+    # a client whose start-up sequence failed is retried this many times, this many
+    # seconds apart (the process listener re-detects it once runningPid is reset)
+    CLIENT_START_RETRIES = 3
+    CLIENT_START_RETRY_DELAY = 5
+
     @asyncSlot(int)
     async def __onLolClientStarted(self, pid):
+        # Only the start-up steps (up to the unlock) are guarded: a failure after that,
+        # e.g. in the status replay, is an ordinary failure of a connected session
+        try:
+            started = await self.__startClientSession(pid)
+        except asyncio.CancelledError:
+            raise
+        except BaseException:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+            await self.__onClientStartFailed(pid)
+            raise  # still reaches the error policy (notice + log)
+
+        self._clientStartFailures.pop(pid, None)
+        if started is None:
+            return
+
+        championsInit, aramInitT, status, statusSeq = started
+        await asyncio.gather(championsInit, aramInitT)
+        # The downloads above can be slow: a websocket event that arrived meanwhile is newer
+        # than the status fetched before them, and replaying that would supersede it
+        if self._gameStatusSeq != statusSeq:
+            return
+
+        try:
+            await self.__onGameStatusChanged(status)
+        except asyncio.CancelledError:
+            raise
+        except BaseException:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+            # The handler is an asyncSlot: its own task already reported this to the error
+            # policy, exactly like a live gameflow event's failure; the session stays up
+            pass
+
+    async def __onClientStartFailed(self, pid):
+        """
+        The start-up sequence raised midway: the loading page / locked interface would stay
+        up with nothing retrying. Go back to the consistent not-connected state (the same
+        teardown as a client that ended) rather than unlocking a half-started session
+        (no summoner, no game status). Then let the process listener detect the client
+        again, a few times; after that a client restart (new pid) or close still works.
+        """
+        # per client: a restarted client (new pid) gets its own retries
+        failures = self._clientStartFailures[pid] = self._clientStartFailures.get(pid, 0) + 1
+        logger.error(f"client start-up failed (attempt {failures})", TAG)
+
+        try:
+            await self.__onLolClientEnded()
+        except asyncio.CancelledError:
+            raise
+        except BaseException as e:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+            logger.error(f"client start-up failed: teardown failed: {type(e).__name__}", TAG)
+
+        if failures > self.CLIENT_START_RETRIES:
+            return
+
+        def retry():
+            # still the client that failed (not ended / changed meanwhile): detect it again
+            if self.processListener.runningPid == pid:
+                self.processListener.runningPid = 0
+
+        asyncio.get_running_loop().call_later(self.CLIENT_START_RETRY_DELAY, retry)
+
+    async def __startClientSession(self, pid):
+        """
+        The start-up steps, up to unlocking the interface. Returns None when the connector
+        did not start (the listener retries), else what __onLolClientStarted finishes with:
+        (championsInit, aramInitT, status, statusSeq)
+        """
         logger.info(f"League of Legends client started: {pid}", TAG)
         # game state unknown until fetched below: no update download / prompt meanwhile
         self.backgroundUpdater.setGameStatusUnknown()
         res = await self.__startConnector(pid)
         if not res:
-            return
+            return None
 
         await opgg.start()
         self.checkAndSwitchTo(self.careerInterface)
@@ -909,6 +990,8 @@ class MainWindow(FluentWindow):
 
         folder, status = await asyncio.gather(connector.getInstallFolder(),
                                               connector.getGameStatus())
+        # the replay below is skipped if a live gameflow event arrived meanwhile
+        statusSeq = self._gameStatusSeq
         # as soon as it is known (the full __onGameStatusChanged runs much later)
         self.__syncUpdaterGameStatus(status)
 
@@ -952,8 +1035,7 @@ class MainWindow(FluentWindow):
         # ---- 240413 ---- By Hpero4
 
         self.__unlockInterface()
-        await asyncio.gather(championsInit, aramInitT)
-        await self.__onGameStatusChanged(status)
+        return championsInit, aramInitT, status, statusSeq
 
         # Note 如果你希望测试大乱斗的数据弹框, 参考这个 -- By Hpero4
         # self.careerInterface.icon.aramInfo = AramBuff.getInfoByChampionId(75)
@@ -1031,7 +1113,11 @@ class MainWindow(FluentWindow):
                                       ToolTipPosition.TOP)
                     )
 
-            except:
+            except asyncio.CancelledError:
+                raise
+            except BaseException as e:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
+                # the type only: an aiohttp error's repr carries the request headers
+                logger.warning(f"avatar: profile icon / name failed: {type(e).__name__}", TAG)
                 icon = "app/resource/images/game.png"
                 name = self.tr("Start LOL")
                 self.avatarWidget.setToolTip("")
@@ -1227,6 +1313,15 @@ class MainWindow(FluentWindow):
 
     @asyncSlot(str)
     async def __onGameStatusChanged(self, status):
+        # Each event is its own task (asyncSlot) and branches await: an older, slower one
+        # (champ select loading) may finish after a newer one (a dodge back to Lobby).
+        # After an await only the newest event may commit state (see current()).
+        self._gameStatusSeq += 1
+        seq = self._gameStatusSeq
+
+        def current():
+            return seq == self._gameStatusSeq
+
         self._gameStatus = status  # read by __doLobbyRefresh (LOBBY_REFRESH_STATUSES)
         # first, before any await: a starting game must pause the update download
         self.__syncUpdaterGameStatus(status)
@@ -1255,17 +1350,22 @@ class MainWindow(FluentWindow):
 
                 title = title + " - " + mapSide
 
+            # Left champ select while the side loaded: starting it now would re-open the
+            # epoch the newer event closed (and show the op.gg window after a dodge)
+            if not current():
+                return
+
             await self.__onChampionSelectBegin()
         elif status == 'GameStart':
             title = self.tr("Gaming")
-            await self.__onGameStart()
+            await self.__onGameStart(current)
             isGaming = True
         elif status == 'InProgress':
             title = self.tr("Gaming")
 
             # 重连或正常进入游戏 (走 GameStart), 不需要更新数据
             if not self.isGaming:
-                await self.__onGameStart()
+                await self.__onGameStart(current)
             isGaming = True
         elif status == 'WaitingForStatus':
             title = self.tr("Waiting for status")
@@ -1276,12 +1376,16 @@ class MainWindow(FluentWindow):
             await self.__onGameEnd()
             await self.careerInterface.refresh()
 
-            # 进入大厅: 重置缓存, 触发 (防抖) 刷新车队成员战绩
-            self._lobbyGameInfoCache = {}
-            # A new lobby phase: a custom lobby's other team from before must not linger
-            # (the refresh below repaints it if this is still that custom lobby)
-            self.__dropLobbyEnemies()
-            self._lobbyRefreshTimer.start()
+            # The lobby setup belongs to the lobby phase, not to this event: it still holds
+            # after Lobby -> Matchmaking / ReadyCheck, but not once champ select or the game
+            # began during the career refresh (dropping enemies would clear their page)
+            if self._gameStatus in LOBBY_REFRESH_STATUSES:
+                # 进入大厅: 重置缓存, 触发 (防抖) 刷新车队成员战绩
+                self._lobbyGameInfoCache = {}
+                # A new lobby phase: a custom lobby's other team from before must not linger
+                # (the refresh below repaints it if this is still that custom lobby)
+                self.__dropLobbyEnemies()
+                self._lobbyRefreshTimer.start()
 
         elif status == 'ReadyCheck':
             title = self.tr("Ready check")
@@ -1292,6 +1396,10 @@ class MainWindow(FluentWindow):
         elif status == "Reconnect":  # 等待重连
             title = self.tr("Waiting reconnect")
             await self.__onReconnect()
+
+        # A newer event owns isGaming, the live poller, op.gg on-top and the title
+        if not current():
+            return
 
         self.isGaming = isGaming
         if not isGaming:
@@ -1466,9 +1574,16 @@ class MainWindow(FluentWindow):
         self._lastRevealRefresh = time.monotonic()
         self._enemyGameInfoCache = {}
         self._enemyKey = None
+        epoch = self._champSelectEpoch
 
         session = await connector.getChampSelectSession()
-        self._champSelectQueueId = await self.__champSelectQueueId(session)
+        queueId = await self.__champSelectQueueId(session)
+        # left this champ select meanwhile (dodge / game start bumped the epoch): its
+        # queue, enemies and op.gg window belong to the newer state
+        if epoch != self._champSelectEpoch:
+            return
+
+        self._champSelectQueueId = queueId
         self.__refreshEnemies(session)
 
         if cfg.get(cfg.autoShowOpgg):
@@ -1478,7 +1593,6 @@ class MainWindow(FluentWindow):
                 self.opggWindow.setStaysOnTopEnabled(True)
 
         currentSummonerId = self.currentSummoner['summonerId']
-        epoch = self._champSelectEpoch
 
         def showPartial(info):
             # 每到一个队友先显示 (冷启动时一个人要两秒多); 已离开这次选人则不再刷新
@@ -1554,7 +1668,7 @@ class MainWindow(FluentWindow):
             if len(info['summoners']) > len(self.gameInfoInterface.allyOrder):
                 self.gameInfoInterface.updateAllySummoners(info)
         except Exception as e:
-            logger.error(f"reveal-hidden: refresh failed: {e!r}", TAG)
+            logger.error(f"reveal-hidden: refresh failed: {errorSummary(e)}", TAG)
         finally:
             self._revealRefreshing = False
 
@@ -1615,17 +1729,24 @@ class MainWindow(FluentWindow):
                     queueId=self._champSelectQueueId)
                 show(info)
             except Exception as e:
-                logger.error(f"load enemies in champ select failed: {e!r}", TAG)
+                logger.error(f"load enemies in champ select failed: {errorSummary(e)}", TAG)
             finally:
                 self._enemyLoading = False
 
         asyncio.ensure_future(load())
 
     # 进入游戏后触发
-    async def __onGameStart(self):
+    async def __onGameStart(self, current):
+        """
+        @param current: () -> bool, False once a newer gameflow event arrived: it owns the
+            live poller and the game info page from then on
+        """
         # From here the enemy side belongs to the game, not to the lobby
         self._lobbyEnemyShown = False
         session = await connector.getGameflowSession()
+        if not current():
+            return
+
         currentSummonerId = self.currentSummoner['summonerId']
 
         queueId = session['gameData']['queue']['id']
@@ -1755,13 +1876,26 @@ class MainWindow(FluentWindow):
             await connector.playAgain()
 
     def exceptHook(self, ty, value, tb):
-        content = "".join(traceback.format_exception(ty, value, tb))
+        # What happens is decided by error_policy (fatal only before start-up finished)
+        decision = self.errorPolicy.decide(ty, value, tb)
 
-        if ty in [ConnectionRefusedError, ClientConnectorError]:
+        if decision.action == error_policy.SILENT:
+            return  # counted; written with the next one-line entry
+
+        if decision.action == error_policy.BRIEF:
+            # error level: the default log level (40) drops warnings
+            logger.error(f"Exception ({decision.reason}): {decision.text}", "Crash")
             return
+
+        content = decision.text
 
         # Let the default hook print to stderr (thread-safe).
         self.oldHook(ty, value, tb)
+
+        if decision.action != error_policy.FATAL:
+            # same GUI-thread routing as the dialog below
+            self.showExceptionNotice.emit(decision.action, decision.reason, content)
+            return
 
         # sys.excepthook may fire on a worker thread — most often the
         # LolProcessExistenceListener QThread. Building ExceptionMessageBox (a
@@ -1772,7 +1906,7 @@ class MainWindow(FluentWindow):
         # thread, and as a queued (main-thread) call when emitted from a worker thread.
         self.showExceptionMessageBox.emit(content)
 
-    def __onShowExceptionMessageBox(self, content):
+    def __logExceptionDiagnostics(self, content):
         logger.error(f"Exception occurred:\n{content}", "Crash")
 
         for call in connector.callStack:
@@ -1783,6 +1917,47 @@ class MainWindow(FluentWindow):
         logger.error(str(self.careerInterface), "Crash")
         logger.error(str(self.auxiliaryFuncInterface), "Crash")
         logger.error(str(self.settingInterface), "Crash")
+
+    def __onShowExceptionNotice(self, action, reason, content):
+        if action == error_policy.EXIT:
+            # KeyboardInterrupt / SystemExit: end the process as before, without the dialog
+            logger.error(f"Exception occurred:\n{content}", "Crash")
+            signalBus.terminateListeners.emit()
+            logger.error("Exit on interrupt", "Crash")
+            sys.exit(1)
+
+        if action != error_policy.NOTIFY:
+            # a notice is already open, or the user was told already: log only
+            logger.error(f"Exception occurred ({reason}), not shown:\n{content}", "Crash")
+            return
+
+        self.__logExceptionDiagnostics(content)
+
+        details = f"Seraphine ver.{BETA or VERSION}\n{'-'*5}\n{content}"
+        bar = InfoBar.error(
+            self.tr('Exception occurred 😥'),
+            self.tr("Seraphine is still running. Details are in the log."),
+            orient=Qt.Vertical,
+            isClosable=True,
+            duration=15000,
+            position=InfoBarPosition.BOTTOM_RIGHT,
+            parent=self,
+        )
+        # For bug reports, like the fatal dialog's "Copy to clipboard"; no modal dialog,
+        # so nothing blocks the user
+        copyButton = PushButton(self.tr("Copy details"))
+
+        def copy():
+            pyperclip.copy(details)
+            copyButton.setText(self.tr("Copied"))
+            copyButton.setEnabled(False)
+
+        copyButton.clicked.connect(copy)
+        bar.addWidget(copyButton)
+        bar.closedSignal.connect(self.errorPolicy.noticeClosed)
+
+    def __onShowExceptionMessageBox(self, content):
+        self.__logExceptionDiagnostics(content)
 
         title = self.tr('Exception occurred 😥')
         content = f"Seraphine ver.{BETA or VERSION}\n{'-'*5}\n{content}"

@@ -4,11 +4,10 @@ from typing import Union
 from app.common.qfluentwidgets import (FluentIconBase, ExpandGroupSettingCard,
                                        ConfigItem, qconfig, PushButton, SpinBox,
                                        ColorDialog, LineEdit, SwitchButton,
-                                       IndicatorPosition, setCustomStyleSheet, SwitchSettingCard, TransparentToolButton, FluentIcon, setThemeColor)
-from PySide6.QtCore import Qt, Signal
+                                       IndicatorPosition, SwitchSettingCard, setThemeColor)
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QColor
-from PySide6.QtWidgets import (QWidget, QLabel, QHBoxLayout, QGridLayout, QFrame, QPushButton,
-                             QVBoxLayout)
+from PySide6.QtWidgets import (QWidget, QLabel, QHBoxLayout, QGridLayout)
 
 from app.common.icons import Icon
 from app.common.config import cfg

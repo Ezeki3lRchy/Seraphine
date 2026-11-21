@@ -21,7 +21,8 @@ from app.components.rich_tooltip import RichToolTip
 
 from app.common.qfluentwidgets import isDarkTheme
 from app.components.design_tokens import numberFont, textFont, resultColor, tint
-from app.components.scoreboard import drawText, drawRuns, cachedContent
+from app.components.paint import drawText, drawRuns
+from app.components.scoreboard import cachedContent
 
 BETTER = (QColor('#3E6FD8'), QColor('#6C9BFF'))
 WORSE = (QColor('#D93A50'), QColor('#F2697C'))

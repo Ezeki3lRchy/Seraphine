@@ -22,7 +22,7 @@ def _selftest():
         import qasync
         from qasync import QApplication
         from app.common.qfluentwidgets import FluentTranslator
-        from app.common.config import cfg, VERSION, BETA
+        from app.common.config import VERSION, BETA
         from app.common import platform
         from app.view.main_window import MainWindow  # noqa: F401
         from app.common import smooth_scroll  # noqa: F401  (imported lazily by main())
@@ -105,6 +105,7 @@ from qasync import QApplication, QEventLoop
 import asyncio
 from app.common.config import cfg
 from app.common import platform
+from app.common.error_policy import handleLoopException
 from app.view.main_window import MainWindow
 
 
@@ -141,6 +142,9 @@ def main():
 
     eventLoop = QEventLoop(app)
     asyncio.set_event_loop(eventLoop)
+    # Failed fire-and-forget tasks (and the app's own BaseException errors from an
+    # @asyncSlot) end up here, not in sys.excepthook: route them through the same policy
+    eventLoop.set_exception_handler(handleLoopException)
 
     appCloseEvent = asyncio.Event()
     app.aboutToQuit.connect(appCloseEvent.set)

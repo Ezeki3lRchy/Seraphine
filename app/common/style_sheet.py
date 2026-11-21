@@ -1,8 +1,6 @@
 from enum import Enum
-from typing import Tuple
-import traceback
 
-from PySide6.QtGui import QColor, QClipboard
+from PySide6.QtGui import QColor
 from PySide6.QtCore import QTimer
 from app.common.qfluentwidgets import (StyleSheetBase, Theme, qconfig, isDarkTheme,
                                        themeColor)

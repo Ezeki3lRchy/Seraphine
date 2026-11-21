@@ -220,5 +220,54 @@ class LcuGamesNotFoundTest(unittest.TestCase):
         self.assertIn("SummonerGamesNotFound", lines[0])
 
 
+class ParseSummonerDataGamesTest(unittest.TestCase):
+    """parseSummonerData (career page): a failing games task falls back to an empty
+    history, a cancelled one propagates"""
+
+    def setUp(self):
+        debugLogging(self)
+        LOG_RECORDS.clear()
+
+        async def profileIcon(iconId):
+            return "icon"
+
+        patchAll(self, [(tools.connector, "getProfileIcon", profileIcon)])
+        self.summoner = {"profileIconId": 1, "summonerLevel": 30, "xpSinceLastLevel": 0,
+                         "xpUntilNextLevel": 1, "gameName": "n", "puuid": "p",
+                         "privacy": "PUBLIC", "tagLine": "t"}
+
+    def parse(self, gameTask):
+        async def rank():
+            return {}
+
+        async def main():
+            return await tools.parseSummonerData(
+                self.summoner, asyncio.ensure_future(rank()), asyncio.ensure_future(gameTask()))
+        return asyncio.run(main())
+
+    def test_error_falls_back_to_empty_games(self):
+        for error in (LeakyError(), SummonerGamesNotFound()):
+            LOG_RECORDS.clear()
+
+            async def games():
+                raise error
+
+            out = self.parse(games)
+            self.assertEqual(out["games"], {})
+            self.assertEqual(out["champions"], [])
+            lines = [r for r in LOG_RECORDS if "parseSummonerData" in r]
+            self.assertEqual(len(lines), 1)
+            self.assertIn("WARNING - [Tools]", lines[0])
+            self.assertIn(type(error).__name__, lines[0])
+            self.assertNotIn(MARKER, lines[0])
+
+    def test_cancelled_games_task_propagates(self):
+        async def games():
+            raise asyncio.CancelledError()
+
+        with self.assertRaises(asyncio.CancelledError):
+            self.parse(games)
+
+
 if __name__ == "__main__":
     unittest.main()

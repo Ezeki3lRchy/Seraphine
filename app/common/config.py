@@ -5,9 +5,9 @@ import sys
 from PySide6.QtCore import QLocale, QSize
 
 
-from .qfluentwidgets import (qconfig, QConfig, ConfigItem, FolderValidator, BoolValidator,
+from .qfluentwidgets import (qconfig, QConfig, ConfigItem, BoolValidator,
                              OptionsConfigItem, OptionsValidator, ConfigSerializer,
-                             RangeConfigItem, RangeValidator, EnumSerializer, ColorConfigItem,
+                             RangeConfigItem, RangeValidator, ColorConfigItem,
                              Theme)
 from app.common import platform
 

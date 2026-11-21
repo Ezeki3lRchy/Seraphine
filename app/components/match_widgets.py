@@ -3,7 +3,6 @@ OP.GG 风格战绩页共用的小控件: 带详情悬浮提示的物品图标, �
 段位徽章大图. 对局信息页与生涯页共用.
 """
 import re
-import html
 
 from PySide6.QtCore import Qt, QRect, QCoreApplication, QT_TRANSLATE_NOOP
 from PySide6.QtGui import QIcon, QPainter, QPixmap

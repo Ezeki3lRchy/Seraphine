@@ -23,7 +23,7 @@ from app.components.message_box import MultiChampionSelectMsgBox
 from app.components.multi_champion_select import ChampionSelectFlyout, SplashesFlyout
 from app.components.seraphine_interface import SeraphineInterface
 from app.lol.connector import connector
-from app.lol.exceptions import *
+from app.lol.exceptions import SummonerNotFound, SummonerNotInGame
 from app.lol.tools import fixLCUWindowViaExe
 
 TAG = "AuxiliaryInterface"

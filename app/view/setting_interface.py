@@ -3,12 +3,12 @@ import os
 
 from app.common.qfluentwidgets import (SettingCardGroup, SwitchSettingCard, ComboBoxSettingCard,
                                        PushSettingCard, ExpandLayout, InfoBar,
-                                       setTheme, setThemeColor, PrimaryPushSettingCard, HyperlinkCard,
+                                       setTheme, PrimaryPushSettingCard, HyperlinkCard,
                                        TeachingTip, TeachingTipTailPosition, TeachingTipView, PushButton,
                                        RangeSettingCard)
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QWidget, QLabel, QFileDialog
+from PySide6.QtWidgets import QWidget, QLabel
 
 from app.common.icons import Icon
 from app.common.config import (cfg, YEAR, AUTHOR, VERSION, FEEDBACK_URL, GITHUB_URL, isWin11,

@@ -7,6 +7,7 @@ tests.LOG_RECORDS instead of the log/ directory.
 """
 import asyncio
 import unittest
+from unittest import mock
 
 from tests import LOG_RECORDS
 from app.lol import tools
@@ -37,20 +38,21 @@ def participant(puuid):
 class _ConnectorStubMixin:
 
     def setUp(self):
-        self._orig = (connector.getChampSelectChatParticipants,
-                      connector.getSummonerByPuuid)
         LOG_RECORDS.clear()
         self.calls = []
 
-    def tearDown(self):
-        (connector.getChampSelectChatParticipants,
-         connector.getSummonerByPuuid) = self._orig
+    def stub(self, name, fake):
+        """Replaces a connector method for this test only: undone by addCleanup, so a
+        failing test cannot leak the stub into the next one"""
+        patcher = mock.patch.object(connector, name, fake)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def stubParticipants(self, parts):
         async def fake():
             self.calls.append("participants")
             return parts
-        connector.getChampSelectChatParticipants = fake
+        self.stub("getChampSelectChatParticipants", fake)
 
 
 class RevealHiddenAlliesTest(_ConnectorStubMixin, unittest.TestCase):
@@ -77,12 +79,14 @@ class RevealHiddenAlliesTest(_ConnectorStubMixin, unittest.TestCase):
         self.assertEqual(self.calls, ["participants"])
         lines = [r for r in LOG_RECORDS if "reveal-hidden" in r]
         self.assertEqual(len(lines), 1)
-        self.assertIn("CRITICAL - [Tools] reveal-hidden: 可见 1/揭示 0/合成 4", lines[0])
+        # level, tag, key token and the three counts (visible 1 / revealed 0 / synthesized 4)
+        # in order; the wording around the numbers is free to change
+        self.assertRegex(lines[0], r"^CRITICAL - \[Tools\] reveal-hidden\D*1\D+0\D+4")
 
     def test_riot_client_failure_falls_back_to_original_team(self):
         async def boom():
             raise RuntimeError("boom")
-        connector.getChampSelectChatParticipants = boom
+        self.stub("getChampSelectChatParticipants", boom)
         team = [visible(0, ME, 11), hidden(1)]
 
         out = asyncio.run(tools.revealHiddenAllies(team, ME))
@@ -99,7 +103,7 @@ class FillRevealedSummonerIdsTest(_ConnectorStubMixin, unittest.TestCase):
             if puuid == "h1":
                 return {"summonerId": 777, "puuid": puuid}
             raise RuntimeError("not found")
-        connector.getSummonerByPuuid = fake
+        self.stub("getSummonerByPuuid", fake)
 
         team = [visible(0, ME, 11),
                 {"puuid": "h1", "summonerId": 0, "revealed": True},
@@ -116,7 +120,7 @@ class FillRevealedSummonerIdsTest(_ConnectorStubMixin, unittest.TestCase):
         async def fake(puuid):
             self.calls.append(puuid)
             return {"summonerId": 1}
-        connector.getSummonerByPuuid = fake
+        self.stub("getSummonerByPuuid", fake)
         team = [visible(0, ME, 11), hidden(1)]
 
         asyncio.run(tools.fillRevealedSummonerIds(team))

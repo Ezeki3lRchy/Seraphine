@@ -2,16 +2,12 @@ from qasync import asyncSlot
 import sys
 import webbrowser
 
-from PySide6.QtCore import Qt, Signal, QUrl
-from PySide6.QtWidgets import (QPushButton, QVBoxLayout, QWidget, QLabel, QFileDialog,
-                             QHBoxLayout)
-from PySide6.QtGui import QFont, QPixmap
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (QPushButton, QVBoxLayout, QWidget)
 
 from app.common.qfluentwidgets import (MessageBoxBase, SmoothScrollArea,
                                        BodyLabel, TextEdit, TitleLabel,
-                                       ProgressBar, PrimaryPushButton, ComboBox,
-                                       PipsScrollButtonDisplayMode, HorizontalPipsPager,
-                                       FlyoutViewBase, PushButton)
+                                       ProgressBar, PrimaryPushButton, ComboBox)
 
 from app.common.config import VERSION, cfg, BETA
 from app.common.util import getLolClientPidSlowly, selectReleaseAsset
@@ -23,7 +19,6 @@ from app.common import platform
 from app.lol.connector import connector
 from app.components.multi_champion_select import MultiChampionSelectWidget
 from app.components.multi_lol_path_setting import PathDraggableWidget
-from app.components.champion_icon_widget import RoundedLabel
 
 TAG = "MessageBox"
 
@@ -332,10 +327,15 @@ class ChangeClientMessageBox(MessageBoxBase):
             self.tr('Please select the target LOL client:'))
         self.content.setContentsMargins(8, 0, 5, 0)
 
+        currentIdx = 0
         for i, pid in enumerate(self.pids):
-            summoner = connector.getLoginSummonerByPid(pid)
-            item = (summoner.get("gameName") or summoner['displayName']) + \
-                self.tr(", ") + self.tr("PID: ") + str(pid)
+            # None when that client does not answer in time or answers with an error:
+            # it stays selectable, listed by PID only
+            summoner = connector.getLoginSummonerByPid(pid) or {}
+            name = summoner.get("gameName") or summoner.get("displayName")
+            item = self.tr("PID: ") + str(pid)
+            if name:
+                item = name + self.tr(", ") + item
 
             if pid == connector.pid:
                 item += " " + self.tr("(current)")

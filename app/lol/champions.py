@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 
@@ -53,7 +54,9 @@ class ChampionAlias:
 
             with open(self.CHAMPION_CFG_PATH, 'w') as f:
                 json.dump(ChampionAlias.data, f)
-        except:
+        except asyncio.CancelledError:
+            raise
+        except BaseException:  # the app's own exceptions (app/lol/exceptions.py) subclass BaseException
             logger.info("Update champions alias FAILED", self.TAG)
             ChampionAlias.data = None
 

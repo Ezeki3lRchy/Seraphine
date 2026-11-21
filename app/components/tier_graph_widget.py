@@ -19,18 +19,13 @@ from app.components.rich_tooltip import RichToolTip
 
 from app.common.qfluentwidgets import isDarkTheme
 from app.components.design_tokens import numberFont, textFont, tint, palette
-from app.components.scoreboard import cachedContent, drawText
+from app.components.paint import drawCard, drawText
+from app.components.scoreboard import cachedContent
 from app.lol import rank_history
 
 PAD = 16
 RADIUS = 10
 LINE_COLORS = {False: QColor('#2A78D6'), True: QColor('#3987E5')}
-
-
-def drawCard(p, rect, pal):
-    p.setPen(QPen(pal['hairline'], 1))
-    p.setBrush(pal['sheet'])
-    p.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), RADIUS, RADIUS)
 
 
 def fullTierText(tier, division):

@@ -15,17 +15,31 @@ import aiohttp
 import requests
 from PySide6.QtCore import QObject
 
-from app.common.config import cfg, Language, isChineseText
+from app.common.config import cfg, isChineseText
 from app.common.logger import logger
 from app.common.signals import signalBus
 from app.common import platform
 from app.common.util import (getPortTokenServerByPid, getPortTokenServer, getTasklistPath, getLolClientPid,
                              getRiotClientPortToken)
-from app.lol.exceptions import *
+from app.lol.exceptions import (SummonerNotFound, SummonerGamesNotFound, SummonerRankInfoNotFound,
+                                SummonerNotInGame, RetryMaximumAttempts)
 
 requests.packages.urllib3.disable_warnings()
 
 TAG = "Connector"
+
+# seconds, connect and read each: getLoginSummonerByPid runs on the UI thread
+LOGIN_SUMMONER_TIMEOUT = 1.5
+
+# Timeouts of the LCU, Riot Client and SGP sessions. aiohttp's default is 300 s per
+# request, so a hung client held a semaphore slot that long per attempt. The local client
+# answers in milliseconds to a few seconds, but match history is fetched from Riot's
+# servers through it and is slow under load (hence the ...Slowly variant). None of these
+# calls streams or long-polls; the websocket has its own session, not this one.
+# sock_read (60 s of silence) rather than a total: a total would also count the wait for
+# a pooled connection (lcuSess caps it at 8, the semaphore allows up to 100 calls), which
+# is not a hang. Deliberately generous: it only has to end a hang, never a slow answer.
+CLIENT_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=60)
 
 
 class PastRequest:
@@ -38,9 +52,27 @@ class PastRequest:
 
     def __str__(self):
         # 如果是 None 的成员, 不会被打印; 没打印 response 就是没有响应;
-        attrs = [f"{k}={v!r}" for k, v in self.__dict__.items()
-                 if v is not None]
+        # A failed call's response is the exception: summarised, never its repr (an
+        # aiohttp error's repr carries the request headers, i.e. the login token)
+        attrs = [f"{k}={errorSummary(v) if isinstance(v, BaseException) else repr(v)}"
+                 for k, v in self.__dict__.items() if v is not None]
         return f"PastRequest({', '.join(attrs)})"
+
+
+def errorSummary(e):
+    """An exception for a log line or message: its type and HTTP status, if any. Never
+    its repr or str: for aiohttp errors those carry the request (headers with the token)"""
+    status = getattr(e, 'status', None)
+    return type(e).__name__ if status is None else f"{type(e).__name__}(status={status})"
+
+
+# Set by @retry on the exception it raises after showing "LCU request error" for it
+# (lcuApiExceptionRaised), so the uncaught-exception policy does not show it a second time
+REPORTED_ATTR = '_seraphineReported'
+
+
+def isReported(e):
+    return getattr(e, REPORTED_ATTR, False) is True
 
 
 def needLcu():
@@ -75,7 +107,7 @@ def retry(count=5, retry_sep=0, secret=False):
         async def wrapper(*args, **kwargs):
             # 默认日志级别为 ERROR: 未启用的级别不拼接日志字符串
             if logger.logger.isEnabledFor(logging.INFO):
-                logger.info(f"call %s" % func.__name__, TAG)
+                logger.info("call %s" % func.__name__, TAG)
 
             # args[0] 是 self(connector) 的实例, 兼容静态方法
             tmp_args = args[1:] if has_self else args
@@ -97,9 +129,23 @@ def retry(count=5, retry_sep=0, secret=False):
                 connector.callStack.append(req_obj)
 
             exce = None
-            for _ in range(count):
+            closed = False
+            for attempt in range(count):
+                if attempt:
+                    # await (not blocking time.sleep): this runs on the shared
+                    # qasync loop+UI thread, so a blocking sleep freezes the GUI.
+                    # Only between attempts: not after the last one, nor before a raise
+                    await asyncio.sleep(retry_sep)
+                semaphore = connector.semaphore
+                if semaphore is None:
+                    # closed by close() (also between two attempts) or not started yet:
+                    # the client is gone, so the quiet not-ready ReferenceError (see
+                    # needLcu), not retried; a request still in flight keeps its own semaphore
+                    exce = ReferenceError()
+                    closed = True
+                    break
                 try:
-                    async with connector.semaphore:
+                    async with semaphore:
                         res = await func(*args, **kwargs)
                 except CancelledError:
                     # Fix: 使用 task.cancel() 偶尔会停不下 task -- By Hpero4
@@ -107,34 +153,54 @@ def retry(count=5, retry_sep=0, secret=False):
                     #   由于 CancelledError 是 BaseException 的子类,
                     #   若 task 恰好跑到被 retry 装饰的函数中, 会被 retry 中的 BaseException 捕获并吞掉, 从而无事发生
                     raise
+                except (KeyboardInterrupt, SystemExit, GeneratorExit):
+                    # interpreter-level exits are never retried; the app's own exceptions
+                    # (app/lol/exceptions.py) subclass BaseException, hence the catch-all below
+                    raise
                 except BaseException as e:
-                    # await (not blocking time.sleep): this runs on the shared
-                    # qasync loop+UI thread, so a blocking sleep freezes the GUI.
-                    await asyncio.sleep(retry_sep)
                     exce = e
 
                     # SummonerNotFound 再重试会报 429 (限流)
                     if isinstance(e, SummonerNotFound):
+                        with connector.dqLock:
+                            req_obj.response = e
                         raise e
+
+                    if connector.semaphore is None:
+                        # close() ran while this request was in flight: same as above
+                        exce = ReferenceError()
+                        closed = True
+                        break
 
                     continue
                 else:
+                    exce = None
                     break
             else:
                 # 有异常抛异常, 没异常抛 RetryMaximumAttempts
-                exce = exce if exce else RetryMaximumAttempts(
-                    "Exceeded maximum retry attempts.")
+                exce = exce or RetryMaximumAttempts("Exceeded maximum retry attempts.")
 
+            if exce is not None:
                 # ReferenceError 为 LCU 未就绪仍有请求发送时抛出, 直接吞掉不用提示
                 # 其余异常弹一个提示
                 if type(exce) is not ReferenceError:
                     signalBus.lcuApiExceptionRaised.emit(
                         func.__name__, exce)
+                # ReferenceError too: it is kept silent on purpose. Some types refuse
+                # attributes (no __dict__); those simply stay unmarked
+                try:
+                    setattr(exce, REPORTED_ATTR, True)
+                except (AttributeError, TypeError):
+                    pass
 
                 with connector.dqLock:
                     req_obj.response = exce
 
-                logger.exception(f"exit {func.__name__}", exce, TAG)
+                if closed:
+                    # client closed / not started: expected, one short line and no traceback
+                    logger.warning(f"exit {func.__name__}: client not connected", TAG)
+                else:
+                    logger.exception(f"exit {func.__name__}", exce, TAG)
 
                 raise exce
 
@@ -499,6 +565,7 @@ class LolClientConnector(QObject):
             # single qasync loop thrash scheduling hundreds of callbacks on
             # Windows. Per-request ssl=False still overrides the connector's TLS.
             connector=aiohttp.TCPConnector(limit=8),
+            timeout=CLIENT_REQUEST_TIMEOUT,
         )
 
         # Riot Client (RiotClientServices) 本地接口: 第二个会话, 只用于读取选人
@@ -512,6 +579,7 @@ class LolClientConnector(QObject):
                 base_url=f'https://127.0.0.1:{self.rcPort}',
                 auth=aiohttp.BasicAuth('riot', self.rcToken),
                 connector=aiohttp.TCPConnector(limit=2),
+                timeout=CLIENT_REQUEST_TIMEOUT,
             )
         else:
             logger.error(
@@ -526,7 +594,7 @@ class LolClientConnector(QObject):
             url = f'https://{self.server.lower()}-sgp.lol.qq.com:21019'
 
         self.sgpSess = aiohttp.ClientSession(
-            base_url=url
+            base_url=url, timeout=CLIENT_REQUEST_TIMEOUT
         )
 
         self.sgpToken = await self.getSGPtoken()
@@ -801,7 +869,7 @@ class LolClientConnector(QObject):
     @retry()
     async def getSummonerByName(self, name):
         params = {"name": name}
-        res = await self.__get(f"/lol-summoner/v1/summoners", params)
+        res = await self.__get("/lol-summoner/v1/summoners", params)
         res = await res.json()
 
         return res
@@ -809,12 +877,12 @@ class LolClientConnector(QObject):
     @retry()
     async def getSummonerByPuuid(self, puuid):
         res = await self.__get(f"/lol-summoner/v2/summoners/puuid/{puuid}")
-        res = await res.json()
 
-        if "errorCode" in res and res["httpStatus"] == 400:
-            raise SummonerNotFound()
-
-        return res
+        # Like getSummonerByName / getSummonerById: an error answer (any status, with or
+        # without httpStatus) is returned as it is, and callers treat a body with
+        # "errorCode" as "not found" (search page message, career page notice, reveal
+        # lookups skip the slot). Raising SummonerNotFound here escaped their handlers.
+        return await res.json()
 
     @retry(5, 1)
     async def getSummonerGamesByPuuidSlowly(self, puuid, begIndex=0, endIndex=4):
@@ -873,8 +941,14 @@ class LolClientConnector(QObject):
     @retry()
     async def getGameDetailByGameId(self, gameId):
         res = await self.__get(f"/lol-match-history/v1/games/{gameId}")
+        res = await res.json()
 
-        return await res.json()
+        # an error body is not a game: fail like the match-history list does (retried,
+        # then the "abnormal content" notice), never hand it on as the detail
+        if not isinstance(res, dict) or "errorCode" in res:
+            raise SummonerGamesNotFound()
+
+        return res
 
     async def getChampionMasteryQuietly(self, puuid):
         '''
@@ -892,7 +966,7 @@ class LolClientConnector(QObject):
                 data = await res.json()
         except Exception as e:
             logger.warning(
-                f"getChampionMasteryQuietly({puuid}) failed: {e!r}", TAG)
+                f"getChampionMasteryQuietly failed: {errorSummary(e)}", TAG)
             return {}
 
         if not isinstance(data, list):
@@ -919,7 +993,7 @@ class LolClientConnector(QObject):
                 data = await res.json()
         except Exception as e:
             logger.warning(
-                f"getGameDetailByGameIdQuietly({gameId}) failed: {e!r}", TAG)
+                f"getGameDetailByGameIdQuietly({gameId}) failed: {errorSummary(e)}", TAG)
             return None
 
         return data if isinstance(data, dict) and data.get('participants') else None
@@ -941,7 +1015,7 @@ class LolClientConnector(QObject):
                 data = await res.json()
         except Exception as e:
             logger.warning(
-                f"getSummonerGamesByPuuidQuietly({begIndex}-{endIndex}) failed: {e!r}", TAG)
+                f"getSummonerGamesByPuuidQuietly({begIndex}-{endIndex}) failed: {errorSummary(e)}", TAG)
             return None
 
         games = (data.get('games') or {}).get('games') if isinstance(data, dict) else None
@@ -965,7 +1039,7 @@ class LolClientConnector(QObject):
                 res = await self.__get("/lol-platform-config/v1/namespaces/PlayerPreferences")
                 prefs = await res.json(content_type=None) if res.status == 200 else {}
         except Exception as e:
-            logger.warning(f"match SGP target lookup failed: {e!r}", TAG)
+            logger.warning(f"match SGP target lookup failed: {errorSummary(e)}", TAG)
             return None, None
 
         endpoint = (prefs or {}).get('ServiceEndpoint') or ''
@@ -1045,7 +1119,7 @@ class LolClientConnector(QObject):
 
             data = await res.json(content_type=None)
         except Exception as e:
-            logger.warning(f"match SGP {kind}({gameId}) failed: {e!r}", TAG)
+            logger.warning(f"match SGP {kind}({gameId}) failed: {errorSummary(e)}", TAG)
             return None
 
         data = data.get('json') if isinstance(data, dict) else None
@@ -1098,7 +1172,7 @@ class LolClientConnector(QObject):
             # ~120 KB per game: parse off the Qt event loop
             data = await asyncio.to_thread(json.loads, await res.read())
         except Exception as e:
-            logger.warning(f"match SGP history({startIndex}+{count}) failed: {e!r}", TAG)
+            logger.warning(f"match SGP history({startIndex}+{count}) failed: {errorSummary(e)}", TAG)
             return None
 
         games = data.get('games') if isinstance(data, dict) else None
@@ -1120,7 +1194,7 @@ class LolClientConnector(QObject):
                 data = await res.json()
         except Exception as e:
             logger.warning(
-                f"getGameTimelineQuietly({gameId}) failed: {e!r}", TAG)
+                f"getGameTimelineQuietly({gameId}) failed: {errorSummary(e)}", TAG)
             return None
 
         return data if isinstance(data, dict) and data.get('frames') else None
@@ -1140,7 +1214,7 @@ class LolClientConnector(QObject):
                 data = await res.json()
         except Exception as e:
             logger.warning(
-                f"getRankedStatsByPuuidQuietly({puuid}) failed: {e!r}", TAG)
+                f"getRankedStatsByPuuidQuietly failed: {errorSummary(e)}", TAG)
             return None
 
         return data if isinstance(data, dict) and "errorCode" not in data else None
@@ -1267,7 +1341,8 @@ class LolClientConnector(QObject):
         res = await self.__get("/lol-lobby/v2/lobby")
         return await res.json()
 
-    @retry()
+    # one attempt: a replay after the client already created the lobby tears it down for a new one
+    @retry(1)
     async def create5v5PracticeLobby(self, lobbyName, password):
         data = {
             "customGameLobby": {
@@ -1352,7 +1427,7 @@ class LolClientConnector(QObject):
             data = await res.json(content_type=None)
         except Exception as e:
             logger.error(
-                f"reveal-hidden: {path} request failed: {e!r}", TAG)
+                f"reveal-hidden: {path} request failed: {errorSummary(e)}", TAG)
             return []
 
         participants = data.get('participants') if isinstance(data, dict) else None
@@ -1382,7 +1457,8 @@ class LolClientConnector(QObject):
         return await res.json()
 
     # 摇骰子
-    @retry()
+    # one attempt: a replay rerolls again (spends another reroll, loses the new champion)
+    @retry(1)
     async def reroll(self):
         res = await self.__post("/lol-champ-select/v1/session/my-selection/reroll")
         return await res.json()
@@ -1468,7 +1544,14 @@ class LolClientConnector(QObject):
     # @retry()
     async def getGameStatus(self):
         res = await self.__get("/lol-gameflow/v1/gameflow-phase")
+        status = res.status
         res = await res.text()
+
+        # a phase is a JSON string; an error answer (gameflow not ready) is reported as
+        # the idle phase "None" rather than as a phase name made of its JSON
+        if status != 200 or len(res) < 2 or not (res.startswith('"') and res.endswith('"')):
+            logger.warning(f"gameflow phase answered {status}, using 'None'", TAG)
+            return 'None'
 
         return res[1:-1]
 
@@ -1490,7 +1573,8 @@ class LolClientConnector(QObject):
 
         return await res.json()
 
-    @retry()
+    # one attempt: after a delete went through, a replay deletes the next current page
+    @retry(1)
     async def deleteCurrentRunePage(self):
         try:
             page = await self.getCurrentRunePage()
@@ -1505,9 +1589,10 @@ class LolClientConnector(QObject):
         except Exception as e:
             stack = traceback.format_exc()
             logger.error(
-                f"deleteCurrentRunePage error {stack = }, {e =}", TAG)
+                f"deleteCurrentRunePage error {errorSummary(e)}, {stack = }", TAG)
 
-    @retry()
+    # one attempt: a replay after the client already created the page makes a duplicate
+    @retry(1)
     async def createRunePage(self, name, primaryId, secondaryId, perks):
         body = {
             "name": name,
@@ -1535,7 +1620,7 @@ class LolClientConnector(QObject):
         }
 
         res = await self.__post(
-            f"/lol-spectator/v1/spectate/launch", data=data)
+            "/lol-spectator/v1/spectate/launch", data=data)
 
         res = await res.read()
 
@@ -1595,7 +1680,7 @@ class LolClientConnector(QObject):
                 subprocess.Popen([gameBinary, f'{params}'])
             except Exception as e:
                 logger.error(
-                    f"macOS spectateDirectly launch failed: {e}", TAG)
+                    f"macOS spectateDirectly launch failed: {errorSummary(e)}", TAG)
                 signalBus.lcuApiExceptionRaised.emit(
                     "Spectate via CMD is unavailable on macOS, "
                     "please use the LCU API mode", e)
@@ -1629,14 +1714,16 @@ class LolClientConnector(QObject):
 
     @retry()
     async def sendFriendRequest(self, name):
-        summoner = self.getSummonerByName(name)
-        summonerId = summoner['summonerId']
+        summoner = await self.getSummonerByName(name)
+        # an unknown name answers with an error body (no summonerId); SummonerNotFound is not retried
+        if not isinstance(summoner, dict) or not summoner.get('summonerId'):
+            raise SummonerNotFound()
 
         data = {
             "name": name,
         }
 
-        res = await self.__post('/lol-chat/v1/friend-requests', data=data)
+        await self.__post('/lol-chat/v1/friend-requests', data=data)
 
     @retry()
     def sendNotificationMsg(self, title, content):
@@ -1782,9 +1869,22 @@ class LolClientConnector(QObject):
         return await self.sgpSess.get(path, params=params, headers=headers)
 
     def getLoginSummonerByPid(self, pid):
-        port, token, _ = getPortTokenServerByPid(pid)
-        url = f'https://riot:{token}@127.0.0.1:{port}/lol-summoner/v1/current-summoner'
-        return requests.get(url, verify=False).json()
+        """
+        Synchronous (called while building the change-client dialog): a short timeout keeps a
+        hung or just-closed client from freezing the UI. Returns None when the client does not
+        answer or answers with an error.
+        """
+        try:
+            port, token, _ = getPortTokenServerByPid(pid)
+            res = requests.get(f'https://127.0.0.1:{port}/lol-summoner/v1/current-summoner',
+                               auth=('riot', token), verify=False,
+                               timeout=LOGIN_SUMMONER_TIMEOUT)
+            summoner = res.json() if res.ok else None
+        except Exception as e:
+            logger.warning(f"getLoginSummonerByPid failed: {type(e).__name__}", TAG)
+            return None
+
+        return summoner if isinstance(summoner, dict) else None
 
 
 class JsonManager:

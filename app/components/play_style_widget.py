@@ -31,7 +31,8 @@ from app.components.design_tokens import (numberFont, textFont, resultColor, tin
 from app.components.match_widgets import TAG_COLORS
 from app.components.performance_widget import BETTER, WORSE, lengthText
 from app.components.rich_tooltip import RichToolTip
-from app.components.scoreboard import drawText, drawRuns, runsWidth, cachedContent, drawChampion
+from app.components.paint import drawText, drawRuns, drawChampion
+from app.components.scoreboard import runsWidth, cachedContent
 from app.lol import play_style
 
 ICON_PX = 44
@@ -104,10 +105,16 @@ class PlayStyleView(QFrame):
 
         self.tips = []  # [(QRect, text, isHelp)]
         self.chipRects = []  # [(QRect, queueId)]
+        self._helpIcons = []  # [(tips index, tile index, (?) QRectF)] for the hover overlay
+        self._tileRects = []  # tile rects in drawing order, for the hover overlay
+        self._chipSpecs = []  # [(queueId, QRectF, text, games)] for the hover overlay
         self._hover = -1
         self._chipHover = None  # queueId of the hovered chip, 'none' for no chip
         self._cache = None
         self._cacheKey = None
+        # bumped whenever the profiles are rebuilt or reset; the cache key uses it, not id()
+        # of the data (CPython reuses the id of a freed object, so a stale pixmap could match)
+        self._dataVersion = 0
         self.setFixedHeight(self.STATE_H)
 
     # ---------------- data ----------------
@@ -116,6 +123,7 @@ class PlayStyleView(QFrame):
         """another summoner / refresh: wait for the season sample; the queue filter resets"""
         self.state = 'loading'
         self.games, self.profiles = [], {}
+        self._dataVersion += 1
         self.recentGames = recentGames or []
         self.queueId = None
         self.icons, self.names = {}, {}
@@ -124,6 +132,7 @@ class PlayStyleView(QFrame):
     def setEmpty(self):
         self.state = 'empty'
         self.games, self.profiles = [], {}
+        self._dataVersion += 1
         self._relayout()
 
     def setSample(self, games, source="", capped=False, roles=None, recentGames=None,
@@ -143,6 +152,7 @@ class PlayStyleView(QFrame):
             self.recentGames = recentGames
         self.profiles = {q: play_style.buildProfile(self.games, q, self.roles, self.recentGames)
                          for q in play_style.QUEUE_FILTERS}
+        self._dataVersion += 1
         if self.profiles.get(None) is None:
             self.state = 'empty'
         else:
@@ -404,17 +414,47 @@ class PlayStyleView(QFrame):
 
     def paintEvent(self, e):
         p = QPainter(self)
-        key = (self.state, self.queueId, self._helpIndex(self._hover), id(self.profile()),
-               len(self.icons), self._chipHover)
+        # the card is cached without hover state; hover highlights are drawn over it
+        key = (self.state, self.queueId, self._dataVersion, len(self.icons))
         p.drawPixmap(0, 0, cachedContent(self, self.__draw, key))
+        self.__drawOverlays(p, palette(isDarkTheme()))
         p.end()
 
-    def __draw(self, p, pal):
+    def __drawOverlays(self, p, pal):
+        """
+        the hovered (?) icon and chip, redrawn clipped to their own pixels (whole pixels,
+        1px margin) over a repaint of the layers there (card, tile backgrounds in drawing
+        order), so the result matches a full redraw with the hover state
+        """
+        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform
+                         | QPainter.TextAntialiasing)
+        help_ = self._helpIndex(self._hover)
+        for index, tileIndex, rect in self._helpIcons:
+            if index == help_:
+                clip = rect.adjusted(-1, -1, 1, 1).toAlignedRect()
+                p.setClipRect(clip)
+                self.__drawCard(p, pal)
+                for i, tile in enumerate(self._tileRects):
+                    if tile.intersects(QRectF(clip)):
+                        self.__drawTileBackground(p, pal, tile)
+                    if i == tileIndex:
+                        self.__drawHelpIcon(p, pal, rect, True)
+        for q, rect, text, n in self._chipSpecs:
+            if q == self._chipHover and q != self.queueId:
+                p.setClipRect(rect.adjusted(-1, -1, 1, 1).toAlignedRect())
+                self.__drawCard(p, pal)
+                self.__drawChip(p, pal, rect, text, n, False, True)
+
+    def __drawCard(self, p, pal):
         p.setPen(QPen(pal['hairline'], 1))
         p.setBrush(pal['sheet'])
         p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10, 10)
 
+    def __draw(self, p, pal):
+        self.__drawCard(p, pal)
+
         self.tips, self.chipRects = [], []
+        self._helpIcons, self._chipSpecs, self._tileRects = [], [], []  # for the hover overlays
         m, w = self.MARGIN, self.width()
         chipsLeft = self.__drawChips(p, pal) if self.state == 'ready' else w - m
 
@@ -465,42 +505,40 @@ class PlayStyleView(QFrame):
             cw = fm.horizontalAdvance(text) + 24
             x -= cw
             rect = QRectF(x, 11, cw, h)
-            selected = q == self.queueId
-            hovered = q == self._chipHover and not selected
-            if selected:
-                p.setPen(Qt.NoPen)
-                p.setBrush(pal['ink'])
-            else:
-                p.setPen(QPen(tint(pal['muted'], 160) if hovered else pal['hairline'], 1))
-                p.setBrush(pal['hairline'] if hovered else Qt.NoBrush)
-            p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), h / 2, h / 2)
-            color = pal['sheet'] if selected else (pal['ink'] if n else tint(pal['muted'], 120))
-            drawText(p, rect, text, font, color, Qt.AlignCenter)
+            self.__drawChip(p, pal, rect, text, n, q == self.queueId, False)
             self.chipRects.append((rect.toRect(), q))
+            self._chipSpecs.append((q, rect, text, n))
             x -= 6
         return x
+
+    def __drawChip(self, p, pal, rect, text, n, selected, hovered):
+        h = self.CHIP_H
+        if selected:
+            p.setPen(Qt.NoPen)
+            p.setBrush(pal['ink'])
+        else:
+            p.setPen(QPen(tint(pal['muted'], 160) if hovered else pal['hairline'], 1))
+            p.setBrush(pal['hairline'] if hovered else Qt.NoBrush)
+        p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), h / 2, h / 2)
+        color = pal['sheet'] if selected else (pal['ink'] if n else tint(pal['muted'], 120))
+        drawText(p, rect, text, textFont(12), color, Qt.AlignCenter)
 
     def __tile(self, p, pal, rect, title, tip=None, note=None, noteColor=None, help=True):
         """
         tile background + title + optional right-aligned note. tip: shown on a (?) next to the
         title when help, otherwise on hover anywhere over the tile (self-explanatory numbers)
         """
-        p.setPen(QPen(pal['hairline'], 1))
-        p.setBrush(tint(pal['hairline'], 70))
-        p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8)
+        self.__drawTileBackground(p, pal, rect)
+        self._tileRects.append(rect)
         x, y = rect.left() + 14, rect.top()
         titleFont = textFont(12)
         titleW = QFontMetrics(titleFont).horizontalAdvance(title)
         drawText(p, QRectF(x, y + 10, titleW + 2, 18), title, titleFont, pal['muted'])
         end = x + titleW
         if tip and help:
-            hover = self._helpIndex(self._hover) == len(self.tips)
-            color = pal['ink'] if hover else pal['muted']
             help_ = QRectF(x + titleW + 6, y + 11, 16, 16)
-            p.setPen(QPen(color, 1.1))
-            p.setBrush(Qt.NoBrush)
-            p.drawEllipse(help_.adjusted(0.5, 0.5, -0.5, -0.5))
-            drawText(p, help_, "?", textFont(11, True), color, Qt.AlignCenter)
+            self.__drawHelpIcon(p, pal, help_, False)
+            self._helpIcons.append((len(self.tips), len(self._tileRects) - 1, help_))
             self.tips.append((QRect(int(x), int(y + 8), int(titleW + 26), 22), tip, True))
             end = help_.right()
         elif tip:
@@ -511,6 +549,18 @@ class PlayStyleView(QFrame):
             note = QFontMetrics(font).elidedText(note, Qt.ElideRight, int(max(room, 0)))
             drawText(p, QRectF(end + 8, y + 10, room, 18), note, font,
                      noteColor or pal['muted'], Qt.AlignRight | Qt.AlignVCenter)
+
+    def __drawTileBackground(self, p, pal, rect):
+        p.setPen(QPen(pal['hairline'], 1))
+        p.setBrush(tint(pal['hairline'], 70))
+        p.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 8, 8)
+
+    def __drawHelpIcon(self, p, pal, rect, hover):
+        color = pal['ink'] if hover else pal['muted']
+        p.setPen(QPen(color, 1.1))
+        p.setBrush(Qt.NoBrush)
+        p.drawEllipse(rect.adjusted(0.5, 0.5, -0.5, -0.5))
+        drawText(p, rect, "?", textFont(11, True), color, Qt.AlignCenter)
 
     def __stat(self, p, pal, rect, title, tip, value, sub, valueColor=None, help=False):
         self.__tile(p, pal, rect, title, tip, help=help)

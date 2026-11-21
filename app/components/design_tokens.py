@@ -5,6 +5,8 @@
   胜负色沿用用户在设置里配置的卡片颜色, 以实色边条 + 浅色底呈现.
 - 字体: 数字统一用 Bahnschrift (Windows 自带的 DIN 风格字体, 记分牌感), 文字用 Segoe UI.
 """
+from functools import lru_cache
+
 from PySide6.QtGui import QColor, QFont
 
 from app.common.qfluentwidgets import isDarkTheme, qconfig
@@ -60,6 +62,10 @@ def _palette(dark):
     }
 
 
+# Fonts are cached per arguments (paint paths ask for them on every frame) and built on
+# first use, never at import time (no QApplication yet). The returned QFont is shared:
+# callers must not modify it; copy it with QFont(font) first.
+@lru_cache(maxsize=None)
 def numberFont(size, weight=QFont.DemiBold):
     """weight 可传 QFont.Weight 或 100..900 的整数"""
     font = QFont(NUMBER_FAMILIES)
@@ -68,6 +74,7 @@ def numberFont(size, weight=QFont.DemiBold):
     return font
 
 
+@lru_cache(maxsize=None)
 def textFont(size, bold=False):
     font = QFont(TEXT_FAMILIES)
     font.setPixelSize(size)
@@ -94,6 +101,18 @@ def deathsColor():
 
         _cache['deaths'] = QColor(colorManager.getColor('deaths')[0])
     return QColor(_cache['deaths'])
+
+
+def kdaColor(kda):
+    """KDA 数值的颜色分档; 普通档位返回 None (用默认文字色)"""
+    if 3 <= kda < 4:
+        return QColor(0, 163, 80)
+    elif 4 <= kda < 5:
+        return QColor(0, 147, 255)
+    elif 5 <= kda:
+        return QColor(240, 111, 0)
+
+    return None
 
 
 def opScoreColor(score, dark=None):

@@ -1,11 +1,8 @@
 from PySide6.QtCore import QEvent, Qt, Signal, QRectF, QSize
-from PySide6.QtGui import (QColor, QMouseEvent, QPainter, QPainterPath, QLinearGradient, QGradient,
-                         QPen, QPixmap, qGray, qAlpha, qRgba)
-from PySide6.QtWidgets import QWidget, QFrame, QLabel, QGraphicsOpacityEffect
+from PySide6.QtGui import (QColor, QMouseEvent, QPainter, QPainterPath, QLinearGradient, QPen, QPixmap)
+from PySide6.QtWidgets import QFrame, QLabel, QGraphicsOpacityEffect
 
-from app.common.qfluentwidgets import isDarkTheme
 
-import time
 
 
 class RoundIcon(QFrame):

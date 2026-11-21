@@ -1,6 +1,7 @@
 """Pure helpers behind the OP.GG-style widgets (item tooltips, game tags, times)."""
-import time
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 from app.components import match_widgets as mw
 from app.components import career_widgets as cw
@@ -8,7 +9,21 @@ from app.components import career_widgets as cw
 
 class ItemDescriptionTest(unittest.TestCase):
 
-    def test_stats_and_emphasis(self):
+    def test_attention_becomes_bold_and_the_stats_wrapper_is_dropped(self):
+        out = mw.itemDescriptionToHtml(
+            "<mainText><stats><attention> 75</attention> Attack Damage</stats></mainText>")
+        self.assertEqual(out, "<b> 75</b> Attack Damage")
+
+    def test_passive_name_becomes_bold(self):
+        out = mw.itemDescriptionToHtml("<mainText><passive>Spellblade</passive></mainText>")
+        self.assertEqual(out, "<b>Spellblade</b>")
+
+    def test_line_breaks_between_stats_are_kept(self):
+        out = mw.itemDescriptionToHtml(
+            "<stats><attention>1</attention> A<br><attention>2</attention> B</stats>")
+        self.assertEqual(out, "<b>1</b> A<br><b>2</b> B")
+
+    def test_full_item_description(self):
         desc = ("<mainText><stats><attention> 75</attention> Attack Damage<br>"
                 "<attention> 25%</attention> Critical Strike Chance</stats><br><br>"
                 "<passive>Spellblade</passive><br>After using an Ability...</mainText>")
@@ -52,14 +67,23 @@ class GameTagsTest(unittest.TestCase):
 
 class CareerTextTest(unittest.TestCase):
 
-    def test_time_ago(self):
-        # one second past each boundary: an exact multiple can land just below it
-        # through float rounding when the clock has not ticked (Windows, ~15 ms)
-        now = time.time() * 1000
-        self.assertEqual(cw.timeAgo(now), "just now")
-        self.assertEqual(cw.timeAgo(now - 3 * 60_000 - 1000), "3 minutes ago")
-        self.assertEqual(cw.timeAgo(now - 60 * 60_000 - 1000), "1 hour ago")
-        self.assertEqual(cw.timeAgo(now - 2 * 86_400_000 - 1000), "2 days ago")
+    NOW = 1_700_000_000.0  # seconds; the clock is frozen, so every boundary is exact
+
+    def timeAgo(self, secondsAgo):
+        with mock.patch.object(cw, "time", SimpleNamespace(time=lambda: self.NOW)):
+            return cw.timeAgo((self.NOW - secondsAgo) * 1000)
+
+    def test_time_ago_by_unit(self):
+        cases = [(0, "just now"), (59, "just now"),
+                 (60, "1 minute ago"), (3 * 60, "3 minutes ago"), (3599, "59 minutes ago"),
+                 (3600, "1 hour ago"), (2 * 3600, "2 hours ago"),
+                 (86400, "1 day ago"), (2 * 86400, "2 days ago")]
+        for secondsAgo, expected in cases:
+            with self.subTest(secondsAgo=secondsAgo):
+                self.assertEqual(self.timeAgo(secondsAgo), expected)
+
+    def test_time_ago_of_a_future_timestamp_is_just_now(self):
+        self.assertEqual(self.timeAgo(-120), "just now")
 
     def test_tier_text_and_duration(self):
         self.assertEqual(cw.tierText("DIAMOND", "II"), "Diamond II")

@@ -1,14 +1,12 @@
 import sys
 
-from PySide6.QtCore import (Qt, QRectF, QPoint, QPropertyAnimation, QParallelAnimationGroup,
-                          QEasingCurve, QSize, QRect)
-from PySide6.QtGui import QHideEvent, QPainter, QPainterPath, QPen, QFont, QPixmap, QColor
+from PySide6.QtCore import (Qt, QRectF, QSize)
+from PySide6.QtGui import QPainter, QPainterPath, QPen, QFont, QPixmap
 from PySide6.QtWidgets import (QWidget, QApplication, QMainWindow, QHBoxLayout,
-                             QLabel, QVBoxLayout, QGridLayout, QFrame, QGraphicsDropShadowEffect)
+                             QLabel, QVBoxLayout, QGridLayout)
 
-from app.lol.aram import AramBuff
 from app.common.qfluentwidgets import (ProgressRing, ToolTipFilter, ToolTipPosition, isDarkTheme,
-                                       themeColor, FlyoutViewBase, TextWrap, FlyoutAnimationType)
+                                       themeColor, FlyoutViewBase)
 from app.components.color_label import ColorLabel
 from app.components.tool_tip import CustomToolTip
 from app.common.style_sheet import StyleSheet

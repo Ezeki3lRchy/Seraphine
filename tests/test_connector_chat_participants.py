@@ -6,8 +6,10 @@ handler's mode; the method must return [] on every failure shape.
 """
 import asyncio
 import json
+import socket
 import threading
 import unittest
+from unittest import mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import aiohttp
@@ -81,21 +83,21 @@ class ChatParticipantsTest(unittest.TestCase):
     def _call(self, mode):
         _Handler.mode = mode
 
-        async def go():
-            connector.rcSess = aiohttp.ClientSession(
-                base_url=f"http://127.0.0.1:{self.port}")
-            try:
-                return await connector.getChampSelectChatParticipants()
-            finally:
-                await connector.rcSess.close()
-                connector.rcSess = None
+        return asyncio.run(self._withSession(f"http://127.0.0.1:{self.port}"))
 
-        return asyncio.run(go())
+    async def _withSession(self, baseUrl):
+        # the singleton's rcSess is put back by patch.object even if the call fails
+        session = aiohttp.ClientSession(base_url=baseUrl)
+        try:
+            with mock.patch.object(connector, "rcSess", session):
+                return await connector.getChampSelectChatParticipants()
+        finally:
+            await session.close()
 
     def test_no_session_returns_empty(self):
-        connector.rcSess = None
-        self.assertEqual(asyncio.run(
-            connector.getChampSelectChatParticipants()), [])
+        with mock.patch.object(connector, "rcSess", None):
+            self.assertEqual(asyncio.run(
+                connector.getChampSelectChatParticipants()), [])
 
     def test_ok_filters_to_champ_select_cids(self):
         res = self._call("ok")
@@ -124,16 +126,14 @@ class ChatParticipantsTest(unittest.TestCase):
         self.assertEqual(self._call("shape"), [])
 
     def test_connection_refused_returns_empty(self):
-        async def go():
-            # nothing listens on this port: request raises inside, must be swallowed
-            connector.rcSess = aiohttp.ClientSession(base_url="http://127.0.0.1:9")
-            try:
-                return await connector.getChampSelectChatParticipants()
-            finally:
-                await connector.rcSess.close()
-                connector.rcSess = None
-
-        self.assertEqual(asyncio.run(go()), [])
+        # nothing listens on this port: request raises inside, must be swallowed. A port
+        # that was just free (not a fixed one like 9) is refused at once on every OS; some
+        # stacks make a connect to a filtered fixed port wait seconds for its timeout
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        self.assertEqual(asyncio.run(self._withSession(f"http://127.0.0.1:{port}")), [])
 
 
 if __name__ == "__main__":

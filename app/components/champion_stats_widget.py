@@ -35,17 +35,17 @@ tooltip text is built on hover.
 from bisect import bisect_left, bisect_right
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QRectF, QRect, QEvent, Signal, QPointF
+from PySide6.QtCore import Qt, QRectF, QEvent, Signal, QPointF
 from PySide6.QtGui import QPainter, QPainterPath, QPen, QFontMetrics, QPixmap, QPolygonF
 from PySide6.QtWidgets import QFrame, QSizePolicy
 
 from app.common.qfluentwidgets import isDarkTheme
-from app.components.career_widgets import kdaColor
 from app.components.design_tokens import (numberFont, textFont, resultColor, tint,
-                                          opScoreColor, palette, deathsColor)
+                                          opScoreColor, palette, deathsColor, kdaColor)
 from app.components.play_style_widget import pct
 from app.components.rich_tooltip import RichToolTip
-from app.components.scoreboard import drawText, drawRuns, runsWidth, drawChampion
+from app.components.paint import drawText, drawRuns, drawChampion
+from app.components.scoreboard import runsWidth
 from app.lol import champion_stats
 
 ICON_PX = 64
@@ -124,6 +124,9 @@ class ChampionStatsView(QFrame):
         self._cacheTop = self._cacheBottom = 0
         self._cacheIds = set()
         self._version = 0  # bumped when icons / names change what the window shows
+        # bumped whenever the profiles are rebuilt or reset; cache keys use it, not id() of
+        # the data (CPython reuses the id of a freed object, so a stale pixmap could match)
+        self._dataVersion = 0
         self.setFixedHeight(self.STATE_H)
 
     # ---------------- data ----------------
@@ -132,6 +135,7 @@ class ChampionStatsView(QFrame):
         """another summoner / refresh: filter, sort and expanded rows reset"""
         self.state = 'loading'
         self.games, self.profiles = [], {}
+        self._dataVersion += 1
         self.queueId = None
         self.sortKey, self.sortDesc = 'games', True
         self.expanded, self.showAll, self.requested = set(), set(), set()
@@ -141,6 +145,7 @@ class ChampionStatsView(QFrame):
     def setEmpty(self):
         self.state = 'empty'
         self.games, self.profiles = [], {}
+        self._dataVersion += 1
         self._relayout()
 
     def setSample(self, games, source="", capped=False, names=None):
@@ -154,6 +159,7 @@ class ChampionStatsView(QFrame):
         self.source = source
         self.capped = capped
         self.profiles = champion_stats.buildAll(self.games)
+        self._dataVersion += 1
         if self.profiles.get(None) is None:
             self.state = 'empty'
         else:
@@ -284,7 +290,7 @@ class ChampionStatsView(QFrame):
 
     def chips(self):
         """[(QRectF, queueId, text, games)] right-aligned in the title line"""
-        key = (self.width(), id(self.profiles), self.state)
+        key = (self.width(), self._dataVersion, self.state)
         if key == self._chipsKey:
             return self._chips
         out = []
@@ -342,7 +348,8 @@ class ChampionStatsView(QFrame):
     def rows(self):
         """[(top, height, kind, row, champion row)] for the current state, top to bottom"""
         prof = self.profile()
-        key = (id(prof), self.sortKey, self.sortDesc, frozenset(self.expanded),
+        key = (self._dataVersion, self.state, self.queueId, self.sortKey, self.sortDesc,
+               frozenset(self.expanded),
                frozenset(self.showAll), bool(self.note()),
                self._version if self.sortKey == 'champion' else 0)
         if key == self._rowsKey:
@@ -748,7 +755,7 @@ class ChampionStatsView(QFrame):
         """everything the rendered window depends on (no hover state)"""
         return (self.width(), self.height(), self.devicePixelRatioF(), isDarkTheme(),
                 resultColor('win').rgba(), resultColor('lose').rgba(), deathsColor().rgba(),
-                self.state, self.queueId, id(self.profile()), self.sortKey, self.sortDesc,
+                self.state, self.queueId, self._dataVersion, self.sortKey, self.sortDesc,
                 frozenset(self.expanded), frozenset(self.showAll), self.source, self.capped,
                 self._version)
 

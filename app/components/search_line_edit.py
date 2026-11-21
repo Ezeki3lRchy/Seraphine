@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt, QEvent, QAbstractItemModel, Signal, QSize
-from PySide6.QtGui import QColor, QAction
-from PySide6.QtWidgets import QCompleter, QWidget, QHBoxLayout, QListWidgetItem, QPushButton
-from ..common.qfluentwidgets import SearchLineEdit as QSearchLineEdit, PushButton, Icon, FluentIcon, TransparentToolButton, Theme, CompleterMenu, LineEditButton, RoundMenu, MenuAnimationType
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QCompleter, QWidget, QHBoxLayout, QListWidgetItem
+from ..common.qfluentwidgets import SearchLineEdit as QSearchLineEdit, FluentIcon, CompleterMenu, LineEditButton, RoundMenu, MenuAnimationType
 
 from app.common.config import cfg
 

@@ -9,6 +9,8 @@ import tempfile
 import time
 import unittest
 
+import psutil
+
 from app.common.util import (parseRiotClientArgs, readRiotClientLockfile,
                              getRiotClientPortToken)
 
@@ -109,8 +111,25 @@ class GetRiotClientPortTokenTest(unittest.TestCase):
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.addCleanup(proc.wait)
         self.addCleanup(proc.terminate)
-        time.sleep(0.2)
+        self._waitForCmdline(proc.pid, extraArgs)
         return proc.pid
+
+    @staticmethod
+    def _waitForCmdline(pid, expectedArgs, timeout=15):
+        # Wait for the condition the tests rely on (the process exists and psutil can read
+        # its full argv), not for a guessed start-up time that a loaded runner can exceed.
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                cmdline = psutil.Process(pid).cmdline()
+            except (psutil.Error, OSError):
+                cmdline = []
+            if all(arg in cmdline for arg in expectedArgs):
+                return
+            if time.monotonic() > deadline:
+                raise AssertionError(
+                    f"child process {pid} did not expose its command line within {timeout}s")
+            time.sleep(0.02)
 
     def test_cmdline_path_wins(self):
         pid = self._spawn("--riotclient-app-port=31337",

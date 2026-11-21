@@ -8,7 +8,7 @@ class TmpSystemTrayMenu(SystemTrayMenu):
         m = self.layout().contentsMargins()
         rect = QApplication.screenAt(QCursor.pos()).availableGeometry()
 
-        w, h = self.layout().sizeHint().width() + 5, self.layout().sizeHint().height()
+        w = self.layout().sizeHint().width() + 5
 
         x = min(self.x() - m.left(), rect.right() - w)
         y = QCursor.pos().y() - self.height() + m.bottom()
