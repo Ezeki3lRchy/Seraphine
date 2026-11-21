@@ -6,6 +6,11 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.9
+- Item value overlay: each lane now shows both players' item values next to the difference, the difference is written out in full when it fits, and small coloured marks show which column is yours and which is the enemy's.
+- "Even" is gone from the item value overlay and panel: the actual difference is always shown (0 when exactly equal).
+- Settings: the **Check now** button no longer has its label cut off.
+
 ### v1.4.8
 - An unexpected error no longer closes Seraphine: a notice with **Copy details** appears and the app keeps running. If connecting to the game client fails, it goes back to the waiting screen and tries again instead of staying on a locked loading page.
 - Champ select and game state follow the newest event, so a slow load can no longer overwrite what happened after it; champion icons stay correct after quick swaps.

@@ -2186,34 +2186,32 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
 <context>
     <name>GoldOverlay</name>
     <message>
-        <location filename="../../components/gold_overlay.py" line="75"/>
-        <location filename="../../components/gold_overlay.py" line="184"/>
+        <location filename="../../components/gold_overlay.py" line="141"/>
+        <location filename="../../components/gold_overlay.py" line="250"/>
         <source>Item value</source>
         <translation>装备价值</translation>
     </message>
     <message>
-        <location filename="../../components/gold_overlay.py" line="190"/>
-        <location filename="../../components/gold_overlay.py" line="218"/>
         <source>Even</source>
-        <translation>持平</translation>
+        <translation type="vanished">持平</translation>
     </message>
     <message>
-        <location filename="../../components/gold_overlay.py" line="195"/>
+        <location filename="../../components/gold_overlay.py" line="260"/>
         <source>You</source>
         <translation>我方</translation>
     </message>
     <message>
-        <location filename="../../components/gold_overlay.py" line="195"/>
+        <location filename="../../components/gold_overlay.py" line="260"/>
         <source>Enemy</source>
         <translation>敌方</translation>
     </message>
     <message>
-        <location filename="../../components/gold_overlay.py" line="197"/>
+        <location filename="../../components/gold_overlay.py" line="262"/>
         <source>Blue</source>
         <translation>蓝色方</translation>
     </message>
     <message>
-        <location filename="../../components/gold_overlay.py" line="197"/>
+        <location filename="../../components/gold_overlay.py" line="262"/>
         <source>Red</source>
         <translation>红色方</translation>
     </message>
@@ -2279,15 +2277,13 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
 <context>
     <name>ItemGoldContent</name>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="202"/>
+        <location filename="../../components/item_gold_panel.py" line="203"/>
         <source>Item value</source>
         <translation>装备价值</translation>
     </message>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="208"/>
-        <location filename="../../components/item_gold_panel.py" line="308"/>
         <source>Even</source>
-        <translation>持平</translation>
+        <translation type="vanished">持平</translation>
     </message>
     <message>
         <location filename="../../components/item_gold_panel.py" line="227"/>
@@ -2315,42 +2311,41 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
         <translation>装备价值：每名玩家当前持有装备的总价（不是获得的金币）。</translation>
     </message>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="243"/>
+        <location filename="../../components/item_gold_panel.py" line="244"/>
         <source>Enemy items are what the scoreboard shows (last seen). Unspent gold of other players is not available.</source>
         <translation>敌方装备以计分板显示为准（最后一次看到的状态）。无法获取其他玩家未花费的金币。</translation>
     </message>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="245"/>
         <source>A difference under {0} gold or {1}% of the larger value counts as even.</source>
-        <translation>差值低于 {0} 金币或较大一方的 {1}% 时视为持平。</translation>
+        <translation type="vanished">差值低于 {0} 金币或较大一方的 {1}% 时视为持平。</translation>
     </message>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="247"/>
+        <location filename="../../components/item_gold_panel.py" line="245"/>
         <source>Your unspent gold: {0}</source>
         <translation>你未花费的金币：{0}</translation>
     </message>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="250"/>
+        <location filename="../../components/item_gold_panel.py" line="248"/>
         <source>You are not on either team (spectating?): the difference is blue minus red.</source>
         <translation>你不在任何一方（观战中？）：差值为蓝色方减红色方。</translation>
     </message>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="314"/>
+        <location filename="../../components/item_gold_panel.py" line="311"/>
         <source>vs</source>
         <translation>vs</translation>
     </message>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="340"/>
+        <location filename="../../components/item_gold_panel.py" line="337"/>
         <source>No lanes in this mode</source>
         <translation>该模式没有分路</translation>
     </message>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="341"/>
+        <location filename="../../components/item_gold_panel.py" line="338"/>
         <source>Players sorted by item value</source>
         <translation>玩家按装备价值排序</translation>
     </message>
     <message>
-        <location filename="../../components/item_gold_panel.py" line="352"/>
+        <location filename="../../components/item_gold_panel.py" line="349"/>
         <source>{0} is dead (dimmed)</source>
         <translation>{0} 已阵亡（变暗显示）</translation>
     </message>
@@ -4910,13 +4905,13 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
         <translation>在后台下载新版本，完成后只提示重启</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="379"/>
-        <location filename="../../view/setting_interface.py" line="385"/>
+        <location filename="../../view/setting_interface.py" line="381"/>
+        <location filename="../../view/setting_interface.py" line="387"/>
         <source>Updated successfully</source>
         <translation>更新成功</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="380"/>
+        <location filename="../../view/setting_interface.py" line="382"/>
         <source>Configuration takes effect after restart</source>
         <translation>设置在重启软件后生效</translation>
     </message>
@@ -4956,29 +4951,29 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
         <translation type="obsolete">在对局详情界面中显示段位图标，启动该选项将影响加载该界面的速度</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="255"/>
-        <location filename="../../view/setting_interface.py" line="268"/>
+        <location filename="../../view/setting_interface.py" line="257"/>
+        <location filename="../../view/setting_interface.py" line="270"/>
         <source>About</source>
         <translation>关于</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="258"/>
-        <location filename="../../view/setting_interface.py" line="259"/>
+        <location filename="../../view/setting_interface.py" line="260"/>
+        <location filename="../../view/setting_interface.py" line="261"/>
         <source>Provide feedback</source>
         <translation>提供反馈</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="260"/>
+        <location filename="../../view/setting_interface.py" line="262"/>
         <source>Help us improve Seraphine by providing feedback</source>
         <translation>通过提供反馈帮助我们改善 Seraphine</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="269"/>
+        <location filename="../../view/setting_interface.py" line="271"/>
         <source>Copyright</source>
         <translation>版权所有</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="270"/>
+        <location filename="../../view/setting_interface.py" line="272"/>
         <source>Version</source>
         <translation>当前版本</translation>
     </message>
@@ -4998,12 +4993,12 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
         <translation>删除所有游戏资源的缓存（建议在游戏资源有更新时使用）</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="268"/>
+        <location filename="../../view/setting_interface.py" line="270"/>
         <source>View GitHub</source>
         <translation>查看 GitHub</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="412"/>
+        <location filename="../../view/setting_interface.py" line="414"/>
         <source>Really?</source>
         <translation>真的要删除吗？</translation>
     </message>
@@ -5014,7 +5009,7 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
                 这有可能会消耗更多的时间</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="419"/>
+        <location filename="../../view/setting_interface.py" line="421"/>
         <source>Confirm delete</source>
         <translation>确定删除</translation>
     </message>
@@ -5039,7 +5034,7 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
         <translation>点击右上角关闭时将程序最小化到托盘</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="386"/>
+        <location filename="../../view/setting_interface.py" line="388"/>
         <source>Settings have been applied</source>
         <translation>设置已应用</translation>
     </message>
@@ -5106,7 +5101,7 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
         <translation type="obsolete">HTTP 代理</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="252"/>
+        <location filename="../../view/setting_interface.py" line="254"/>
         <source>Using a proxy when connecting to GitHub</source>
         <translation>连接 GitHub 时启用 HTTP 代理</translation>
     </message>
@@ -5141,7 +5136,7 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
         <translation>改变对局卡片提示胜利 / 失败的颜色</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="251"/>
+        <location filename="../../view/setting_interface.py" line="253"/>
         <source>HTTP proxy</source>
         <translation>HTTP 代理</translation>
     </message>
@@ -5180,7 +5175,7 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
         <translation>在搜索界面对局详情界面中显示段位，启动该选项将影响加载该界面的速度</translation>
     </message>
     <message>
-        <location filename="../../view/setting_interface.py" line="415"/>
+        <location filename="../../view/setting_interface.py" line="417"/>
         <source>Game resources will be downloaded again
 when they are used by Seraphine, which will cost more time</source>
         <translation>游戏资源将会在它们要被 Seraphine 使用时重新下载，
