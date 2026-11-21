@@ -7,21 +7,26 @@ Sources (read-only GETs; used by this tool only, never by the app at runtime):
 - CommunityDragon's mirror of the game client's data for the same patch
   (raw.communitydragon.org/<X.Y>/game/...): item active cooldowns (`mDataValues` "Cooldown" in
   items.cdtb.bin.json) and summoner spell cooldowns incl. the Unleashed spells (`cooldownTime` in
-  shared.cdtb.bin.json; a spell with charges, `mMaxAmmo` > 1, gets null), and, for abilities
-  with ammo or a cooldown under MIN_COOLDOWN, the champion's spell data
-  (game/data/characters/<id>/<id>.bin.json) to tell charges and recharge times from cast lockouts.
+  shared.cdtb.bin.json; a spell with charges, `mMaxAmmo` > 1 such as Smite, gets the time one
+  charge takes to come back, `mAmmoRechargeTime`), and, for abilities with ammo or a cooldown
+  under MIN_COOLDOWN, the champion's spell data (game/data/characters/<id>/<id>.bin.json) to tell
+  recharge times from cast lockouts.
 - OP.GG champion builds (the GET endpoint app/lol/opgg.py uses): the most played skill max
   priority (`skill_masteries`). OP.GG has no cooldown fields, so cooldowns come from Riot.
 
 A value no source gives is written as null (the ledger cell then does nothing). `--manual` takes a
-JSON file {"summonerSpells": {key: seconds}, "items": {itemId: seconds}} of values entered by hand
-from another source; they are applied last and the file name is recorded under `sources`.
+JSON file {"summonerSpells": {key: seconds}, "items": {itemId: seconds}, "abilities": {champion
+name: {slot: [seconds per rank]}}} of values entered by hand from another source (tools/
+ledger_manual.json: abilities whose cooldown the patch data lists as 0, with the page each value
+comes from); they are applied last, an ability for an unknown champion or slot or with the wrong
+number of ranks stops the tool, and the file name is recorded under `sources`.
 
 When an OP.GG build fails, the champion keeps the priority of the existing output file (if any);
 the tool then exits 1 unless `--allow-failures` is given. The output is written atomically, sorted
 keys, so the same inputs give the same bytes. Stdlib only; imports nothing from app/.
 
     python tools/build_ledger_baseline.py [--version 16.23.1] [--region global] [--tier emerald_plus]
+        [--manual tools/ledger_manual.json]
 """
 import argparse
 import json
@@ -50,7 +55,11 @@ NO_CELL_ACTIVE = re.compile(r'Consume|Single use', re.I)
 # Spells the live API reports after an in-place upgrade -> the spell they upgrade from (its id is
 # used for the icon: the client lists no id of their own)
 UNLEASHED = {'S12_SummonerTeleportUpgrade': 'SummonerTeleport',
-             'S5_SummonerSmitePlayerGanker': 'SummonerSmite'}
+             'S5_SummonerSmitePlayerGanker': 'SummonerSmite',
+             # Primal Smite, one per jungle pet
+             'SummonerSmiteAvatarOffensive': 'SummonerSmite',
+             'SummonerSmiteAvatarUtility': 'SummonerSmite',
+             'SummonerSmiteAvatarDefensive': 'SummonerSmite'}
 # Ability cooldowns whose longest rank is below this are toggles, recast lockouts or spammable
 # spells: nothing to time
 MIN_COOLDOWN = 2.0
@@ -103,9 +112,10 @@ def abilityCooldown(spell, clientSpell, maxRank, stats, name, keepShort=False):
     A basic ability's per-rank cooldown. Data Dragon's `cooldown`, checked against the client's
     spell (`mSpell` of game/data/characters/<id>/<id>.bin.json; its per-rank lists start with a
     rank-0 entry) when needsClientCheck:
-    - several charges that recharge slower than the cast lockout (Vi E, Caitlyn W): charge-based,
-      None (like Smite)
-    - one charge that recharges slower than the lockout (Rengar Q W E): the recharge time
+    - a recharge slower than the cast lockout: the time a used charge takes to come back, with
+      several charges (Vi E, Caitlyn W, Vel'Koz W; counted in stats['charges']) or one (Rengar
+      Q W E, and Rakan E, whose client data lists a recharge but no charge count; counted in
+      stats['recharge'])
     - otherwise (LeBlanc R, Warwick W: a recast window of 2): the cooldown as listed
     """
     values = spell.get('cooldown')
@@ -115,14 +125,15 @@ def abilityCooldown(spell, clientSpell, maxRank, stats, name, keepShort=False):
         ranks = slice(1, maxRank + 1)
         raw = clientSpell.get('mMaxAmmo')
         ammo = raw[ranks] if isinstance(raw, list) else [raw or 0]
-        recharge = (clientSpell.get('mAmmoRechargeTime') or [])[ranks]
+        rawRecharge = clientSpell.get('mAmmoRechargeTime')
+        recharge = rawRecharge[ranks] if isinstance(rawRecharge, list) \
+            else [rawRecharge] * maxRank if rawRecharge else []
         lockout = (clientSpell.get('cooldownTime') or [])[ranks] or values or [0]
-        if ammo and recharge and max(ammo) >= 1 and max(recharge) > max(lockout):
-            if max(ammo) > 1:
-                stats['charges'].append(name)
-                return None
-            stats['recharge'].append(f'{name} {recharge}')
-            values = recharge
+        if recharge and max(recharge) > max(lockout):
+            result = cooldowns(recharge, stats, name, keepShort)
+            if result is not None:
+                stats['charges' if ammo and max(ammo) > 1 else 'recharge'].append(f'{name} {recharge}')
+            return result
     return cooldowns(values, stats, name, keepShort)
 
 
@@ -188,15 +199,21 @@ def buildChampions(full, builds, stats, previous=None, clientSpell=None):
     return champions
 
 
+def hasCharges(shared, key):
+    """True for a summoner spell the client lists with more than one charge (Smite)"""
+    ammo = ((shared.get(f'Shared/Spells/{key}') or {}).get('mSpell') or {}).get('mMaxAmmo') or 0
+    return (ammo[0] if isinstance(ammo, list) else ammo) > 1
+
+
 def clientSpellCooldown(shared, key):
-    """(seconds | None, found) from the client's spell data: None for a spell with charges"""
+    """(seconds | None, found) from the client's spell data: for a spell with charges (Smite) the
+    time one charge takes to come back, None when the client lists no recharge time"""
     spell = (shared.get(f'Shared/Spells/{key}') or {}).get('mSpell')
     if not spell:
         return None, False
-    ammo = spell.get('mMaxAmmo') or 0
-    if (ammo[0] if isinstance(ammo, list) else ammo) > 1:
-        return None, True
-    cd = next((v for v in spell.get('cooldownTime') or [] if v), None)
+    times = spell.get('mAmmoRechargeTime' if hasCharges(shared, key) else 'cooldownTime') or []
+    times = times if isinstance(times, list) else [times]
+    cd = next((v for v in times if v), None)
     return (_number(cd) if cd else None), True
 
 
@@ -211,7 +228,9 @@ def buildSummonerSpells(summoner, shared=None, stats=None):
         cd, found = clientSpellCooldown(shared, key)
         if not found:
             cd = (s.get('cooldown') or [None])[0] or None
-        elif stats is not None and cd is not None and cd != (s.get('cooldown') or [None])[0]:
+        elif stats is not None and cd is not None and not hasCharges(shared, key) \
+                and cd != (s.get('cooldown') or [None])[0]:
+            # (a spell with charges is timed by its recharge; Data Dragon lists its lockout)
             stats['spellMismatch'].append(f'{key}: client {cd}, Data Dragon {s.get("cooldown")}')
         spells[key] = {'id': int(s['key']), 'cooldown': cd}
     for key, base in UNLEASHED.items():
@@ -271,6 +290,30 @@ def mainPositions(tierList):
     return res
 
 
+def applyManualAbilities(champions, abilities):
+    """Hand-entered ability cooldowns {champion name: {slot: [seconds per rank]}} over the built
+    champions; an unknown champion or slot, or a list that is not one positive number per rank,
+    raises ValueError. Returns ['<name> <slot>: <built> -> <manual>'] for every hand-entered value
+    that replaced a cooldown the patch data did give (the manual entry may be out of date)"""
+    replaced = []
+    for name, slots in abilities.items():
+        entry = champions.get(name)
+        if entry is None:
+            raise ValueError(f'manual ability for an unknown champion: {name}')
+        for slot, values in slots.items():
+            if slot not in SLOTS:
+                raise ValueError(f'manual ability {name} {slot}: not one of {"".join(SLOTS)}')
+            ranks = entry['maxRank'][slot]
+            if not isinstance(values, list) or len(values) != ranks \
+                    or not all(isinstance(v, (int, float)) and v > 0 for v in values):
+                raise ValueError(f'manual ability {name} {slot}: needs {ranks} positive numbers, got {values!r}')
+            built = entry['spells'][slot]['cooldown']
+            if built is not None:
+                replaced.append(f'{name} {slot}: {built} -> {values}')
+            entry['spells'][slot]['cooldown'] = [_number(v) for v in values]
+    return replaced
+
+
 def readPrevious(path):
     try:
         with open(path, encoding='utf-8') as f:
@@ -298,7 +341,8 @@ def main(argv=None):
     ap.add_argument('--version', help='Data Dragon version (default: the latest)')
     ap.add_argument('--region', default='global')
     ap.add_argument('--tier', default='emerald_plus')
-    ap.add_argument('--manual', help='JSON file of hand-entered summoner spell / item active cooldowns')
+    ap.add_argument('--manual', help='JSON file of hand-entered summoner spell, item active and ability '
+                                     'cooldowns (tools/ledger_manual.json)')
     ap.add_argument('--allow-failures', action='store_true',
                     help='exit 0 even when some OP.GG builds failed (they keep the previous priority)')
     ap.add_argument('--out', default=OUT)
@@ -374,7 +418,12 @@ def main(argv=None):
             db['summonerSpells'].setdefault(key, {'id': 0})['cooldown'] = cd
         for key, cd in (manual.get('items') or {}).items():
             db['items'].setdefault(str(key), {'haste': 0, 'ultHaste': 0, 'spellHaste': 0})['active'] = cd
+        for line in applyManualAbilities(db['champions'], manual.get('abilities') or {}):
+            print(f'manual value replaces the patch data (check whether it is still needed): {line}',
+                  file=sys.stderr)
         db['sources']['manual'] = os.path.basename(args.manual)
+    stats['nullCooldowns'] = sum(1 for e in db['champions'].values()
+                                 for s in e['spells'].values() if s['cooldown'] is None)
 
     writeAtomic(args.out, db)
 
@@ -385,7 +434,7 @@ def main(argv=None):
           f"{stats['priority_masteries']}, from order {stats['priority_order']}, previous baseline "
           f"{stats['priority_previous']}, default {stats['priority_default']}; OP.GG builds failed "
           f"{len(failed)}; null ability cooldowns {stats['nullCooldowns']}")
-    print(f"  charge-based (null): {', '.join(stats['charges']) or 'none'}")
+    print(f"  charges (recharge time used): {', '.join(stats['charges']) or 'none'}")
     print(f"  one recharging charge (recharge time used): {', '.join(stats['recharge']) or 'none'}")
     print(f"  below {MIN_COOLDOWN:g} s (null): {', '.join(stats['short']) or 'none'}")
     print(f"  below {MIN_COOLDOWN:g} s, genuine (kept, GENUINE_SHORT): {', '.join(stats['genuineShort']) or 'none'}")

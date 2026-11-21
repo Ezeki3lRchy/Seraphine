@@ -5,8 +5,7 @@ from app.common.qfluentwidgets import (SettingCardGroup, SwitchSettingCard, Comb
                                        PushSettingCard, ExpandLayout, InfoBar,
                                        setTheme, PrimaryPushSettingCard, HyperlinkCard,
                                        TeachingTip, TeachingTipTailPosition, TeachingTipView, PushButton,
-                                       RangeSettingCard, ProgressBar, IndeterminateProgressBar,
-                                       FluentIcon)
+                                       ProgressBar, IndeterminateProgressBar)
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QSizePolicy
@@ -76,33 +75,6 @@ class SettingInterface(SeraphineInterface):
                 "Reserve Game Information interface until the next champion selection starts"),
             cfg.enableReserveGameinfo
         )
-
-        self.goldOverlayCard = SwitchSettingCard(
-            Icon.DESKTOPRIGHT, self.tr("Item value overlay"),
-            self.tr("While in game, show the difference in item value (total cost of the items "
-                    "each player holds) in a small window on top of the game "
-                    "(borderless or windowed mode only)"),
-            cfg.enableGoldOverlay)
-        self.goldOverlayOpacityCard = RangeSettingCard(
-            cfg.goldOverlayOpacity, Icon.BLUR, self.tr("Item value overlay opacity"),
-            self.tr("Opacity of the item value overlay, in percent"))
-        self.goldOverlayLockCard = SwitchSettingCard(
-            Icon.LOCK, self.tr("Lock item value overlay"),
-            self.tr("Lock the overlay's position and let clicks pass through it to the game"),
-            cfg.goldOverlayLocked)
-        self.cooldownLedgerCard = SwitchSettingCard(
-            FluentIcon.STOP_WATCH, self.tr("Cooldown ledger"),
-            self.tr("On Summoner's Rift, shows one row per enemy. Click an ability, "
-                    "summoner spell or item you see used to time its usual cooldown.\n"
-                    "You start every timer yourself; nothing is detected. Times are approximate: "
-                    "they use the level and items you last saw."),
-            cfg.enableCooldownLedger)
-        # two explicit lines (a setting card's description does not wrap): one line taller,
-        # measured with the card's stylesheet font
-        ledgerText = self.cooldownLedgerCard.contentLabel
-        ledgerText.ensurePolished()
-        self.cooldownLedgerCard.setFixedHeight(
-            self.cooldownLedgerCard.height() + ledgerText.fontMetrics().lineSpacing())
 
         self.opggGroup = SettingCardGroup(self.tr("OP.GG"),
                                           self.scrollWidget)
@@ -335,10 +307,6 @@ class SettingInterface(SeraphineInterface):
         self.functionGroup.addSettingCard(self.gameInfoFilterCard)
         self.functionGroup.addSettingCard(self.autoClearGameinfoCard)
         self.functionGroup.addSettingCard(self.gameInfoShowTierCard)
-        self.functionGroup.addSettingCard(self.goldOverlayCard)
-        self.functionGroup.addSettingCard(self.goldOverlayOpacityCard)
-        self.functionGroup.addSettingCard(self.goldOverlayLockCard)
-        self.functionGroup.addSettingCard(self.cooldownLedgerCard)
 
         self.opggGroup.addSettingCard(self.autoShowOpggCard)
         self.opggGroup.addSettingCard(self.opggOnTopCard)

@@ -1422,13 +1422,13 @@ class MainWindow(FluentWindow):
 
     def __unlockInterface(self):
         self.searchInterface.setEnabled(True)
-        self.auxiliaryFuncInterface.setEnabled(True)
+        self.auxiliaryFuncInterface.setClientConnected(True)
         # the saved list stays usable offline; only opening a row needs the client
         self.savedPlayersInterface.setClientConnected(True)
 
     def __lockInterface(self):
         self.searchInterface.setEnabled(False)
-        self.auxiliaryFuncInterface.setEnabled(False)
+        self.auxiliaryFuncInterface.setClientConnected(False)
         self.savedPlayersInterface.setClientConnected(False)
 
     def __onSystemThemeChanged(self):

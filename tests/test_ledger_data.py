@@ -188,6 +188,10 @@ class LoadTest(LedgerDataBase):
         for key in ('SummonerFlash', 'SummonerTeleport', 'SummonerDot', 'S12_SummonerTeleportUpgrade',
                     'S5_SummonerSmitePlayerGanker'):
             self.assertIn(key, db.data['summonerSpells'])
+        # every Smite the live data can report has a timer
+        for key in ('SummonerSmite', 'S5_SummonerSmitePlayerGanker', 'SummonerSmiteAvatarOffensive',
+                    'SummonerSmiteAvatarUtility', 'SummonerSmiteAvatarDefensive'):
+            self.assertEqual(db.data['summonerSpells'][key]['cooldown'], 90, key)
 
 
 class RefreshTest(LedgerDataBase):
@@ -390,34 +394,49 @@ class BuildToolTest(unittest.TestCase):
             'SummonerSnowball': {'key': '32', 'cooldown': [80], 'modes': ['ARAM']},
         }}
 
-        def spell(cd, ammo=None):
+        def spell(cd, ammo=None, recharge=None):
             s = {'cooldownTime': [cd] * 7}
             if ammo:
                 s['mMaxAmmo'] = [ammo] * 7
+            if recharge:
+                s['mAmmoRechargeTime'] = [recharge] * 7
             return {'mSpell': s}
 
         shared = {'Shared/Spells/SummonerFlash': spell(300.0),
-                  'Shared/Spells/SummonerSmite': spell(15.0, ammo=2),
+                  'Shared/Spells/SummonerSmite': spell(15.0, ammo=2, recharge=90.0),
                   'Shared/Spells/SummonerTeleport': spell(360.0),
                   'Shared/Spells/S12_SummonerTeleportUpgrade': spell(300.0),
-                  'Shared/Spells/S5_SummonerSmitePlayerGanker': spell(15.0, ammo=2)}
+                  'Shared/Spells/S5_SummonerSmitePlayerGanker': spell(15.0, ammo=2, recharge=90.0),
+                  'Shared/Spells/SummonerSmiteAvatarOffensive': spell(15.0, ammo=2, recharge=90.0),
+                  'Shared/Spells/SummonerSmiteAvatarUtility': spell(15.0, ammo=2, recharge=90.0),
+                  'Shared/Spells/SummonerSmiteAvatarDefensive': spell(15.0, ammo=2, recharge=90.0)}
         stats = {'spellMismatch': []}
         self.assertEqual(self.tool.buildSummonerSpells(summoner, shared, stats), {
             'SummonerFlash': {'id': 4, 'cooldown': 300},
-            'SummonerSmite': {'id': 11, 'cooldown': None},             # charges
+            'SummonerSmite': {'id': 11, 'cooldown': 90},               # charges: one charge's recharge
             'SummonerTeleport': {'id': 12, 'cooldown': 360},           # the client's value wins
             'SummonerDot': {'id': 14, 'cooldown': 180},                # not in the client data
             'S12_SummonerTeleportUpgrade': {'id': 12, 'cooldown': 300},
-            'S5_SummonerSmitePlayerGanker': {'id': 11, 'cooldown': None},
+            'S5_SummonerSmitePlayerGanker': {'id': 11, 'cooldown': 90},
+            # Primal Smite, one per jungle pet: Smite's icon
+            'SummonerSmiteAvatarOffensive': {'id': 11, 'cooldown': 90},
+            'SummonerSmiteAvatarUtility': {'id': 11, 'cooldown': 90},
+            'SummonerSmiteAvatarDefensive': {'id': 11, 'cooldown': 90},
         })
+        # a spell with charges is not compared with Data Dragon's lockout (15)
         self.assertEqual(stats['spellMismatch'], ['SummonerTeleport: client 360, Data Dragon [300]'])
         self.assertEqual(self.tool.buildSummonerSpells(summoner)['S12_SummonerTeleportUpgrade'],
                          {'id': 12, 'cooldown': None})                # no client data: unknown
 
     def test_charges_as_a_scalar(self):
-        shared = {'Shared/Spells/SummonerSmite': {'mSpell': {'cooldownTime': [15.0], 'mMaxAmmo': 2}},
+        shared = {'Shared/Spells/SummonerSmite': {'mSpell': {'cooldownTime': [15.0], 'mMaxAmmo': 2,
+                                                             'mAmmoRechargeTime': [90.0]}},
+                  'Shared/Spells/NoRecharge': {'mSpell': {'cooldownTime': [15.0], 'mMaxAmmo': 2}},
                   'Shared/Spells/SummonerFlash': {'mSpell': {'cooldownTime': [300.0], 'mMaxAmmo': 1}}}
-        self.assertEqual(self.tool.clientSpellCooldown(shared, 'SummonerSmite'), (None, True))
+        self.assertEqual(self.tool.clientSpellCooldown(shared, 'SummonerSmite'), (90, True))
+        self.assertEqual(self.tool.clientSpellCooldown(shared, 'NoRecharge'), (None, True))
+        shared['Shared/Spells/ScalarRecharge'] = {'mSpell': {'mMaxAmmo': 2, 'mAmmoRechargeTime': 90.0}}
+        self.assertEqual(self.tool.clientSpellCooldown(shared, 'ScalarRecharge'), (90, True))
         self.assertEqual(self.tool.clientSpellCooldown(shared, 'SummonerFlash'), (300, True))
         self.assertEqual(self.tool.clientSpellCooldown(shared, 'SummonerDot'), (None, False))
 
@@ -490,13 +509,20 @@ class BuildToolTest(unittest.TestCase):
         cases = [
             # (Data Dragon spell, client spell, expected, stats list it lands in)
             ('Vi E charges', {'cooldown': [1] * 5, 'maxammo': '2', 'maxrank': 5},
-             client([1.0] * 5, [2] * 7, [12.0, 11.0, 10.0, 9.0, 8.0]), None, 'charges'),
+             client([1.0] * 5, [2] * 7, [12.0, 11.0, 10.0, 9.0, 8.0]), [12, 11, 10, 9, 8], 'charges'),
             ('Caitlyn W charges', {'cooldown': [0.5] * 5, 'maxammo': '2', 'maxrank': 5},
-             client([0.5] * 5, [2, 3, 3, 4, 4, 5, 5], [26.0, 22.0, 18.0, 14.0, 10.0]), None, 'charges'),
+             client([0.5] * 5, [2, 3, 3, 4, 4, 5, 5], [26.0, 22.0, 18.0, 14.0, 10.0]),
+             [26, 22, 18, 14, 10], 'charges'),
             ('scalar ammo', {'cooldown': [1] * 5, 'maxammo': '2', 'maxrank': 5},
-             client([1.0] * 5, 2, [12.0] * 5), None, 'charges'),
+             client([1.0] * 5, 2, [12.0] * 5), [12] * 5, 'charges'),
+            ('Karthus Q charges under 2 s', {'cooldown': [0] * 5, 'maxammo': '2', 'maxrank': 5},
+             client([0.0] * 5, [2] * 7, [1.0] * 5), None, 'short'),            # listed as too short only
             ('Rengar Q one charge', {'cooldown': [0.25] * 5, 'maxammo': '1', 'maxrank': 5},
              client([0.25] * 5, [1] * 7, [6.0, 5.5, 5.0, 4.5, 4.0]), [6, 5.5, 5, 4.5, 4], 'recharge'),
+            ('Rakan E recharge without a charge count', {'cooldown': [0] * 5, 'maxammo': '-1', 'maxrank': 5},
+             client([0.0] * 5, None, [20.0, 18.0, 16.0, 14.0, 12.0]), [20, 18, 16, 14, 12], 'recharge'),
+            ('recharge as a single number', {'cooldown': [1] * 5, 'maxammo': '2', 'maxrank': 5},
+             dict(client([1.0] * 5, 2), mAmmoRechargeTime=15.0), [15] * 5, 'charges'),
             ('LeBlanc R recast window', {'cooldown': [45, 35, 25], 'maxammo': '2', 'maxrank': 3},
              client([45.0, 35.0, 25.0], [2] * 7, [5.0] * 3), [45, 35, 25], None),
             ('Jinx Q toggle', {'cooldown': [0.9] * 5, 'maxammo': '-1', 'maxrank': 5},
@@ -508,8 +534,9 @@ class BuildToolTest(unittest.TestCase):
             stats = self.stats()
             with self.subTest(name):
                 self.assertEqual(self.tool.abilityCooldown(dd, clientSpell, dd['maxrank'], stats, name), expected)
+                buckets = bucket if isinstance(bucket, tuple) else (bucket,)
                 for key in ('charges', 'recharge', 'short'):
-                    self.assertEqual(any(name in line for line in stats[key]), key == bucket, key)
+                    self.assertEqual(any(name in line for line in stats[key]), key in buckets, key)
         self.assertFalse(self.tool.needsClientCheck({'cooldown': [5.5, 4.5], 'maxammo': '-1'}))
 
     def test_genuine_short_cooldowns_kept(self):
@@ -537,6 +564,43 @@ class BuildToolTest(unittest.TestCase):
         self.assertEqual(self.tool.GENUINE_SHORT, {('Akali', 'Q'), ('Cassiopeia', 'E'), ('Aphelios', 'W')})
         self.assertTrue(self.tool.needsClientCheck({'cooldown': [30] * 5, 'maxammo': '2'}))
         self.assertTrue(self.tool.needsClientCheck({'cooldown': [1.5] * 5, 'maxammo': '-1'}))
+
+    def test_manual_abilities(self):
+        def champions():
+            return {'Kalista': {'maxRank': {'Q': 5, 'W': 5, 'E': 5, 'R': 3},
+                                'spells': {s: {'cooldown': None} for s in 'QWER'}}}
+        built = champions()
+        self.assertEqual(self.tool.applyManualAbilities(built, {'Kalista': {'E': [10, 9.5, 9.0, 8.5, 8]}}), [])
+        self.assertEqual(built['Kalista']['spells']['E']['cooldown'], [10, 9.5, 9, 8.5, 8])
+        self.assertIsNone(built['Kalista']['spells']['Q']['cooldown'])
+        # a value the patch data did give is still replaced, and reported
+        built['Kalista']['spells']['W']['cooldown'] = [90, 80, 70, 60, 50]
+        self.assertEqual(self.tool.applyManualAbilities(built, {'Kalista': {'W': [1, 2, 3, 4, 5]}}),
+                         ['Kalista W: [90, 80, 70, 60, 50] -> [1, 2, 3, 4, 5]'])
+        for bad in ({'Nobody': {'E': [1, 2, 3, 4, 5]}},
+                    {'Kalista': {'P': [1, 2, 3, 4, 5]}},
+                    {'Kalista': {'E': [10, 9, 8]}},                         # 3 ranks, E has 5
+                    {'Kalista': {'R': [120, 0, 80]}},
+                    {'Kalista': {'E': '10'}}):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    self.tool.applyManualAbilities(champions(), bad)
+
+    def test_repo_manual_file_fits_the_baseline(self):
+        # every hand-entered ability names a bundled champion and slot with one value per rank
+        # and the baseline carries exactly those values
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, 'tools', 'ledger_manual.json'), encoding='utf-8') as f:
+            manual = json.load(f)
+        with open(os.path.join(root, 'app', 'resource', 'ledger', 'ledger_baseline.json'), encoding='utf-8') as f:
+            baseline = json.load(f)
+        self.assertTrue(manual['abilities'])
+        for name, slots in manual['abilities'].items():
+            for slot, values in slots.items():
+                with self.subTest(champion=name, slot=slot):
+                    self.assertIn(f'{name} {slot}', manual['sources'])
+                    self.assertEqual(baseline['champions'][name]['spells'][slot]['cooldown'], values)
+        self.assertEqual(baseline['sources'].get('manual'), 'ledger_manual.json')
 
     def fakeGet(self, failing=()):
         dd = 'https://ddragon.leagueoflegends.com/cdn/16.23.1/data/en_US'

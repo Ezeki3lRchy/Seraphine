@@ -205,6 +205,9 @@ class Config(QConfig):
         "Functions", "EnableCooldownLedger", False, BoolValidator())
     # [x, y] of the ledger panel's top-left corner; empty = default spot
     cooldownLedgerPos = ConfigItem("Other", "CooldownLedgerPos", [])
+    # the ledger panel's size, in percent of its normal size
+    cooldownLedgerScale = RangeConfigItem(
+        "Functions", "CooldownLedgerScale", 100, RangeValidator(80, 200))
 
     enableSilent = ConfigItem(
         "General", "EnableSilent", False, BoolValidator())
