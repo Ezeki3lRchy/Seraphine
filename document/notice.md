@@ -6,6 +6,15 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.11
+- New **Cooldown ledger** (off by default; turn it on in *Settings → Cooldown ledger*): on Summoner's Rift, a small panel shows one row per enemy with their abilities, summoner spells and items with an active, and clicking a cell when you see it used starts a timer of its usual cooldown.
+- You start every cooldown timer yourself and nothing is detected, so the times are approximate: they use the enemy's level and items as last seen.
+- New **Saved players** page in the sidebar: click the star next to a player's name on the Career or Search page to save them, add a note of your own, and open their Career page later without typing their Riot ID (the list is stored on this computer only).
+- From the next update on, Settings shows the download progress of an update, and a download interrupted by a game continues where it stopped once the game ends.
+- From the next update on, Windows updates are smaller and quicker: when you are exactly one version behind, only the changed files are downloaded, and installing copies only the files that changed.
+- Dragging rows to reorder them works again in the champion and client path lists.
+- Unlocking the item value overlay makes it clickable again.
+
 ### v1.4.10
 - Item value (overlay and panel) was far too low because it counted only each item's own combine cost, so completed items were heavily undercounted. It now uses each item's full price.
 
