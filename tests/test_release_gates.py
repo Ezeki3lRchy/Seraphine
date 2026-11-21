@@ -206,6 +206,30 @@ class CliTest(unittest.TestCase):
                 self.assertEqual(rc, 1)
                 self.assertIn(bad, err)
 
+    def test_check_first_packages(self):
+        delta, manifest = 'Seraphine-1.4.10-to-1.4.11.delta', 'Seraphine.filemanifest.txt'
+        # the REST API lists assets by name: the delta comes first
+        listed = [delta, 'Seraphine.7z', 'Seraphine.dmg', manifest]
+        self.assertEqual(listed, sorted(listed, key=str.lower))
+        rc, out, err = self.run_main(['--check-first-packages'] + listed, {})
+        self.assertEqual(rc, 0, err)
+        for order in itertools.permutations(listed):
+            with self.subTest(order=order):
+                self.assertEqual(self.run_main(['--check-first-packages'] + list(order), {})[0], 0)
+        for one in (['Seraphine.7z'], ['Seraphine.dmg'], [manifest, 'Seraphine.dmg']):
+            with self.subTest(names=one):
+                self.assertEqual(self.run_main(['--check-first-packages'] + one, {})[0], 0)
+        for names, said in ((['Seraphine-win.7z', 'Seraphine.7z', 'Seraphine.dmg'], 'Seraphine-win.7z'),
+                            (['Seraphine.7z', 'old.dmg', 'Seraphine.dmg'], 'old.dmg'),
+                            (['Seraphine.7z', 'Seraphine.DMG.dmg'], 'Seraphine.DMG.dmg'),
+                            ([delta, manifest], 'no full package'),
+                            ([], 'no full package')):
+            with self.subTest(names=names):
+                rc, out, err = self.run_main(['--check-first-packages'] + names, {})
+                self.assertEqual(rc, 1)
+                self.assertEqual(out, '')
+                self.assertIn(said, err)
+
 
 if __name__ == '__main__':
     unittest.main()

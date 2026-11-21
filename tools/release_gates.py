@@ -5,6 +5,14 @@ Usage (in release.yml's publish job):
   python3 tools/release_gates.py --flags tools/release_flags.json     (check job: prints no_manifest=...)
   python3 tools/release_gates.py --check-names <file>...             (every name must be publishable)
   python3 tools/release_gates.py --check-full-names <file>...        (only Seraphine.7z / Seraphine.dmg)
+  python3 tools/release_gates.py --check-first-packages [<name>...]  (a release's asset names in the REST API's order)
+
+--check-first-packages: every build that reads this repository's releases (1.4.0 and
+later) picks the first asset ending in .7z (Windows) or .dmg (macOS). Exit 0 only
+when the release has a full package and the first .7z is Seraphine.7z and the first
+.dmg is Seraphine.dmg, each when the release has one; no names at all exits 1. The
+API lists assets by name, so a delta (Seraphine-<base>-to-<new>.delta) comes before
+Seraphine.7z: the position in the list is not part of the rule.
 
 Gates (a job counts only when its result is exactly "success"; a missing job,
 failure, skipped or cancelled blocks; so does a check job that did not succeed):
@@ -101,14 +109,40 @@ def notFull(paths):
     return [p for p in paths if os.path.basename(p) not in (names.FULL_WIN, names.FULL_MAC)]
 
 
+def firstPackageProblems(assetNames):
+    """Why the builds in the field would not pick a full package from these asset
+    names (a release's, in the REST API's order); empty when they would."""
+    names = _loadNames()
+    problems = []
+    found = False
+    for suffix, full in (('.7z', names.FULL_WIN), ('.dmg', names.FULL_MAC)):
+        first = next((n for n in assetNames if n.endswith(suffix)), None)
+        if first is None:
+            continue
+        found = True
+        if first != full:
+            problems.append('the first %s asset is %s, not %s' % (suffix, first, full))
+    if not found:
+        problems.append('no full package (%s / %s) among the assets' % (names.FULL_WIN, names.FULL_MAC))
+    return problems
+
+
 def main(argv=None, environ=None):
     environ = os.environ if environ is None else environ
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--flags', metavar='JSON')
     p.add_argument('--check-names', nargs='+', metavar='FILE')
     p.add_argument('--check-full-names', nargs='+', metavar='FILE')
+    p.add_argument('--check-first-packages', nargs='*', metavar='NAME')
     a = p.parse_args(argv)
     try:
+        if a.check_first_packages is not None:
+            bad = firstPackageProblems(a.check_first_packages)
+            if bad:
+                print('release_gates: %s' % '; '.join(bad), file=sys.stderr)
+                return 1
+            print('release_gates: first packages OK: %s' % ', '.join(a.check_first_packages))
+            return 0
         if a.check_full_names:
             bad = notFull(a.check_full_names)
             if bad:

@@ -15,8 +15,9 @@
     in-app auto-updater reads. Uses your local `gh` login -- no PAT, no CI minutes.
 
     Assets: a created release gets Seraphine.7z alone, then Seraphine.filemanifest.txt in
-    a second upload (every self-updating version takes the first .7z asset; older builds
-    assets[0]); afterwards assets[0] must be Seraphine.7z or Seraphine.dmg, else the
+    a second upload (every build that reads this repository's releases takes the first
+    .7z / .dmg asset); afterwards the first .7z must be Seraphine.7z and the first .dmg
+    Seraphine.dmg (tools\release_gates.py --check-first-packages), else the
     manifest asset is deleted again and the script fails. Replacing the Seraphine.7z of an
     existing release first deletes that version's delta (Seraphine-<base>-to-<v>.delta,
     built against the old package) and then replaces the manifest asset. This script
@@ -467,7 +468,7 @@ try {
         Write-Host "[dry-run] would publish (release exists): gh release delete-asset v$Version <each Seraphine-*-to-$Version.delta> --repo $RepoReleases -y; gh release upload v$Version $SevenZ --repo $RepoReleases --clobber; $manifestLine"
         $createLine = if ($NoManifest) { "" } else { "; then gh release upload v$Version $ManifestAsset --repo $RepoReleases" }
         Write-Host "[dry-run] would publish (no release yet): gh release create v$Version --repo $RepoReleases --target $targetSha --title 'v$Version' --notes <notes> $SevenZ$createLine"
-        Write-Host "[dry-run] then: assets[0] of v$Version must be Seraphine.7z or Seraphine.dmg (else the manifest asset is deleted and the script fails)"
+        Write-Host "[dry-run] then: the first .7z / .dmg asset of v$Version must be Seraphine.7z / Seraphine.dmg (else the manifest asset is deleted and the script fails)"
     }
     else {
         if ($releaseExists) {
@@ -510,12 +511,13 @@ try {
             }
         }
         # the REST API's order: what the in-app updater reads
-        $first = "$(gh api "repos/$RepoReleases/releases/tags/v$Version" --jq '.assets[0].name')".Trim()
-        if ($first -ne 'Seraphine.7z' -and $first -ne 'Seraphine.dmg') {
+        $assetNames = @(gh api "repos/$RepoReleases/releases/tags/v$Version" --jq '.assets[].name')
+        & $Py "tools\release_gates.py" --check-first-packages @assetNames
+        if ($LASTEXITCODE -ne 0) {
             if (-not $NoManifest) { gh release delete-asset "v$Version" Seraphine.filemanifest.txt --repo $RepoReleases -y }
-            Die "assets[0] of v$Version is '$first', not a full package; the manifest asset was deleted again"
+            Die "v${Version}: the first .7z / .dmg asset is not the full package (assets: $($assetNames -join ', ')); the manifest asset was deleted again"
         }
-        Write-Host "    assets[0] = $first OK"
+        Write-Host "    first .7z / .dmg asset OK"
     }
 
     if ($DryRun) {

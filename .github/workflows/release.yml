@@ -33,12 +33,15 @@ name: release
 # A failed or skipped job marks the run failed and blocks only what it gates.
 #
 # Upload order: the full packages first and alone; then, in a separate upload, the
-# manifest asset and the delta. Every self-updating version in the field takes the
-# first asset ending in .7z / .dmg (older builds took assets[0]), so afterwards
-# assets[0] must be Seraphine.7z or Seraphine.dmg, else the manifest and delta
-# assets are deleted again and the job fails (a final always() step, so also after
-# a failed upload or a cancel). Uploading a new Seraphine.7z onto an existing release
-# first deletes that version's delta and manifest asset. No other name is ever
+# manifest asset and the delta. Every build that reads this repository's releases
+# (1.4.0 and later) takes the first asset ending in .7z / .dmg, so afterwards the
+# first .7z must be Seraphine.7z and the first .dmg Seraphine.dmg
+# (`release_gates.py --check-first-packages`; the REST API lists assets by name, so
+# a delta precedes Seraphine.7z and the position in the list is not part of the
+# rule), else the manifest and delta assets are deleted again and the job fails (a
+# final always() step, so also after a failed upload or a cancel). Uploading a new
+# Seraphine.7z onto an existing release first deletes that version's delta and
+# manifest asset. No other name is ever
 # uploaded (app/common/release_names.py; `release_gates.py --check-full-names` for
 # the first upload, `--check-names` for the second).
 #
@@ -425,28 +428,28 @@ jobs:
           fi
           echo "::notice::uploaded ${files[*]} onto v$VERSION in $RELEASES_REPO"
 
-      # Every self-updating version takes the first .7z / .dmg asset (older builds
-      # assets[0]): after the manifest / delta upload, also when it failed or the run
-      # was cancelled meanwhile, assets[0] must be a full package, else the manifest
-      # and delta assets of this version are removed. A cancelled upload may have
-      # left a partial asset: then they are removed whatever assets[0] is. A failed
-      # read of the assets counts as a wrong assets[0] (fail safe).
-      - name: Check that assets[0] is a full package
+      # Every build that reads this repository's releases takes the first .7z / .dmg
+      # asset: after the manifest / delta upload, also when it failed or the run was
+      # cancelled meanwhile, the first .7z must be Seraphine.7z and the first .dmg
+      # Seraphine.dmg, else the manifest and delta assets of this version are removed.
+      # A cancelled upload may have left a partial asset: then they are removed
+      # whatever the assets are. A failed read of the assets counts as a wrong list
+      # (fail safe).
+      - name: Check that the first .7z / .dmg asset is the full package
         if: ${{ always() && steps.extra.outcome != '' && steps.extra.outcome != 'skipped' }}
         env:
           GH_TOKEN: ${{ github.token }}
           EXTRA_OUTCOME: ${{ steps.extra.outcome }}
         run: |
           # the REST API's order: what the in-app updater reads
-          first=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[0].name' || true)
-          if [ "$EXTRA_OUTCOME" != cancelled ] && { [ "$first" = Seraphine.7z ] || [ "$first" = Seraphine.dmg ]; }; then
-            echo "assets[0] of v$VERSION = $first"
+          names=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name' || true)
+          if [ "$EXTRA_OUTCOME" != cancelled ] && python3 tools/release_gates.py --check-first-packages $names; then
             exit 0
           fi
           if [ "$EXTRA_OUTCOME" = cancelled ]; then
             echo "::error::the manifest / delta upload was cancelled; removing the manifest and delta assets"
           else
-            echo "::error::assets[0] of v$VERSION is '$first', not a full package; removing the manifest and delta assets"
+            echo "::error::v$VERSION: the first .7z / .dmg asset is not the full package (assets: $(echo $names)); removing the manifest and delta assets"
           fi
           for name in $(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name' || true); do
             case "$name" in
