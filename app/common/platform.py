@@ -107,10 +107,21 @@ def config_dir():
     macOS: ``~/Library/Application Support/Seraphine``.
     Other (e.g. Linux): ``~/.config/Seraphine``.
 
+    Override: when the ``SERAPHINE_CONFIG_DIR`` environment variable is set to a
+    non-empty ABSOLUTE path it is used as-is on every platform (no ``Seraphine``
+    subfolder is appended). A relative value is ignored (the default applies): in
+    a frozen build it would resolve against the working directory, inside the
+    install tree the updater merges into. The test suite uses it to keep runs
+    away from the real config.
+
     Uses only ``os``/``sys`` (no Qt, no logger, no config import) so it is safe
     to call at config-module import time without a circular import.
     """
     import os
+
+    override = os.environ.get('SERAPHINE_CONFIG_DIR')
+    if override and os.path.isabs(override):
+        return override
 
     if IS_WINDOWS:
         return os.path.join(os.getenv('APPDATA'), 'Seraphine')

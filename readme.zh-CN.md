@@ -50,6 +50,8 @@
 > ```
 > 之后正常双击启动；后续版本可直接在应用内「更新并重启」。
 
+> **构建未做代码签名。** 在 Windows 上，SmartScreen 或杀毒软件可能对 `Seraphine.exe` 给出警告（无法识别的发布者），对未签名的构建来说这是正常现象。应用内更新器信任本仓库的 GitHub Releases（通过 HTTPS 读取），并校验 GitHub 为所下载文件给出的 SHA-256 摘要。这能防范下载损坏或被篡改，但不能防范仓库或发布本身被攻陷。
+
 ### 或从源码运行
 适用于 Windows / macOS / Linux。需要 **Python 3.9 或更新版本**（PySide6 6.9 不再支持 3.8）。
 
@@ -168,21 +170,21 @@ PySide6 6.9.3 需要 **PyInstaller 6.x**（不再是过去的 5.13.2）。建一
 ```powershell
 python -m venv .build-venv-win
 .build-venv-win\Scripts\activate
-pip install -r requirements.txt
-pip install pyinstaller==6.21
+pip install -r requirements-build.txt
 ```
+[`requirements-build.txt`](requirements-build.txt) 就是 [`requirements.txt`](requirements.txt) 加上固定版本的 PyInstaller，CI 构建也使用它。
 用 [`Seraphine.win.spec`](Seraphine.win.spec) 打包（它对应 macOS 的 [`Seraphine.spec`](Seraphine.spec)：带 `logo.ico` 的 EXE、保留 Windows 专用的 `fix_lcu_window.exe`、把 `app/resource` 作为 datas 打入）：
 ```powershell
 pyinstaller --noconfirm Seraphine.win.spec
 ```
 产物在 `dist\Seraphine\`。PyInstaller 6.x 会生成 `_internal\` 布局（`Seraphine.exe` 在根，其余依赖在 `_internal\` 下）——这没问题：`main.py` 启动时 `os.chdir` 到 `_MEIPASS`（即 `_internal`），资源也打在那里，相对路径正常解析。
 
-最后生成根级 `filelist.txt` 并用 `py7zr` 把 `dist\Seraphine\*` 以 **文件位于压缩包根目录**（不嵌套顶层文件夹）的方式打成 `Seraphine.7z`，以满足 **在装更新器** 的契约（它先备份将被替换的文件，再把新文件合并覆盖到安装目录——失败则还原备份——最后删除旧 `filelist.txt` 中列出、而新安装包已不再包含的文件；没有 `filelist.txt` 的安装包会被拒绝）。这一步由下方的 [`release_win.ps1`](release_win.ps1) 自动完成。
+最后生成根级 `filelist.txt` 并用 `py7zr` 把 `dist\Seraphine\*` 以 **文件位于压缩包根目录**（不嵌套顶层文件夹）的方式打成 `Seraphine.7z`，以满足 **在装更新器** 的契约（它先备份将被替换的文件，再把新文件合并覆盖到安装目录——失败则还原备份——最后删除旧 `filelist.txt` 中列出、而新安装包已不再包含的文件；没有 `filelist.txt` 的安装包会被拒绝）。这一步由 [`tools/pack_win.ps1`](tools/pack_win.ps1) 完成（下方的 [`release_win.ps1`](release_win.ps1) 和 `build_windows` 工作流共用它）。
 
 ### macOS（`.dmg`）
-在虚拟环境下安装 PyInstaller，然后运行 [`make_mac.sh`](make_mac.sh)：
+在虚拟环境下安装构建依赖，然后运行 [`make_mac.sh`](make_mac.sh)：
 ```shell
-pip install pyinstaller
+pip install -r requirements-build.txt
 ./make_mac.sh
 ```
 脚本使用 [`Seraphine.spec`](Seraphine.spec) 打出 `Seraphine.app`，并制作带 `/Applications` 拖拽目标的 `dist/Seraphine.dmg`（未签名）。

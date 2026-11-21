@@ -39,16 +39,19 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
 
-      - name: Create venv/ with requirements + PyInstaller 6.21 (the layout make_mac.sh expects)
+      - name: Create venv/ with the build requirements (the layout make_mac.sh expects)
         run: |
           python -m venv venv
           venv/bin/python -m pip install --upgrade pip
-          venv/bin/pip install -r requirements.txt pyinstaller==6.21.0
+          venv/bin/pip install -r requirements-build.txt
 
       - name: Check config.py VERSION matches the requested version
         run: |
-          v=$(sed -nE 's/^VERSION = "([^"]+)".*/\1/p' app/common/config.py)
+          v=$(python tools/read_version.py)
           if [ "$v" != "$TARGET_VERSION" ]; then
             echo "::error::config.py VERSION is '$v' but the requested version is '$TARGET_VERSION' -- bump and push first"
             exit 1

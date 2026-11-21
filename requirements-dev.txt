@@ -1,0 +1,2 @@
+# Development tooling (not bundled). CI's lint job installs this; config in pyproject.toml.
+ruff==0.17.6

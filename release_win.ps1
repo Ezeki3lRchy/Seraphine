@@ -47,7 +47,8 @@
     Print every step without bumping / building / packing / publishing.
 
 .PARAMETER Venv
-    Path to the PySide6 build venv (Python 3.12 + requirements.txt + PyInstaller 6.x).
+    Path to the PySide6 build venv (Python 3.12 + requirements-build.txt: the runtime
+    requirements plus the pinned PyInstaller).
     Default: ..\.build-venv-win  (the PyQt5 .build-venv CANNOT build this source).
 
 .EXAMPLE
@@ -91,14 +92,14 @@ Note "pre-flight checks"
 if (-not $Version) { Die "version required, e.g. .\release_win.ps1 1.2.3" }
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { Die "version must be X.Y.Z (got '$Version')" }
 if (-not (Test-Path $Py))          { Die "$Py not found -- create the PySide6 venv and install requirements first" }
-if (-not (Test-Path $PyInstaller)) { Die "pyinstaller not in venv ($PyInstaller) -- pip install pyinstaller==6.21" }
+if (-not (Test-Path $PyInstaller)) { Die "pyinstaller not in venv ($PyInstaller) -- pip install -r requirements-build.txt" }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { Die "gh (GitHub CLI) not installed" }
 gh auth status 1>$null 2>$null
 if ($LASTEXITCODE -ne 0) { Die "gh not authenticated -- run: gh auth login" }
 
-$m = Select-String -Path $Config -Pattern '^VERSION = "(.+)"'
-if (-not $m) { Die "could not read current VERSION from $Config" }
-$current = $m.Matches[0].Groups[1].Value
+$current = & $Py "tools\read_version.py" $Config
+if ($LASTEXITCODE -ne 0 -or -not $current) { Die "could not read current VERSION from $Config" }
+$current = "$current".Trim()
 
 if ($current -eq $Version) {
     Note "VERSION already $Version in $Config -- skipping bump (decoupled release: another platform set it)"
@@ -155,29 +156,8 @@ if n != 1:
 open(p, "w", encoding="utf-8", newline="").write(s2)
 '@
 
-# Pack dist\Seraphine\* with files at the ARCHIVE ROOT (no nested top folder), matching
-# the v1.1.9 in-place updater contract. filelist.txt is generated (in PowerShell, UTF-8
-# BOM + CRLF + backslash paths) BEFORE this runs, so it ships at the root but is absent
-# from its own listing.
-$packPy = @'
-import os, sys, py7zr
-dist = sys.argv[1]
-out = sys.argv[2]
-if os.path.exists(out):
-    os.remove(out)
-with py7zr.SevenZipFile(out, "w") as z:
-    for root, dirs, files in os.walk(dist):
-        for f in files:
-            full = os.path.join(root, f)
-            rel = os.path.relpath(full, dist)
-            z.write(full, arcname=rel)
-print("packed " + out)
-'@
-
 $bumpPath = Join-Path $env:TEMP "seraphine_bump.py"
-$packPath = Join-Path $env:TEMP "seraphine_pack.py"
 Set-Content -Path $bumpPath -Value $bumpPy -Encoding UTF8
-Set-Content -Path $packPath -Value $packPy -Encoding UTF8
 
 try {
     # ---- bump + commit (only if VERSION != target) --------------------------
@@ -212,17 +192,9 @@ try {
     }
     else {
         if (-not (Test-Path $DistDir)) { Die "build did not produce $DistDir" }
-        # Remove any stale filelist.txt first so it can't list itself (the build dir is
-        # normally fresh from --noconfirm, but be robust to re-runs).
-        Remove-Item "$DistDir\filelist.txt" -ErrorAction SilentlyContinue
-        $base = (Resolve-Path $DistDir).Path + "\"
-        Get-ChildItem -Path "$DistDir\*" -File -Recurse |
-            Select-Object -ExpandProperty FullName |
-            ForEach-Object { $_.Replace($base, "") } |
-            Where-Object { $_ -ne "filelist.txt" } |
-            Out-File -FilePath "$DistDir\filelist.txt" -Encoding UTF8
-        & $Py $packPath $DistDir $SevenZ
-        if ($LASTEXITCODE -ne 0) { Die "py7zr pack failed" }
+        # tools\pack_win.ps1 (shared with the build_windows.yml workflow) writes the
+        # updater-contract filelist.txt and packs the archive root.
+        & (Join-Path $PSScriptRoot "tools\pack_win.ps1") -DistDir $DistDir -Out $SevenZ -Python $Py; if ($LASTEXITCODE -ne 0) { Die "filelist/pack step failed" }
     }
 
     # ---- verify frozen build reports the new version ------------------------
@@ -301,5 +273,5 @@ try {
     Note "done. v$Version is live; existing Windows users (< $Version) will see Update and Restart."
 }
 finally {
-    Remove-Item $bumpPath, $packPath -ErrorAction SilentlyContinue
+    Remove-Item $bumpPath -ErrorAction SilentlyContinue
 }

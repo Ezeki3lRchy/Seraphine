@@ -50,6 +50,8 @@ Go to the [**latest release page**](https://github.com/Ezeki3lRchy/Seraphine/rel
 > ```
 > After that just double-click to launch; later versions can be installed in-app via **Update and Restart**.
 
+> **Builds are not code-signed.** On Windows, SmartScreen or your antivirus may warn about `Seraphine.exe` (an unrecognised publisher); that is expected for an unsigned build. The in-app updater trusts this repository's GitHub Releases, which it reads over HTTPS, and checks the SHA-256 digest GitHub reports for the file it downloaded. That protects against a corrupted or tampered download; it does not protect against a compromised repository or release.
+
 ### Or run from source
 Works on Windows / macOS / Linux. Requires **Python 3.9 or newer** (PySide6 6.9 no longer supports 3.8).
 
@@ -168,21 +170,21 @@ PySide6 6.9.3 needs **PyInstaller 6.x** (no longer the old 5.13.2). Create a PyS
 ```powershell
 python -m venv .build-venv-win
 .build-venv-win\Scripts\activate
-pip install -r requirements.txt
-pip install pyinstaller==6.21
+pip install -r requirements-build.txt
 ```
+[`requirements-build.txt`](requirements-build.txt) is [`requirements.txt`](requirements.txt) plus the pinned PyInstaller; it is also what the CI builds install.
 Build with [`Seraphine.win.spec`](Seraphine.win.spec) (the counterpart of macOS [`Seraphine.spec`](Seraphine.spec): EXE with `logo.ico`, keeps the Windows-only `fix_lcu_window.exe`, bundles `app/resource` as datas):
 ```powershell
 pyinstaller --noconfirm Seraphine.win.spec
 ```
 The output is in `dist\Seraphine\`. PyInstaller 6.x produces an `_internal\` layout (`Seraphine.exe` at the root, the rest under `_internal\`) — that's fine: `main.py` does `os.chdir` to `_MEIPASS` (= `_internal`) at startup and the resources are bundled there, so the relative paths resolve.
 
-Finally, generate a root-level `filelist.txt` and use `py7zr` to pack `dist\Seraphine\*` with **files at the archive root** (no nested top folder) into `Seraphine.7z`, satisfying the **in-place updater** contract (it backs up the files it will replace, merges the new files over the install folder — restoring the backup if that fails — then deletes files listed in the old `filelist.txt` that the new package no longer contains; a package without `filelist.txt` is refused). This step is automated by [`release_win.ps1`](release_win.ps1) below.
+Finally, generate a root-level `filelist.txt` and use `py7zr` to pack `dist\Seraphine\*` with **files at the archive root** (no nested top folder) into `Seraphine.7z`, satisfying the **in-place updater** contract (it backs up the files it will replace, merges the new files over the install folder — restoring the backup if that fails — then deletes files listed in the old `filelist.txt` that the new package no longer contains; a package without `filelist.txt` is refused). This step is [`tools/pack_win.ps1`](tools/pack_win.ps1) (shared by [`release_win.ps1`](release_win.ps1) below and the `build_windows` workflow).
 
 ### macOS (`.dmg`)
-In your virtual environment install PyInstaller, then run [`make_mac.sh`](make_mac.sh):
+In your virtual environment install the build requirements, then run [`make_mac.sh`](make_mac.sh):
 ```shell
-pip install pyinstaller
+pip install -r requirements-build.txt
 ./make_mac.sh
 ```
 The script uses [`Seraphine.spec`](Seraphine.spec) to build `Seraphine.app` and produces `dist/Seraphine.dmg` with an `/Applications` drag target (unsigned).

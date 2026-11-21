@@ -32,8 +32,11 @@ each `*_interface.py` is one tab/screen, composed from `../components/` widgets 
 - Keep network/data work in `../lol/` coroutines; views should react to signals, not block.
 
 ### Testing Requirements
-Requires a running LoL client. Launch `python ../main.py` and navigate to the changed tab;
-op.gg interfaces can be exercised without a client (they hit external op.gg data).
+Interface logic is unit-tested offscreen without a client. Run the suite from the repo root with `QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -t .`
+(`-t .` matters: it imports the modules as `tests.test_x`, so `tests/__init__.py` runs first and points the
+config dir at a temp dir via `SERAPHINE_CONFIG_DIR`; without it the app is imported before that and the
+run would read the real config, which `tests/test_config_dir.py` detects and fails on). Never launch the GUI to check a change: the offscreen unit tests and
+`QT_QPA_PLATFORM=offscreen python main.py --version` / `--selftest` are the smoke tests.
 
 ### Common Patterns
 - One interface class per screen; navigation/registration centralized in `main_window.py`.
@@ -44,6 +47,6 @@ op.gg interfaces can be exercised without a client (they hit external op.gg data
 - `../components/` (widgets), `../lol/` (data), `../common/` (config/signals/styles)
 
 ### External
-- PyQt5, PyQt-Fluent-Widgets, qasync
+- PySide6, PySide6-Fluent-Widgets, qasync
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

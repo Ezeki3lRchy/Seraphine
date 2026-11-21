@@ -26,6 +26,9 @@ name: release
 # write only on the publish job. Note: releases created with GITHUB_TOKEN do not
 # trigger other workflows.
 #
+# Publishing only happens from main: a manual run on another ref still builds, but
+# its publish job is skipped (it would tag a feature-branch commit).
+#
 # The per-file check runs again right before publishing, since a hand release may
 # attach its file while this run is building.
 on:
@@ -60,7 +63,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version=$(sed -nE 's/^VERSION = "([^"]+)".*/\1/p' app/common/config.py)
+          version=$(python3 tools/read_version.py || true)
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::could not read an X.Y.Z VERSION from app/common/config.py (got '$version')"
             exit 1
@@ -115,7 +118,8 @@ jobs:
     needs: [check, build-win, build-mac]
     if: >-
       always() && needs.check.result == 'success' &&
-      (needs.build-win.result == 'success' || needs.build-mac.result == 'success')
+      (needs.build-win.result == 'success' || needs.build-mac.result == 'success') &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -123,9 +127,12 @@ jobs:
       VERSION: ${{ needs.check.outputs.version }}
       GH_TOKEN: ${{ github.token }}
     steps:
+      # gh authenticates with GH_TOKEN; nothing here needs git credentials (git log
+      # reads the local clone only), so do not leave the token in .git/config.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - if: needs.build-win.result == 'success'
         uses: actions/download-artifact@v4

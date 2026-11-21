@@ -1,0 +1,43 @@
+# Dependency update PRs. Monthly and few at a time: the pins in requirements.txt are
+# deliberate (this is a frozen desktop app), so each PR is reviewed and built/tested
+# by the test workflow before it is merged. Nothing is merged automatically.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      # Qt stack moves together (PySide6, Fluent-Widgets, Frameless-Window).
+      qt:
+        patterns:
+          - "PySide6*"
+          - "PySideSix*"
+      # Build tooling (requirements-build.txt).
+      build:
+        patterns:
+          - "pyinstaller*"
+      # Lint tooling (requirements-dev.txt; this directory's requirements*.txt are all scanned).
+      dev:
+        patterns:
+          - "ruff"
+      # Everything else in one PR.
+      runtime:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "PySide6*"
+          - "PySideSix*"
+          - "pyinstaller*"
+          - "ruff"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns:
+          - "*"

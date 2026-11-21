@@ -1,0 +1,5 @@
+# Everything needed to BUILD the frozen app (PyInstaller specs, CI, release_win.ps1,
+# make_mac.sh via venv/): the runtime requirements plus the pinned PyInstaller.
+# Single source for the PyInstaller version; bump it here only.
+-r requirements.txt
+pyinstaller==6.21.0

@@ -8,15 +8,15 @@ Differences from the macOS spec:
     in a frozen onedir build __file__ resolves inside sys._MEIPASS, and the
     app/resource tree is bundled (as datas) under the "app/resource/..." prefix,
     so the relative loads ("app/resource/...") resolve after the chdir.
-    NOTE: contents_directory='.' below requests the historical flat layout
-    (Seraphine.exe + deps at the folder root), but PyInstaller 6.x SILENTLY
-    IGNORES it and nests everything under _internal/. That is fine and is what
-    actually ships: _MEIPASS points at _internal/, the chdir lands there, and the
-    bundled app/resource/ sits alongside, so resolution still succeeds. The line
-    is kept (it built the released .7z) but do not rely on it producing flat
-    output on 6.x. The resulting archive has Seraphine.exe + filelist.txt at the
-    root and everything else under _internal/ — the v1.1.9 in-place updater
-    handles this layout.
+    NOTE: PyInstaller 6.x builds the onedir with Seraphine.exe at the folder
+    root and everything else under _internal/ (the default contents_directory).
+    That is what ships: _MEIPASS points at _internal/, the chdir lands there,
+    and the bundled app/resource/ sits alongside, so resolution succeeds. The
+    resulting archive has Seraphine.exe + filelist.txt at the root and
+    everything else under _internal/ — the v1.1.9 in-place updater handles this
+    layout. (An earlier version of this spec passed contents_directory='.',
+    which 6.x ignored; it was removed after a build confirmed an identical
+    layout.)
   - The Windows-only helper app/resource/bin/fix_lcu_window.exe MUST ship, so
     '.exe' is NOT in the exclude list (the macOS spec drops it).
   - EXE with the .ico icon and no console; no BUNDLE/.app/.icns.
@@ -110,5 +110,4 @@ coll = COLLECT(
     upx=False,
     upx_exclude=[],
     name='Seraphine',
-    contents_directory='.',
 )

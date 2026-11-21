@@ -1,0 +1,24 @@
+# Tooling configuration only (the app is not packaged from here; see requirements*.txt).
+# Ruff is configured to find real errors, not to restyle inherited code: no naming,
+# line-length or formatter rules. CI runs `ruff check .` (version pinned in
+# requirements-dev.txt).
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "F",     # pyflakes
+    "E9",    # syntax / IO errors
+    "B006",  # mutable default argument
+    "B018",  # useless expression
+    "PLE",   # pylint errors
+]
+# E722 (bare except) is not enforced: the app's own exceptions (app/lol/exceptions.py)
+# subclass BaseException, so `except Exception` is not a drop-in replacement. The bare
+# excepts around an await were fixed by hand (they re-raise CancelledError); the rest
+# wrap synchronous code only and are left as they are.
+
+[tool.ruff.lint.per-file-ignores]
+# Re-export shim: star-imports and unused names are its whole job.
+"app/common/qfluentwidgets.py" = ["F"]

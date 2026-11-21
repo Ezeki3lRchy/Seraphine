@@ -1,0 +1,25 @@
+# The index stores LF for every text file in this repo (git converts to CRLF in the
+# working tree on Windows via core.autocrlf), so LF is declared everywhere; nothing
+# here requires CRLF.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json,toml}]
+indent_style = space
+indent_size = 2
+
+[*.{ps1,sh}]
+indent_style = space
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false

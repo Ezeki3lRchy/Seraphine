@@ -4,7 +4,7 @@
 # components
 
 ## Purpose
-Reusable PyQt-Fluent-Widgets building blocks composed by the screens in `../view/`. Each
+Reusable PySide6-Fluent-Widgets building blocks composed by the screens in `../view/`. Each
 file is a self-contained widget (avatars, champion icons, message boxes, setting cards,
 etc.) with no top-level window logic of its own.
 
@@ -35,10 +35,14 @@ etc.) with no top-level window logic of its own.
 - Icons via `../common/icons.py` and `../resource/icons/` (`__file__`-relative paths).
 
 ### Testing Requirements
-Visual; verify by launching `python ../main.py` and viewing the screen that hosts the widget.
+Widget logic is unit-tested offscreen; there is no need to open a window. Run the suite from the repo root with `QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -t .`
+(`-t .` matters: it imports the modules as `tests.test_x`, so `tests/__init__.py` runs first and points the
+config dir at a temp dir via `SERAPHINE_CONFIG_DIR`; without it the app is imported before that and the
+run would read the real config, which `tests/test_config_dir.py` detects and fails on). Never launch the GUI to check a change: the offscreen unit tests and
+`QT_QPA_PLATFORM=offscreen python main.py --version` / `--selftest` are the smoke tests.
 
 ### Common Patterns
-- Subclass a PyQt-Fluent-Widgets base; expose Qt signals for interaction.
+- Subclass a PySide6-Fluent-Widgets base; expose Qt signals for interaction.
 
 ## Dependencies
 
@@ -46,6 +50,6 @@ Visual; verify by launching `python ../main.py` and viewing the screen that host
 - `../common/` (icons, styles, signals); consumed by `../view/`
 
 ### External
-- PyQt5, PyQt-Fluent-Widgets
+- PySide6, PySide6-Fluent-Widgets
 
 <!-- MANUAL: Any manually added notes below this line are preserved on regeneration -->

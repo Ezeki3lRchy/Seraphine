@@ -13,11 +13,18 @@ import shutil
 import sys
 import tempfile
 
-# The app reads its config from %APPDATA%\Seraphine at import time. Point that at
-# an empty temp dir before any app module is imported, so a test run never reads
-# (or writes) the developer's real config and behaves the same as on a CI runner,
-# where no config exists. Windows only: on macOS the location derives from HOME,
-# which is not safe to redirect for a whole process.
+# The app reads its config from app.common.platform.config_dir() at import time.
+# Point that at an empty temp dir (SERAPHINE_CONFIG_DIR, honoured on every platform)
+# before any app module is imported, so a test run never reads (or writes) the
+# developer's real config and behaves the same as on a CI runner, where no config
+# exists. On macOS the default location derives from HOME, which is not safe to
+# redirect for a whole process, hence the explicit override.
+_cfgdir = tempfile.mkdtemp(prefix='seraphine-tests-config-')
+os.environ['SERAPHINE_CONFIG_DIR'] = _cfgdir
+atexit.register(shutil.rmtree, _cfgdir, ignore_errors=True)
+
+# Windows: also redirect APPDATA, which child processes started by the tests (and
+# anything else reading it directly) inherit.
 if sys.platform == 'win32':
     _appdata = tempfile.mkdtemp(prefix='seraphine-tests-appdata-')
     os.environ['APPDATA'] = _appdata
