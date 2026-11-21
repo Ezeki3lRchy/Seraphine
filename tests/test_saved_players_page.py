@@ -18,6 +18,13 @@ from app.lol import saved_players as sp
 from app.view import saved_players_interface as spi
 
 
+def destroy(widget):
+    """delete now: a page left for deleteLater stays alive (no event loop runs here) and
+    rebuilds, even loads icons, on later tests' savedPlayersChanged"""
+    widget.deleteLater()
+    QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
 class SavedPlayersPageTest(unittest.TestCase):
 
     @classmethod
@@ -35,7 +42,7 @@ class SavedPlayersPageTest(unittest.TestCase):
         sp.add('b', 'Bravo#NA1', None, now=200)
         sp.setNote('a', 'duo')
         self.page = spi.SavedPlayersInterface()
-        self.addCleanup(self.page.deleteLater)
+        self.addCleanup(destroy, self.page)
         self.opened = []
         signalBus.toCareerInterface.connect(self.opened.append)
         self.addCleanup(signalBus.toCareerInterface.disconnect, self.opened.append)
@@ -177,7 +184,7 @@ class SavedPlayersPageTest(unittest.TestCase):
 
     def test_star_button_saves_and_removes(self):
         star = SaveStarButton()
-        self.addCleanup(star.deleteLater)
+        self.addCleanup(destroy, star)
         self.assertFalse(star.isEnabled())
         star.setPlayer('c', 'Charlie#EUW', 12, ('SILVER', 'I'))
         self.assertTrue(star.isEnabled())
@@ -190,7 +197,7 @@ class SavedPlayersPageTest(unittest.TestCase):
 
     def test_star_button_on_a_full_list_saves_nothing(self):
         star = SaveStarButton()
-        self.addCleanup(star.deleteLater)
+        self.addCleanup(destroy, star)
         star.setPlayer('new', 'New#1', 1)
         with mock.patch.object(sp, 'MAX_PLAYERS', 2):
             star.click()
