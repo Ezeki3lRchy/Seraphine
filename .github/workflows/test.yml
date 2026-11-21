@@ -63,8 +63,13 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
-      - name: Install ruff
+      - name: Install ruff and PyYAML
         run: pip install -r requirements-dev.txt
 
       - name: Run ruff
         run: ruff check .
+
+      # A workflow file that does not parse never runs, so it cannot report its own
+      # syntax error; this job (when test.yml itself is valid) checks all of them.
+      - name: Check that every workflow and config YAML file parses
+        run: python tools/check_yaml.py

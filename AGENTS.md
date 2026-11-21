@@ -25,7 +25,7 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
 | `tools/` | `read_version.py` (prints `VERSION` from `app/common/config.py`; used by `release_win.ps1`, `release.yml` and the build workflows); `pack_win.ps1` (stops on any error; writes the in-place updater's `filelist.txt` — UTF-8 BOM + CRLF written explicitly so the bytes are the same under Windows PowerShell and PowerShell 7, backslash relative paths, not listing itself — checks it exists, then packs `Seraphine.7z` via `pack_7z.py`/py7zr; shared by `release_win.ps1` and `build_windows.yml`, covered by `tests/test_pack_win.py`) |
 | `.github/dependabot.yml` | Monthly `pip` + `github-actions` update PRs (small open-PR limit, grouped); the way the older runtime pins get reviewed. Never auto-merged |
 | `pyproject.toml` | Tooling config only: a minimal ruff setup (error-finding rules F/E9/B006/B018/PLE, py312, line length 120, no naming/formatter rules; bare-except `E722` is deliberately not enforced, see the comment there). `ruff check .` is clean and enforced by the `lint` job in `test.yml` (push / pull request only; it does not gate releases) |
-| `requirements-dev.txt` | The pinned ruff for linting; install it in any venv except the build venv |
+| `requirements-dev.txt` | The pinned ruff and PyYAML for the lint job; install it in any venv except the build venv |
 | `.editorconfig` | UTF-8, LF (what the index stores; the Windows working tree is CRLF via `core.autocrlf`), 4-space Python |
 | `readme.md` | Project README (English); Chinese version in `readme.zh-CN.md` |
 | `LICENSE` | Upstream license |
@@ -80,6 +80,9 @@ queries LoL match history via the local LCU API and (for CN servers) the Tencent
   it may create `log/` in the bundle). Unit tests: `QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -t .`.
 - Lint: `pip install -r requirements-dev.txt` (pinned ruff, in any venv but the build venv), then
   `ruff check .` must exit 0 (rules in `pyproject.toml`; CI's `lint` job in `test.yml` runs it).
+  After editing anything under `.github/`, run `python tools/check_yaml.py` as well: a workflow file
+  that does not parse is rejected by GitHub before any job runs (an unquoted step name containing
+  `: ` did exactly that once), and only the lint job of another workflow can report it.
 - Full run needs a logged-in LoL client (LCU). CN match history additionally needs a CN
   client session (SGP token).
 

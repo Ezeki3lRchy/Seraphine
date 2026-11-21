@@ -44,7 +44,7 @@ jobs:
             requirements.txt
             requirements-build.txt
 
-      - name: Install build requirements (requirements-build.txt: runtime + pinned PyInstaller)
+      - name: Install build requirements (runtime + pinned PyInstaller, from requirements-build.txt)
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-build.txt
