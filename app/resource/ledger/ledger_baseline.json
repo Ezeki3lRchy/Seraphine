@@ -338,7 +338,13 @@
      ]
     },
     "Q": {
-     "cooldown": null
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
     },
     "R": {
      "cooldown": [
@@ -521,7 +527,13 @@
    ],
    "spells": {
     "E": {
-     "cooldown": null
+     "cooldown": [
+      90,
+      80,
+      70,
+      60,
+      50
+     ]
     },
     "Q": {
      "cooldown": null
@@ -690,7 +702,13 @@
      ]
     },
     "W": {
-     "cooldown": null
+     "cooldown": [
+      12,
+      10.5,
+      9,
+      7.5,
+      6
+     ]
     }
    }
   },
@@ -736,7 +754,13 @@
      ]
     },
     "W": {
-     "cooldown": null
+     "cooldown": [
+      18,
+      18,
+      18,
+      18,
+      18
+     ]
     }
    }
   },
@@ -1038,7 +1062,13 @@
      ]
     },
     "W": {
-     "cooldown": null
+     "cooldown": [
+      26,
+      22,
+      18,
+      14,
+      10
+     ]
     }
    }
   },
@@ -1233,7 +1263,11 @@
      ]
     },
     "R": {
-     "cooldown": null
+     "cooldown": [
+      20,
+      20,
+      20
+     ]
     },
     "W": {
      "cooldown": [
@@ -1889,7 +1923,13 @@
    ],
    "spells": {
     "E": {
-     "cooldown": null
+     "cooldown": [
+      17,
+      16,
+      15,
+      14,
+      13
+     ]
     },
     "Q": {
      "cooldown": [
@@ -2256,7 +2296,13 @@
      ]
     },
     "Q": {
-     "cooldown": null
+     "cooldown": [
+      20,
+      20,
+      20,
+      20,
+      20
+     ]
     },
     "R": {
      "cooldown": [
@@ -2474,7 +2520,13 @@
      ]
     },
     "W": {
-     "cooldown": null
+     "cooldown": [
+      20,
+      20,
+      20,
+      20,
+      20
+     ]
     }
    }
   },
@@ -2702,7 +2754,13 @@
    ],
    "spells": {
     "E": {
-     "cooldown": null
+     "cooldown": [
+      24,
+      21.5,
+      19,
+      16.5,
+      14
+     ]
     },
     "Q": {
      "cooldown": [
@@ -2898,7 +2956,13 @@
    ],
    "spells": {
     "E": {
-     "cooldown": null
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
     },
     "Q": {
      "cooldown": [
@@ -2917,7 +2981,13 @@
      ]
     },
     "W": {
-     "cooldown": null
+     "cooldown": [
+      90,
+      80,
+      70,
+      60,
+      50
+     ]
     }
    }
   },
@@ -4228,7 +4298,13 @@
    ],
    "spells": {
     "E": {
-     "cooldown": null
+     "cooldown": [
+      17,
+      16,
+      15,
+      14,
+      13
+     ]
     },
     "Q": {
      "cooldown": [
@@ -4744,7 +4820,13 @@
    ],
    "spells": {
     "E": {
-     "cooldown": null
+     "cooldown": [
+      26,
+      22.5,
+      19,
+      15.5,
+      12
+     ]
     },
     "Q": {
      "cooldown": [
@@ -5310,7 +5392,13 @@
    ],
    "spells": {
     "E": {
-     "cooldown": null
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
     },
     "Q": {
      "cooldown": [
@@ -5720,7 +5808,13 @@
    ],
    "spells": {
     "E": {
-     "cooldown": null
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
     },
     "Q": {
      "cooldown": [
@@ -6756,7 +6850,11 @@
      ]
     },
     "R": {
-     "cooldown": null
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
     },
     "W": {
      "cooldown": [
@@ -6948,7 +7046,11 @@
      ]
     },
     "R": {
-     "cooldown": null
+     "cooldown": [
+      35,
+      30,
+      25
+     ]
     },
     "W": {
      "cooldown": [
@@ -7559,7 +7661,13 @@
      ]
     },
     "W": {
-     "cooldown": null
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
     }
    }
   },
@@ -7632,7 +7740,13 @@
    ],
    "spells": {
     "E": {
-     "cooldown": null
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
     },
     "Q": {
      "cooldown": [
@@ -8760,7 +8874,13 @@
      ]
     },
     "W": {
-     "cooldown": null
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
     }
    }
   }
@@ -9452,6 +9572,7 @@
    "version": "16.23.8406595+branch.releases-16-23.content.release"
   },
   "ddragon": "16.23.1",
+  "manual": "ledger_manual.json",
   "opgg": [
    "16.23"
   ],
@@ -9464,7 +9585,7 @@
    "id": 12
   },
   "S5_SummonerSmitePlayerGanker": {
-   "cooldown": null,
+   "cooldown": 90,
    "id": 11
   },
   "SummonerBarrier": {
@@ -9496,7 +9617,7 @@
    "id": 7
   },
   "SummonerSmite": {
-   "cooldown": null,
+   "cooldown": 90,
    "id": 11
   },
   "SummonerTeleport": {

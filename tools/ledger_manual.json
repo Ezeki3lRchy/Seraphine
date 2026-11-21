@@ -1,0 +1,10 @@
+{
+ "abilities": {
+  "Kalista": {"E": [10, 9.5, 9, 8.5, 8]},
+  "Tahm Kench": {"R": [120, 100, 80]}
+ },
+ "sources": {
+  "Kalista E": "https://wiki.leagueoflegends.com/en-us/Template:Data_Kalista/Rend (cooldown 10 to 8; patch 16.23 data lists 0)",
+  "Tahm Kench R": "https://wiki.leagueoflegends.com/en-us/Template:Data_Tahm_Kench/Devour (cooldown 120 to 80; patch 16.23 data lists 0)"
+ }
+}
