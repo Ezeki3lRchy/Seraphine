@@ -83,7 +83,12 @@ class PackManifestTest(unittest.TestCase):
         os.makedirs(empty, exist_ok=True)
         path = os.pathsep.join(d for d in os.environ.get('PATH', '').split(os.pathsep)
                                if d and not os.path.isfile(os.path.join(d, '7z.exe')))
-        return dict(os.environ, PATH=path, ProgramFiles=empty)
+        # os.environ holds Windows names upper-cased (PROGRAMFILES): drop them before
+        # setting, or the child gets both spellings and still finds the real 7-Zip
+        env = {k: v for k, v in os.environ.items() if k.upper() not in ('PATH', 'PROGRAMFILES')}
+        env['PATH'] = path
+        env['ProgramFiles'] = empty
+        return env
 
     def test_manifest_bytes(self):
         shells = _powershells()
