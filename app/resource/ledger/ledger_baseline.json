@@ -1,0 +1,9507 @@
+{
+ "champions": {
+  "Aatrox": {
+   "championId": 266,
+   "id": "Aatrox",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      14,
+      12,
+      10,
+      8,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      16.5,
+      15,
+      13.5,
+      12
+     ]
+    }
+   }
+  },
+  "Ahri": {
+   "championId": 103,
+   "id": "Ahri",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    }
+   }
+  },
+  "Akali": {
+   "championId": 84,
+   "id": "Akali",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      1.5,
+      1.5,
+      1.5,
+      1.5,
+      1.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      90,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      19,
+      18,
+      17,
+      16
+     ]
+    }
+   }
+  },
+  "Akshan": {
+   "championId": 166,
+   "id": "Akshan",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      18,
+      16.5,
+      15,
+      13.5,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      85,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      14,
+      10,
+      6,
+      2
+     ]
+    }
+   }
+  },
+  "Alistar": {
+   "championId": 12,
+   "id": "Alistar",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Ambessa": {
+   "championId": 799,
+   "id": "Ambessa",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      115,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
+    }
+   }
+  },
+  "Amumu": {
+   "championId": 32,
+   "id": "Amumu",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "Q": {
+     "cooldown": null
+    },
+    "R": {
+     "cooldown": [
+      150,
+      125,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Anivia": {
+   "championId": 34,
+   "id": "Anivia",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      4,
+      3,
+      2
+     ]
+    },
+    "W": {
+     "cooldown": [
+      17,
+      17,
+      17,
+      17,
+      17
+     ]
+    }
+   }
+  },
+  "Annie": {
+   "championId": 1,
+   "id": "Annie",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      115,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    }
+   }
+  },
+  "Aphelios": {
+   "championId": 523,
+   "id": "Aphelios",
+   "maxRank": {
+    "E": 6,
+    "Q": 6,
+    "R": 3,
+    "W": 6
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      9,
+      9,
+      9,
+      9,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      0.8,
+      0.8,
+      0.8,
+      0.8,
+      0.8,
+      0.8
+     ]
+    }
+   }
+  },
+  "Ashe": {
+   "championId": 22,
+   "id": "Ashe",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": null
+    },
+    "R": {
+     "cooldown": [
+      100,
+      80,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      14.5,
+      11,
+      7.5,
+      4
+     ]
+    }
+   }
+  },
+  "Aurelion Sol": {
+   "championId": 136,
+   "id": "AurelionSol",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      3,
+      3,
+      3,
+      3,
+      3
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      20,
+      18,
+      16,
+      14
+     ]
+    }
+   }
+  },
+  "Aurora": {
+   "championId": 893,
+   "id": "Aurora",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      15,
+      14,
+      13,
+      12,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8.5,
+      8,
+      7.5,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      21,
+      20,
+      19,
+      18
+     ]
+    }
+   }
+  },
+  "Azir": {
+   "championId": 268,
+   "id": "Azir",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      22,
+      20.5,
+      19,
+      17.5,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      14,
+      12,
+      10,
+      8,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Bard": {
+   "championId": 432,
+   "id": "Bard",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      22,
+      20.5,
+      19,
+      17.5,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      95,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Bel'Veth": {
+   "championId": 200,
+   "id": "Belveth",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      24,
+      21,
+      18,
+      15,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      3.25,
+      2.5,
+      1.75,
+      1
+     ]
+    },
+    "R": {
+     "cooldown": null
+    },
+    "W": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    }
+   }
+  },
+  "Blitzcrank": {
+   "championId": 53,
+   "id": "Blitzcrank",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      7,
+      6.5,
+      6,
+      5.5,
+      5
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      20,
+      19,
+      18,
+      17,
+      16
+     ]
+    },
+    "R": {
+     "cooldown": [
+      60,
+      40,
+      20
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      15,
+      15,
+      15,
+      15
+     ]
+    }
+   }
+  },
+  "Brand": {
+   "championId": 63,
+   "id": "Brand",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      90,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    }
+   }
+  },
+  "Braum": {
+   "championId": 201,
+   "id": "Braum",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14,
+      12,
+      10,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      115,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    }
+   }
+  },
+  "Briar": {
+   "championId": 233,
+   "id": "Briar",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      16,
+      16,
+      16,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Caitlyn": {
+   "championId": 51,
+   "id": "Caitlyn",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14,
+      12,
+      10,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      90,
+      90,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Camille": {
+   "championId": 164,
+   "id": "Camille",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      115,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    }
+   }
+  },
+  "Cassiopeia": {
+   "championId": 69,
+   "id": "Cassiopeia",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      0.75,
+      0.75,
+      0.75,
+      0.75,
+      0.75
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      3.5,
+      3.5,
+      3.5,
+      3.5,
+      3.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      24,
+      22,
+      20,
+      18,
+      16
+     ]
+    }
+   }
+  },
+  "Cho'Gath": {
+   "championId": 31,
+   "id": "Chogath",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      8,
+      7,
+      6,
+      5,
+      4
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      80,
+      70,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      11,
+      10.5,
+      10,
+      9.5,
+      9
+     ]
+    }
+   }
+  },
+  "Corki": {
+   "championId": 42,
+   "id": "Corki",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8.5,
+      8,
+      7.5,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": null
+    },
+    "W": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
+    }
+   }
+  },
+  "Darius": {
+   "championId": 122,
+   "id": "Darius",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      26,
+      23.5,
+      21,
+      18.5,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      7.75,
+      6.5,
+      5.25,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      5,
+      5,
+      5,
+      5,
+      5
+     ]
+    }
+   }
+  },
+  "Diana": {
+   "championId": 131,
+   "id": "Diana",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      22,
+      20,
+      18,
+      16,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      90,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      13.5,
+      12,
+      10.5,
+      9
+     ]
+    }
+   }
+  },
+  "Dr. Mundo": {
+   "championId": 36,
+   "id": "DrMundo",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      9,
+      8.25,
+      7.5,
+      6.75,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      120,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      17,
+      16.5,
+      16,
+      15.5,
+      15
+     ]
+    }
+   }
+  },
+  "Draven": {
+   "championId": 119,
+   "id": "Draven",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      90,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    }
+   }
+  },
+  "Ekko": {
+   "championId": 245,
+   "id": "Ekko",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      9,
+      8.5,
+      8,
+      7.5,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8.5,
+      8,
+      7.5,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      80,
+      50
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      20,
+      18,
+      16,
+      14
+     ]
+    }
+   }
+  },
+  "Elise": {
+   "championId": 60,
+   "id": "Elise",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 4,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    1,
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      3,
+      3,
+      3,
+      3
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    }
+   }
+  },
+  "Evelynn": {
+   "championId": 28,
+   "id": "Evelynn",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      14,
+      13,
+      12,
+      11
+     ]
+    }
+   }
+  },
+  "Ezreal": {
+   "championId": 81,
+   "id": "Ezreal",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      26,
+      23,
+      20,
+      17,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      5.5,
+      5.25,
+      5,
+      4.75,
+      4.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    }
+   }
+  },
+  "Fiddlesticks": {
+   "championId": 9,
+   "id": "Fiddlesticks",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      15,
+      14.5,
+      14,
+      13.5,
+      13
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      110,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    }
+   }
+  },
+  "Fiora": {
+   "championId": 114,
+   "id": "Fiora",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      13,
+      11.25,
+      9.5,
+      7.75,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      90,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      24,
+      22,
+      20,
+      18,
+      16
+     ]
+    }
+   }
+  },
+  "Fizz": {
+   "championId": 105,
+   "id": "Fizz",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EWQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14,
+      12,
+      10,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      7,
+      6,
+      5,
+      4,
+      3
+     ]
+    }
+   }
+  },
+  "Galio": {
+   "championId": 3,
+   "id": "Galio",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      180,
+      160,
+      140
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
+    }
+   }
+  },
+  "Gangplank": {
+   "championId": 41,
+   "id": "Gangplank",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      4.5,
+      4.5,
+      4.5,
+      4.5,
+      4.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      160,
+      140,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      20,
+      18,
+      16,
+      14
+     ]
+    }
+   }
+  },
+  "Garen": {
+   "championId": 86,
+   "id": "Garen",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      9,
+      8.25,
+      7.5,
+      6.75,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      19.5,
+      17,
+      14.5,
+      12
+     ]
+    }
+   }
+  },
+  "Gnar": {
+   "championId": 150,
+   "id": "Gnar",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      22,
+      19.5,
+      17,
+      14.5,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
+    },
+    "R": {
+     "cooldown": [
+      90,
+      60,
+      30
+     ]
+    },
+    "W": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    }
+   }
+  },
+  "Gragas": {
+   "championId": 79,
+   "id": "Gragas",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      13.5,
+      13,
+      12.5,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      85,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      5,
+      5,
+      5,
+      5,
+      5
+     ]
+    }
+   }
+  },
+  "Graves": {
+   "championId": 104,
+   "id": "Graves",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      13,
+      11.25,
+      9.5,
+      7.75,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      80,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      26,
+      24,
+      22,
+      20,
+      18
+     ]
+    }
+   }
+  },
+  "Gwen": {
+   "championId": 887,
+   "id": "Gwen",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      13,
+      12.5,
+      12,
+      11.5,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6.5,
+      5.75,
+      5,
+      4.25,
+      3.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      21,
+      20,
+      19,
+      18
+     ]
+    }
+   }
+  },
+  "Hecarim": {
+   "championId": 120,
+   "id": "Hecarim",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      20,
+      19,
+      18,
+      17,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    }
+   }
+  },
+  "Heimerdinger": {
+   "championId": 74,
+   "id": "Heimerdinger",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      11,
+      11,
+      11,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": null
+    },
+    "R": {
+     "cooldown": [
+      100,
+      85,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    }
+   }
+  },
+  "Hwei": {
+   "championId": 910,
+   "id": "Hwei",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      17.5,
+      17,
+      16.5,
+      16
+     ]
+    }
+   }
+  },
+  "Illaoi": {
+   "championId": 420,
+   "id": "Illaoi",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      95,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    }
+   }
+  },
+  "Irelia": {
+   "championId": 39,
+   "id": "Irelia",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      125,
+      105,
+      85
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
+    }
+   }
+  },
+  "Ivern": {
+   "championId": 427,
+   "id": "Ivern",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      130,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Janna": {
+   "championId": 40,
+   "id": "Janna",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WEQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      115,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    }
+   }
+  },
+  "Jarvan IV": {
+   "championId": 59,
+   "id": "JarvanIV",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      9,
+      9,
+      9,
+      9,
+      9
+     ]
+    }
+   }
+  },
+  "Jax": {
+   "championId": 24,
+   "id": "Jax",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WEQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      17,
+      15,
+      13,
+      11,
+      9
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      100,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      7,
+      6,
+      5,
+      4,
+      3
+     ]
+    }
+   }
+  },
+  "Jayce": {
+   "championId": 126,
+   "id": "Jayce",
+   "maxRank": {
+    "E": 6,
+    "Q": 6,
+    "R": 1,
+    "W": 6
+   },
+   "priority": "QWE",
+   "rLevels": [
+    1
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      16,
+      14,
+      12,
+      10,
+      8,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      6
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    }
+   }
+  },
+  "Jhin": {
+   "championId": 202,
+   "id": "Jhin",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6.5,
+      6,
+      5.5,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    }
+   }
+  },
+  "Jinx": {
+   "championId": 222,
+   "id": "Jinx",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      24,
+      20.5,
+      17,
+      13.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": null
+    },
+    "R": {
+     "cooldown": [
+      85,
+      65,
+      45
+     ]
+    },
+    "W": {
+     "cooldown": [
+      8,
+      7,
+      6,
+      5,
+      4
+     ]
+    }
+   }
+  },
+  "K'Sante": {
+   "championId": 897,
+   "id": "KSante",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      3.5,
+      3.5,
+      3.5,
+      3.5,
+      3.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Kai'Sa": {
+   "championId": 145,
+   "id": "Kaisa",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      100,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      18.5,
+      17,
+      15.5,
+      14
+     ]
+    }
+   }
+  },
+  "Kalista": {
+   "championId": 429,
+   "id": "Kalista",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      9,
+      9,
+      9,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      160,
+      140,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Karma": {
+   "championId": 43,
+   "id": "Karma",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 4,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    1,
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      40,
+      38,
+      36,
+      34
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    }
+   }
+  },
+  "Karthus": {
+   "championId": 30,
+   "id": "Karthus",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": null
+    },
+    "R": {
+     "cooldown": [
+      200,
+      180,
+      160
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      15,
+      15,
+      15,
+      15
+     ]
+    }
+   }
+  },
+  "Kassadin": {
+   "championId": 38,
+   "id": "Kassadin",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EWQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      21,
+      20,
+      19,
+      18,
+      17
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8.5,
+      8,
+      7.5,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      5,
+      3.5,
+      2
+     ]
+    },
+    "W": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    }
+   }
+  },
+  "Katarina": {
+   "championId": 55,
+   "id": "Katarina",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      75,
+      60,
+      45
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      14,
+      13,
+      12,
+      11
+     ]
+    }
+   }
+  },
+  "Kayle": {
+   "championId": 10,
+   "id": "Kayle",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      110,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      15,
+      15,
+      15,
+      15
+     ]
+    }
+   }
+  },
+  "Kayn": {
+   "championId": 141,
+   "id": "Kayn",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      21,
+      19,
+      17,
+      15,
+      13
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6.5,
+      6,
+      5.5,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    }
+   }
+  },
+  "Kennen": {
+   "championId": 85,
+   "id": "Kennen",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6.25,
+      5.5,
+      4.75,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      120,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      13,
+      11.25,
+      9.5,
+      7.75,
+      6
+     ]
+    }
+   }
+  },
+  "Kha'Zix": {
+   "championId": 121,
+   "id": "Khazix",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      85,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      9,
+      9,
+      9,
+      9,
+      9
+     ]
+    }
+   }
+  },
+  "Kindred": {
+   "championId": 203,
+   "id": "Kindred",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      12.5,
+      11,
+      9.5,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      9,
+      9,
+      9,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      160,
+      140,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
+    }
+   }
+  },
+  "Kled": {
+   "championId": 240,
+   "id": "Kled",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      125,
+      110
+     ]
+    },
+    "W": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    }
+   }
+  },
+  "Kog'Maw": {
+   "championId": 96,
+   "id": "KogMaw",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      2,
+      1.5,
+      1
+     ]
+    },
+    "W": {
+     "cooldown": [
+      17,
+      17,
+      17,
+      17,
+      17
+     ]
+    }
+   }
+  },
+  "LeBlanc": {
+   "championId": 7,
+   "id": "Leblanc",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      13.25,
+      12.5,
+      11.75,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      45,
+      35,
+      25
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      13.75,
+      12.5,
+      11.25,
+      10
+     ]
+    }
+   }
+  },
+  "Lee Sin": {
+   "championId": 64,
+   "id": "LeeSin",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      85,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    }
+   }
+  },
+  "Leona": {
+   "championId": 89,
+   "id": "Leona",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WEQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      10.5,
+      9,
+      7.5,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      5,
+      5,
+      5,
+      5,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      90,
+      75,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Lillia": {
+   "championId": 876,
+   "id": "Lillia",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      5.5,
+      5,
+      4.5,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      150,
+      130,
+      110
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Lissandra": {
+   "championId": 127,
+   "id": "Lissandra",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      24,
+      21,
+      18,
+      15,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6,
+      5,
+      4,
+      3
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    }
+   }
+  },
+  "Locke": {
+   "championId": 805,
+   "id": "Locke",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
+    }
+   }
+  },
+  "Lucian": {
+   "championId": 236,
+   "id": "Lucian",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      15.5,
+      15,
+      14.5,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      100,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Lulu": {
+   "championId": 117,
+   "id": "Lulu",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EWQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      18,
+      18,
+      18,
+      18
+     ]
+    }
+   }
+  },
+  "Lux": {
+   "championId": 99,
+   "id": "Lux",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    "R": {
+     "cooldown": [
+      60,
+      50,
+      40
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    }
+   }
+  },
+  "Malphite": {
+   "championId": 54,
+   "id": "Malphite",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      115,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    }
+   }
+  },
+  "Malzahar": {
+   "championId": 90,
+   "id": "Malzahar",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      110,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    }
+   }
+  },
+  "Maokai": {
+   "championId": 57,
+   "id": "Maokai",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6.5,
+      6,
+      5.5,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      110,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Master Yi": {
+   "championId": 11,
+   "id": "MasterYi",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      20,
+      19.5,
+      19,
+      18.5,
+      18
+     ]
+    },
+    "R": {
+     "cooldown": [
+      85,
+      85,
+      85
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    }
+   }
+  },
+  "Mel": {
+   "championId": 800,
+   "id": "Mel",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      10.5,
+      10,
+      9.5,
+      9
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      90,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      30,
+      28.5,
+      27,
+      25.5,
+      24
+     ]
+    }
+   }
+  },
+  "Milio": {
+   "championId": 902,
+   "id": "Milio",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EWQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    "R": {
+     "cooldown": [
+      160,
+      145,
+      130
+     ]
+    },
+    "W": {
+     "cooldown": [
+      29,
+      27,
+      25,
+      23,
+      21
+     ]
+    }
+   }
+  },
+  "Miss Fortune": {
+   "championId": 21,
+   "id": "MissFortune",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6,
+      5,
+      4,
+      3
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    }
+   }
+  },
+  "Mordekaiser": {
+   "championId": 82,
+   "id": "Mordekaiser",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14,
+      12,
+      10,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7,
+      6,
+      5,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    }
+   }
+  },
+  "Morgana": {
+   "championId": 25,
+   "id": "Morgana",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      26,
+      23.5,
+      21,
+      18.5,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    }
+   }
+  },
+  "Naafiri": {
+   "championId": 950,
+   "id": "Naafiri",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8.5,
+      8,
+      7.5,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      95,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      26,
+      24,
+      22,
+      20,
+      18
+     ]
+    }
+   }
+  },
+  "Nami": {
+   "championId": 267,
+   "id": "Nami",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WEQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      11,
+      11,
+      11,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    }
+   }
+  },
+  "Nasus": {
+   "championId": 75,
+   "id": "Nasus",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7.5,
+      6.5,
+      5.5,
+      4.5,
+      3.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      14,
+      13,
+      12,
+      11
+     ]
+    }
+   }
+  },
+  "Nautilus": {
+   "championId": 111,
+   "id": "Nautilus",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      7,
+      6.5,
+      6,
+      5.5,
+      5
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    }
+   }
+  },
+  "Neeko": {
+   "championId": 518,
+   "id": "Neeko",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8.5,
+      8,
+      7.5,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    }
+   }
+  },
+  "Nidalee": {
+   "championId": 76,
+   "id": "Nidalee",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 4,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    1,
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      3,
+      3,
+      3,
+      3
+     ]
+    },
+    "W": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    }
+   }
+  },
+  "Nilah": {
+   "championId": 895,
+   "id": "Nilah",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      95,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      26,
+      25,
+      24,
+      23,
+      22
+     ]
+    }
+   }
+  },
+  "Nocturne": {
+   "championId": 56,
+   "id": "Nocturne",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      15,
+      14,
+      13,
+      12,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      160,
+      130,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
+    }
+   }
+  },
+  "Nunu & Willump": {
+   "championId": 20,
+   "id": "Nunu",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      100,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    }
+   }
+  },
+  "Olaf": {
+   "championId": 2,
+   "id": "Olaf",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      9,
+      9,
+      9,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      90,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    }
+   }
+  },
+  "Orianna": {
+   "championId": 61,
+   "id": "Orianna",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      9,
+      9,
+      9,
+      9,
+      9
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6,
+      5,
+      4,
+      3
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      95,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    }
+   }
+  },
+  "Ornn": {
+   "championId": 516,
+   "id": "Ornn",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      13.5,
+      13,
+      12.5,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8.5,
+      8,
+      7.5,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    }
+   }
+  },
+  "Pantheon": {
+   "championId": 80,
+   "id": "Pantheon",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      22,
+      21,
+      20,
+      19,
+      18
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      11,
+      10.25,
+      9.5,
+      8.75,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      180,
+      165,
+      150
+     ]
+    },
+    "W": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    }
+   }
+  },
+  "Poppy": {
+   "championId": 78,
+   "id": "Poppy",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7,
+      6,
+      5,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
+    }
+   }
+  },
+  "Pyke": {
+   "championId": 555,
+   "id": "Pyke",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      15,
+      14,
+      13,
+      12,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      85,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Qiyana": {
+   "championId": 246,
+   "id": "Qiyana",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      120,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    }
+   }
+  },
+  "Quinn": {
+   "championId": 133,
+   "id": "Quinn",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      11,
+      10.5,
+      10,
+      9.5,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      3,
+      3,
+      3
+     ]
+    },
+    "W": {
+     "cooldown": [
+      50,
+      45,
+      40,
+      35,
+      30
+     ]
+    }
+   }
+  },
+  "Rakan": {
+   "championId": 497,
+   "id": "Rakan",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WEQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      110,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Rammus": {
+   "championId": 33,
+   "id": "Rammus",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      12,
+      10.5,
+      9,
+      7.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    }
+   }
+  },
+  "Rek'Sai": {
+   "championId": 421,
+   "id": "RekSai",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      3.5,
+      3,
+      2.5,
+      2
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    }
+   }
+  },
+  "Rell": {
+   "championId": 526,
+   "id": "Rell",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WEQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      11,
+      10.5,
+      10,
+      9.5,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    }
+   }
+  },
+  "Renata Glasc": {
+   "championId": 888,
+   "id": "Renata",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EWQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      16,
+      16,
+      16,
+      16,
+      16
+     ]
+    },
+    "R": {
+     "cooldown": [
+      150,
+      130,
+      110
+     ]
+    },
+    "W": {
+     "cooldown": [
+      28,
+      27,
+      26,
+      25,
+      24
+     ]
+    }
+   }
+  },
+  "Renekton": {
+   "championId": 58,
+   "id": "Renekton",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      16,
+      14,
+      12,
+      10,
+      8
+     ]
+    }
+   }
+  },
+  "Rengar": {
+   "championId": 107,
+   "id": "Rengar",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      5.5,
+      5,
+      4.5,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      90,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
+    }
+   }
+  },
+  "Riven": {
+   "championId": 92,
+   "id": "Riven",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      13,
+      13,
+      13,
+      13,
+      13
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      90,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      11,
+      10,
+      9,
+      8,
+      7
+     ]
+    }
+   }
+  },
+  "Rumble": {
+   "championId": 68,
+   "id": "Rumble",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      105,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    }
+   }
+  },
+  "Ryze": {
+   "championId": 13,
+   "id": "Ryze",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      3.5,
+      3.25,
+      3,
+      2.75,
+      2.5
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      5,
+      5,
+      5,
+      5,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      180,
+      160,
+      140
+     ]
+    },
+    "W": {
+     "cooldown": [
+      11,
+      10.5,
+      10,
+      9.5,
+      9
+     ]
+    }
+   }
+  },
+  "Samira": {
+   "championId": 360,
+   "id": "Samira",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      5,
+      4,
+      3,
+      2
+     ]
+    },
+    "R": {
+     "cooldown": [
+      5,
+      5,
+      5
+     ]
+    },
+    "W": {
+     "cooldown": [
+      30,
+      28,
+      26,
+      24,
+      22
+     ]
+    }
+   }
+  },
+  "Sejuani": {
+   "championId": 113,
+   "id": "Sejuani",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      18,
+      16.5,
+      15,
+      13.5,
+      12
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    }
+   }
+  },
+  "Senna": {
+   "championId": 235,
+   "id": "Senna",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      26,
+      24.5,
+      23,
+      21.5,
+      20
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      15,
+      15,
+      15,
+      15,
+      15
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      11,
+      11,
+      11,
+      11,
+      11
+     ]
+    }
+   }
+  },
+  "Seraphine": {
+   "championId": 147,
+   "id": "Seraphine",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      11,
+      11,
+      11,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      160,
+      140,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      22,
+      22,
+      22,
+      22
+     ]
+    }
+   }
+  },
+  "Sett": {
+   "championId": 875,
+   "id": "Sett",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      16.5,
+      15,
+      13.5,
+      12
+     ]
+    }
+   }
+  },
+  "Shaco": {
+   "championId": 35,
+   "id": "Shaco",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      13,
+      12.5,
+      12,
+      11.5,
+      11
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      90,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      15,
+      15,
+      15,
+      15
+     ]
+    }
+   }
+  },
+  "Shen": {
+   "championId": 98,
+   "id": "Shen",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      18,
+      16,
+      14,
+      12,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.25,
+      6.5,
+      5.75,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      200,
+      180,
+      160
+     ]
+    },
+    "W": {
+     "cooldown": [
+      16,
+      14.5,
+      13,
+      11.5,
+      10
+     ]
+    }
+   }
+  },
+  "Shyvana": {
+   "championId": 102,
+   "id": "Shyvana",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": null
+    },
+    "W": {
+     "cooldown": [
+      13,
+      12.25,
+      11.5,
+      10.75,
+      10
+     ]
+    }
+   }
+  },
+  "Singed": {
+   "championId": 27,
+   "id": "Singed",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": null
+    },
+    "R": {
+     "cooldown": [
+      100,
+      100,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      17,
+      16,
+      15,
+      14,
+      13
+     ]
+    }
+   }
+  },
+  "Sion": {
+   "championId": 14,
+   "id": "Sion",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      100,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      14,
+      13,
+      12,
+      11
+     ]
+    }
+   }
+  },
+  "Sivir": {
+   "championId": 15,
+   "id": "Sivir",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      24,
+      22.5,
+      21,
+      19.5,
+      18
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    }
+   }
+  },
+  "Skarner": {
+   "championId": 72,
+   "id": "Skarner",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      22,
+      21,
+      20,
+      19,
+      18
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      6.75,
+      5.5,
+      4.25,
+      3
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    }
+   }
+  },
+  "Smolder": {
+   "championId": 901,
+   "id": "Smolder",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      24,
+      22,
+      20,
+      18,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      5.5,
+      5,
+      4.5,
+      4,
+      3.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Sona": {
+   "championId": 37,
+   "id": "Sona",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    }
+   }
+  },
+  "Soraka": {
+   "championId": 16,
+   "id": "Soraka",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      20,
+      19,
+      18,
+      17,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7,
+      6,
+      5,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      150,
+      135,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      6,
+      5,
+      4,
+      3,
+      2
+     ]
+    }
+   }
+  },
+  "Swain": {
+   "championId": 50,
+   "id": "Swain",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6,
+      5,
+      4,
+      3
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      120,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      19,
+      18,
+      17,
+      16
+     ]
+    }
+   }
+  },
+  "Sylas": {
+   "championId": 517,
+   "id": "Sylas",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WEQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9,
+      8,
+      7,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      80,
+      55,
+      30
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      10.5,
+      9,
+      7.5,
+      6
+     ]
+    }
+   }
+  },
+  "Syndra": {
+   "championId": 134,
+   "id": "Syndra",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      17,
+      16.5,
+      16,
+      15.5,
+      15
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    }
+   }
+  },
+  "Tahm Kench": {
+   "championId": 223,
+   "id": "TahmKench",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      3,
+      3,
+      3,
+      3,
+      3
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6.5,
+      6,
+      5.5,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": null
+    },
+    "W": {
+     "cooldown": [
+      21,
+      20,
+      19,
+      18,
+      17
+     ]
+    }
+   }
+  },
+  "Taliyah": {
+   "championId": 163,
+   "id": "Taliyah",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6,
+      5,
+      4,
+      3
+     ]
+    },
+    "R": {
+     "cooldown": [
+      180,
+      150,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      12.5,
+      11,
+      9.5,
+      8
+     ]
+    }
+   }
+  },
+  "Talon": {
+   "championId": 91,
+   "id": "Talon",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      80,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      9,
+      8.5,
+      8,
+      7.5,
+      7
+     ]
+    }
+   }
+  },
+  "Taric": {
+   "championId": 44,
+   "id": "Taric",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      3,
+      3,
+      3,
+      3,
+      3
+     ]
+    },
+    "R": {
+     "cooldown": [
+      180,
+      150,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      15,
+      15,
+      15,
+      15,
+      15
+     ]
+    }
+   }
+  },
+  "Teemo": {
+   "championId": 17,
+   "id": "Teemo",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": null
+    },
+    "W": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    }
+   }
+  },
+  "Thresh": {
+   "championId": 412,
+   "id": "Thresh",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      13,
+      12.25,
+      11.5,
+      10.75,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      19,
+      16.5,
+      14,
+      11.5,
+      9
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      21,
+      20,
+      19,
+      18,
+      17
+     ]
+    }
+   }
+  },
+  "Tristana": {
+   "championId": 18,
+   "id": "Tristana",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      15.5,
+      15,
+      14.5,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      20,
+      19,
+      18,
+      17,
+      16
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      100,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      20,
+      18,
+      16,
+      14
+     ]
+    }
+   }
+  },
+  "Trundle": {
+   "championId": 48,
+   "id": "Trundle",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      21,
+      19.5,
+      18,
+      16.5,
+      15
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      3.5,
+      3.5,
+      3.5,
+      3.5,
+      3.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
+    }
+   }
+  },
+  "Tryndamere": {
+   "championId": 23,
+   "id": "Tryndamere",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    }
+   }
+  },
+  "Twisted Fate": {
+   "championId": 4,
+   "id": "TwistedFate",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      5.75,
+      5.5,
+      5.25,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      170,
+      140,
+      110
+     ]
+    },
+    "W": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    }
+   }
+  },
+  "Twitch": {
+   "championId": 29,
+   "id": "Twitch",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      16,
+      16,
+      16,
+      16,
+      16
+     ]
+    },
+    "R": {
+     "cooldown": [
+      90,
+      90,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      13,
+      12,
+      11,
+      10,
+      9
+     ]
+    }
+   }
+  },
+  "Udyr": {
+   "championId": 77,
+   "id": "Udyr",
+   "maxRank": {
+    "E": 6,
+    "Q": 6,
+    "R": 6,
+    "W": 6
+   },
+   "priority": "QEWR",
+   "rLevels": [],
+   "spells": {
+    "E": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "W": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    }
+   }
+  },
+  "Urgot": {
+   "championId": 6,
+   "id": "Urgot",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WEQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      15.5,
+      15,
+      14.5,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      85,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      9,
+      6,
+      3,
+      0
+     ]
+    }
+   }
+  },
+  "Varus": {
+   "championId": 110,
+   "id": "Varus",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      18,
+      16,
+      14,
+      12,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      80,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      40,
+      40,
+      40,
+      40,
+      40
+     ]
+    }
+   }
+  },
+  "Vayne": {
+   "championId": 67,
+   "id": "Vayne",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      5,
+      4,
+      3,
+      2
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      85,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Veigar": {
+   "championId": 45,
+   "id": "Veigar",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      20,
+      18.5,
+      17,
+      15.5,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      5.5,
+      5,
+      4.5,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      90,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Vel'Koz": {
+   "championId": 161,
+   "id": "Velkoz",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      7,
+      7,
+      7,
+      7
+     ]
+    },
+    "R": {
+     "cooldown": [
+      100,
+      90,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Vex": {
+   "championId": 711,
+   "id": "Vex",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      12,
+      12,
+      12,
+      12
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7,
+      6,
+      5,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      16,
+      15,
+      14,
+      13,
+      12
+     ]
+    }
+   }
+  },
+  "Vi": {
+   "championId": 254,
+   "id": "Vi",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      12,
+      10.5,
+      9,
+      7.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      115,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Viego": {
+   "championId": 234,
+   "id": "Viego",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      14,
+      12,
+      10,
+      8,
+      6
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      5,
+      4.5,
+      4,
+      3.5,
+      3
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      8,
+      8,
+      8,
+      8,
+      8
+     ]
+    }
+   }
+  },
+  "Viktor": {
+   "championId": 112,
+   "id": "Viktor",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      17,
+      16,
+      15,
+      14,
+      13
+     ]
+    }
+   }
+  },
+  "Vladimir": {
+   "championId": 8,
+   "id": "Vladimir",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      13,
+      11,
+      9,
+      7,
+      5
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      7.9,
+      6.8,
+      5.7,
+      4.6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      120,
+      120
+     ]
+    },
+    "W": {
+     "cooldown": [
+      28,
+      25,
+      22,
+      19,
+      16
+     ]
+    }
+   }
+  },
+  "Volibear": {
+   "championId": 106,
+   "id": "Volibear",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      16,
+      16,
+      16,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      12,
+      11.5,
+      11,
+      10.5,
+      10
+     ]
+    },
+    "R": {
+     "cooldown": [
+      160,
+      135,
+      110
+     ]
+    },
+    "W": {
+     "cooldown": [
+      5,
+      5,
+      5,
+      5,
+      5
+     ]
+    }
+   }
+  },
+  "Warwick": {
+   "championId": 19,
+   "id": "Warwick",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WQE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      15,
+      14,
+      13,
+      12,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      90,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      80,
+      70,
+      60,
+      50,
+      40
+     ]
+    }
+   }
+  },
+  "Wukong": {
+   "championId": 62,
+   "id": "MonkeyKing",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9.25,
+      8.5,
+      7.75,
+      7
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      110,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      22,
+      21,
+      20,
+      19,
+      18
+     ]
+    }
+   }
+  },
+  "Xayah": {
+   "championId": 498,
+   "id": "Xayah",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EWQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      140,
+      120,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
+    }
+   }
+  },
+  "Xerath": {
+   "championId": 101,
+   "id": "Xerath",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QWE",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      13,
+      12.5,
+      12,
+      11.5,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      9,
+      8,
+      7,
+      6,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      130,
+      115,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13,
+      12,
+      11,
+      10
+     ]
+    }
+   }
+  },
+  "Xin Zhao": {
+   "championId": 5,
+   "id": "XinZhao",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "WEQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      11,
+      11,
+      11,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6.5,
+      6,
+      5.5,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    }
+   }
+  },
+  "Yasuo": {
+   "championId": 157,
+   "id": "Yasuo",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": null
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      70,
+      50,
+      30
+     ]
+    },
+    "W": {
+     "cooldown": [
+      25,
+      23,
+      21,
+      19,
+      17
+     ]
+    }
+   }
+  },
+  "Yone": {
+   "championId": 777,
+   "id": "Yone",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      22,
+      19,
+      16,
+      13,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      100,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      14,
+      14,
+      14,
+      14
+     ]
+    }
+   }
+  },
+  "Yorick": {
+   "championId": 83,
+   "id": "Yorick",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      5.5,
+      5,
+      4.5,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      160,
+      130,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
+    }
+   }
+  },
+  "Yunara": {
+   "championId": 804,
+   "id": "Yunara",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      9,
+      9,
+      9,
+      9,
+      9
+     ]
+    },
+    "Q": {
+     "cooldown": null
+    },
+    "R": {
+     "cooldown": [
+      100,
+      90,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    }
+   }
+  },
+  "Yuumi": {
+   "championId": 350,
+   "id": "Yuumi",
+   "maxRank": {
+    "E": 5,
+    "Q": 6,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      10,
+      10,
+      10,
+      10
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6.5,
+      6.5,
+      6.5,
+      6.5,
+      6.5,
+      6.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Zaahen": {
+   "championId": 904,
+   "id": "Zaahen",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8,
+      7.5,
+      7,
+      6.5,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      95,
+      80
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      13.5,
+      13,
+      12.5,
+      12
+     ]
+    }
+   }
+  },
+  "Zac": {
+   "championId": 154,
+   "id": "Zac",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EWQ",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      21,
+      18,
+      15,
+      12,
+      9
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      14,
+      12.5,
+      11,
+      9.5,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      105,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": [
+      5,
+      5,
+      5,
+      5,
+      5
+     ]
+    }
+   }
+  },
+  "Zed": {
+   "championId": 238,
+   "id": "Zed",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      5,
+      4.5,
+      4,
+      3.5,
+      3
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      110,
+      100
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      19,
+      18,
+      17,
+      16
+     ]
+    }
+   }
+  },
+  "Zeri": {
+   "championId": 221,
+   "id": "Zeri",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      24,
+      22.5,
+      21,
+      19.5,
+      18
+     ]
+    },
+    "Q": {
+     "cooldown": null
+    },
+    "R": {
+     "cooldown": [
+      80,
+      75,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      12,
+      11,
+      10,
+      9,
+      8
+     ]
+    }
+   }
+  },
+  "Ziggs": {
+   "championId": 115,
+   "id": "Ziggs",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      16,
+      16,
+      16,
+      16,
+      16
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      6,
+      5.5,
+      5,
+      4.5,
+      4
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      95,
+      70
+     ]
+    },
+    "W": {
+     "cooldown": [
+      20,
+      18,
+      16,
+      14,
+      12
+     ]
+    }
+   }
+  },
+  "Zilean": {
+   "championId": 26,
+   "id": "Zilean",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      15,
+      15,
+      15,
+      15,
+      15
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      10,
+      9.5,
+      9,
+      8.5,
+      8
+     ]
+    },
+    "R": {
+     "cooldown": [
+      120,
+      90,
+      60
+     ]
+    },
+    "W": {
+     "cooldown": [
+      14,
+      12,
+      10,
+      8,
+      6
+     ]
+    }
+   }
+  },
+  "Zoe": {
+   "championId": 142,
+   "id": "Zoe",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "QEW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      18,
+      17,
+      16,
+      15,
+      14
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      8.5,
+      8,
+      7.5,
+      7,
+      6.5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      11,
+      8,
+      5
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  },
+  "Zyra": {
+   "championId": 143,
+   "id": "Zyra",
+   "maxRank": {
+    "E": 5,
+    "Q": 5,
+    "R": 3,
+    "W": 5
+   },
+   "priority": "EQW",
+   "rLevels": [
+    6,
+    11,
+    16
+   ],
+   "spells": {
+    "E": {
+     "cooldown": [
+      11,
+      11,
+      11,
+      11,
+      11
+     ]
+    },
+    "Q": {
+     "cooldown": [
+      7,
+      6.5,
+      6,
+      5.5,
+      5
+     ]
+    },
+    "R": {
+     "cooldown": [
+      110,
+      100,
+      90
+     ]
+    },
+    "W": {
+     "cooldown": null
+    }
+   }
+  }
+ },
+ "items": {
+  "2020": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "2022": {
+   "active": null,
+   "haste": 5,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "2065": {
+   "active": 75,
+   "hasActive": true,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "2502": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "2503": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "2510": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "2512": {
+   "active": null,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 30
+  },
+  "2520": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "2522": {
+   "active": 60,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "2524": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "2525": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3003": {
+   "active": null,
+   "haste": 25,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3004": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3011": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3024": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3040": {
+   "active": null,
+   "haste": 25,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3042": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3050": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3057": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3065": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3067": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3068": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3071": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3073": {
+   "active": null,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 30
+  },
+  "3074": {
+   "active": 10,
+   "hasActive": true,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3077": {
+   "active": 10,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3078": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3100": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3107": {
+   "active": 90,
+   "hasActive": true,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3108": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3109": {
+   "active": 60,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3110": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3115": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3118": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 20
+  },
+  "3119": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3121": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3133": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3137": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3139": {
+   "active": 90,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3140": {
+   "active": 90,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3142": {
+   "active": 45,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3143": {
+   "active": 90,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3146": {
+   "active": 60,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3152": {
+   "active": 50,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3156": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3157": {
+   "active": 120,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3158": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 10,
+   "ultHaste": 0
+  },
+  "3165": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3171": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 20,
+   "ultHaste": 0
+  },
+  "3177": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3179": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3190": {
+   "active": 90,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "322065": {
+   "active": 75,
+   "hasActive": true,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3222": {
+   "active": 120,
+   "hasActive": true,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323003": {
+   "active": null,
+   "haste": 25,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323004": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323040": {
+   "active": null,
+   "haste": 25,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323042": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323050": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323107": {
+   "active": 90,
+   "hasActive": true,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323109": {
+   "active": 60,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323110": {
+   "active": null,
+   "haste": 25,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323119": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323121": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323190": {
+   "active": 90,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "323222": {
+   "active": 120,
+   "hasActive": true,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "324005": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "326616": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "326617": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "326620": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "328020": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3508": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3748": {
+   "active": 10,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "3802": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "4005": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "4628": {
+   "active": null,
+   "haste": 25,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "4629": {
+   "active": null,
+   "haste": 25,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "4633": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "4636": {
+   "active": null,
+   "haste": 25,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "4642": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6333": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6609": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6610": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6616": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6617": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6620": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6631": {
+   "active": 15,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "663146": {
+   "active": 20,
+   "hasActive": true,
+   "haste": 0,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "663172": {
+   "active": null,
+   "haste": 25,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "663193": {
+   "active": 45,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "664011": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "664403": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "664644": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6655": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6660": {
+   "active": null,
+   "haste": 5,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6662": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6664": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "667101": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6692": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6693": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6694": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6696": {
+   "active": null,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6697": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6698": {
+   "active": 10,
+   "hasActive": true,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "6699": {
+   "active": null,
+   "haste": 10,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "8001": {
+   "active": 90,
+   "hasActive": true,
+   "haste": 20,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "8010": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  },
+  "8020": {
+   "active": null,
+   "haste": 15,
+   "spellHaste": 0,
+   "ultHaste": 0
+  }
+ },
+ "patch": "16.23",
+ "schema": 1,
+ "sources": {
+  "communitydragon": {
+   "characters": "https://raw.communitydragon.org/16.23/game/data/characters/<id>/<id>.bin.json",
+   "items": "https://raw.communitydragon.org/16.23/game/items.cdtb.bin.json",
+   "metadata": "https://raw.communitydragon.org/16.23/content-metadata.json",
+   "spells": "https://raw.communitydragon.org/16.23/game/shared.cdtb.bin.json",
+   "version": "16.23.8406595+branch.releases-16-23.content.release"
+  },
+  "ddragon": "16.23.1",
+  "opgg": [
+   "16.23"
+  ],
+  "region": "global",
+  "tier": "emerald_plus"
+ },
+ "summonerSpells": {
+  "S12_SummonerTeleportUpgrade": {
+   "cooldown": 300,
+   "id": 12
+  },
+  "S5_SummonerSmitePlayerGanker": {
+   "cooldown": null,
+   "id": 11
+  },
+  "SummonerBarrier": {
+   "cooldown": 180,
+   "id": 21
+  },
+  "SummonerBoost": {
+   "cooldown": 240,
+   "id": 1
+  },
+  "SummonerDot": {
+   "cooldown": 180,
+   "id": 14
+  },
+  "SummonerExhaust": {
+   "cooldown": 240,
+   "id": 3
+  },
+  "SummonerFlash": {
+   "cooldown": 300,
+   "id": 4
+  },
+  "SummonerHaste": {
+   "cooldown": 240,
+   "id": 6
+  },
+  "SummonerHeal": {
+   "cooldown": 240,
+   "id": 7
+  },
+  "SummonerSmite": {
+   "cooldown": null,
+   "id": 11
+  },
+  "SummonerTeleport": {
+   "cooldown": 300,
+   "id": 12
+  }
+ }
+}

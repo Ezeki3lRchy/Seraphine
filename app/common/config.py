@@ -200,6 +200,12 @@ class Config(QConfig):
     # [x, y] of the overlay's top-left corner; empty = default spot
     goldOverlayPos = ConfigItem("Other", "GoldOverlayPos", [])
 
+    # In-game cooldown ledger panel (opt-in); shares goldOverlayLocked with the overlay
+    enableCooldownLedger = ConfigItem(
+        "Functions", "EnableCooldownLedger", False, BoolValidator())
+    # [x, y] of the ledger panel's top-left corner; empty = default spot
+    cooldownLedgerPos = ConfigItem("Other", "CooldownLedgerPos", [])
+
     enableSilent = ConfigItem(
         "General", "EnableSilent", False, BoolValidator())
 
