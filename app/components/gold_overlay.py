@@ -214,8 +214,11 @@ class GoldOverlay(QWidget):
         locked = bool(cfg.get(cfg.goldOverlayLocked))
         if locked:
             flags |= Qt.WindowTransparentForInput
-        self.setWindowFlags(flags)
+        # the attribute first: while WA_TransparentForMouseEvents is set, Qt adds
+        # WindowTransparentForInput to any flags given, so setting the flags before clearing
+        # it would leave an unlocked overlay click-through
         self.setAttribute(Qt.WA_TransparentForMouseEvents, locked)
+        self.setWindowFlags(flags)
 
     def __onLockChanged(self):
         try:
