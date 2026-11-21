@@ -82,12 +82,24 @@ class PackManifestTest(unittest.TestCase):
         empty = os.path.join(self.root, 'no program files')
         os.makedirs(empty, exist_ok=True)
         path = os.pathsep.join(d for d in os.environ.get('PATH', '').split(os.pathsep)
-                               if d and not os.path.isfile(os.path.join(d, '7z.exe')))
+                               if d and not os.path.isfile(os.path.join(d.strip('"'), '7z.exe')))
         # os.environ holds Windows names upper-cased (PROGRAMFILES): drop them before
-        # setting, or the child gets both spellings and still finds the real 7-Zip
-        env = {k: v for k, v in os.environ.items() if k.upper() not in ('PATH', 'PROGRAMFILES')}
+        # setting, or the child gets both spellings. A 64-bit process may take
+        # ProgramFiles from ProgramW6432, so that one points at the empty dir too.
+        hidden = ('PATH', 'PROGRAMFILES', 'PROGRAMW6432')
+        env = {k: v for k, v in os.environ.items() if k.upper() not in hidden}
         env['PATH'] = path
         env['ProgramFiles'] = empty
+        env['ProgramW6432'] = empty
+        # the hiding must hold inside PowerShell, where pack_win.ps1 looks
+        probe = subprocess.run(
+            [_powershells()[0], '-NoProfile', '-NonInteractive', '-Command',
+             '"PF=$env:ProgramFiles"; "CMD=$((Get-Command 7z -CommandType Application '
+             '-ErrorAction SilentlyContinue | Select-Object -First 1).Source)"'],
+            capture_output=True, text=True, timeout=60, env=env, creationflags=CREATE_NO_WINDOW)
+        lines = probe.stdout.splitlines()
+        self.assertIn('PF=' + empty, lines, probe.stdout + probe.stderr)
+        self.assertIn('CMD=', lines, probe.stdout + probe.stderr)
         return env
 
     def test_manifest_bytes(self):
