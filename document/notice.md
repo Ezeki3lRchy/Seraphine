@@ -6,6 +6,9 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.10
+- Item value (overlay and panel) was far too low because it counted only each item's own combine cost, so completed items were heavily undercounted. It now uses each item's full price.
+
 ### v1.4.9
 - Item value overlay: each lane now shows both players' item values next to the difference, the difference is written out in full when it fits, and small coloured marks show which column is yours and which is the enemy's.
 - "Even" is gone from the item value overlay and panel: the actual difference is always shown (0 when exactly equal).
