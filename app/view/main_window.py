@@ -70,6 +70,18 @@ TAG = "MainWindow"
 LOBBY_REFRESH_STATUSES = ('Lobby', 'Matchmaking', 'ReadyCheck')
 
 
+def itemFullPrice(itemId):
+    """Full gold price of an item from the client's items.json (priceTotal), or None before
+    the connector has loaded it or for an unknown id; the live item value falls back to the
+    game's own (combine-cost) price then"""
+    manager = getattr(connector, 'manager', None)
+    info = manager.getItemInfo(itemId) if manager is not None else None
+    return info.get('priceTotal') if info else None
+
+
+liveClientPoller.fullPrice = itemFullPrice
+
+
 class MainWindow(FluentWindow):
     mainWindowHide = Signal(bool)
     showUpdateMessageBox = Signal(dict)

@@ -8,8 +8,14 @@ the field names (allPlayers[].items[] has canUse / consumable / count / displayN
 itemID / price / slot; team "ORDER" in the sample; activePlayer.currentGold) but do not
 define `price` or `count`. Assumptions made here, stated so they can be revisited:
 
-- `price` is the item's full (total) gold cost per unit. The documented trinket sample has
-  price 0, so trinkets contribute nothing without a special case.
+- `price` is NOT the item's full cost. Observed in real games: it is the item's own
+  combine (recipe) cost, so it equals the full cost only for basic items (Boots 300,
+  Long Sword 350, Doran's Blade 450), while built items report much less (Vampiric Scepter
+  550 instead of 900, Tiamat 500 instead of 1200). Each item is therefore valued at its full
+  price from the game client's own item data (items.json `priceTotal`, loaded by the
+  connector), passed in as a `fullPrice(itemId)` lookup; `price` is only the fallback when
+  that lookup has no answer. Trinkets cost 0 in both, so they contribute nothing without a
+  special case.
 - `count` is the stack size of stackable consumables (potions, control wards). For
   non-consumable items it is treated as 1, so a stack counter on a non-consumable item
   (if the game ever reports one) cannot multiply its price.
@@ -58,18 +64,37 @@ def _num(value):
             return 0
 
 
-def itemValue(item) -> int:
-    """Gold value of one inventory entry: price, times count for stackable consumables"""
+def _fullPrice(item, fullPrice):
+    """Full price of the entry's item from `fullPrice(itemId)`, or None when unknown. Never
+    raises: an exception or a non-numeric / non-positive answer counts as unknown. 0 is
+    unknown too, so a positive payload price wins over it; a real 0-cost item (trinket) has
+    payload price 0 as well, so the fallback values it at 0 anyway"""
+    if fullPrice is None:
+        return None
+    try:
+        value = fullPrice(item.get('itemID'))
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not value > 0:
+            return None
+        return int(value)
+    except Exception:
+        return None
+
+
+def itemValue(item, fullPrice=None) -> int:
+    """Gold value of one inventory entry: the item's full price (`fullPrice(itemId)`,
+    falling back to the payload's `price`), times count for stackable consumables"""
     if not isinstance(item, dict):
         return 0
-    price = max(_num(item.get('price')), 0)
+    price = _fullPrice(item, fullPrice)
+    if price is None:
+        price = max(_num(item.get('price')), 0)
     count = max(_num(item.get('count')), 1) if item.get('consumable') else 1
     return price * count
 
 
-def playerItemValue(player) -> int:
+def playerItemValue(player, fullPrice=None) -> int:
     items = (player or {}).get('items') or []
-    return sum(itemValue(item) for item in items)
+    return sum(itemValue(item, fullPrice) for item in items)
 
 
 def playerName(player) -> str:
@@ -125,8 +150,8 @@ def splitTeams(data):
     return ally, enemy
 
 
-def teamTotal(players) -> int:
-    return sum(playerItemValue(p) for p in players or [])
+def teamTotal(players, fullPrice=None) -> int:
+    return sum(playerItemValue(p, fullPrice) for p in players or [])
 
 
 def _assignLanes(players):
@@ -146,7 +171,7 @@ def _assignLanes(players):
     return slots
 
 
-def pairLanes(ally, enemy):
+def pairLanes(ally, enemy, fullPrice=None):
     """
     [{'position', 'ally', 'enemy', 'diff'}] for the five lanes; diff is ally - enemy item
     value. 'position' is the lane name when either side's player reported it, else ""
@@ -162,7 +187,7 @@ def pairLanes(ally, enemy):
         lanes.append({
             'position': lane if known else "",
             'ally': a, 'enemy': e,
-            'diff': playerItemValue(a) - playerItemValue(e),
+            'diff': playerItemValue(a, fullPrice) - playerItemValue(e, fullPrice),
         })
     return lanes
 
@@ -172,7 +197,7 @@ def isEven(diff, a, b):
     return abs(diff) < max(EVEN_GOLD, EVEN_SHARE * max(abs(a or 0), abs(b or 0)))
 
 
-def _playerSummary(player):
+def _playerSummary(player, fullPrice=None):
     if player is None:
         return None
     scores = player.get('scores') or {}
@@ -180,7 +205,7 @@ def _playerSummary(player):
         'championName': player.get('championName') or "",
         'name': playerName(player),
         'position': (player.get('position') or "").upper(),
-        'value': playerItemValue(player),
+        'value': playerItemValue(player, fullPrice),
         'level': _num(player.get('level')),
         'isDead': bool(player.get('isDead')),
         'kills': _num(scores.get('kills')),
@@ -189,10 +214,11 @@ def _playerSummary(player):
     }
 
 
-def summarizeGameData(data):
+def summarizeGameData(data, fullPrice=None):
     """
     allgamedata payload -> the plain dict the panel and overlay draw, or None when the
-    payload has no players. All values are from the local player's team perspective
+    payload has no players. All values are from the local player's team perspective.
+    `fullPrice(itemId) -> int | None` gives each item's full price (see itemValue)
     """
     if not isinstance(data, dict):
         return None
@@ -210,20 +236,21 @@ def summarizeGameData(data):
     if not ally or not enemy or len(ally) + len(enemy) != len(players):
         return None
 
-    allyTotal, enemyTotal = teamTotal(ally), teamTotal(enemy)
+    allyTotal, enemyTotal = teamTotal(ally, fullPrice), teamTotal(enemy, fullPrice)
     active = data.get('activePlayer') or {}
     gold = active.get('currentGold')
 
     lanes = []
-    for lane in pairLanes(ally, enemy):
-        a, e = _playerSummary(lane['ally']), _playerSummary(lane['enemy'])
+    for lane in pairLanes(ally, enemy, fullPrice):
+        a = _playerSummary(lane['ally'], fullPrice)
+        e = _playerSummary(lane['enemy'], fullPrice)
         lanes.append({'position': lane['position'], 'diff': lane['diff'],
                       'even': isEven(lane['diff'], (a or {}).get('value'),
                                      (e or {}).get('value')),
                       'ally': a, 'enemy': e})
 
     def ranked(team):
-        return sorted((_playerSummary(p) for p in team), key=lambda p: -p['value'])
+        return sorted((_playerSummary(p, fullPrice) for p in team), key=lambda p: -p['value'])
 
     return {
         'team': team or ORDER,
@@ -310,14 +337,16 @@ class LiveClientPoller:
     (the next sleep starts only after the previous fetch returned), a failing fetch or
     callback never ends the loop, and nothing raises into the Qt loop. Each changed
     summary (or None when the data goes away) is passed to `onData`, by default
-    signalBus.liveGameDataChanged.emit
+    signalBus.liveGameDataChanged.emit. `fullPrice(itemId) -> int | None` (settable later
+    as the attribute) gives full item prices to summarizeGameData; None uses payload prices
     """
 
-    def __init__(self, fetch=None, onData=None, interval=POLL_INTERVAL):
+    def __init__(self, fetch=None, onData=None, interval=POLL_INTERVAL, fullPrice=None):
         self.client = LiveClient()
         self.fetch = fetch or self.client.allGameData
         self.onData = onData or signalBus.liveGameDataChanged.emit
         self.interval = interval
+        self.fullPrice = fullPrice
         self.task = None
         self.last = None
 
@@ -358,7 +387,7 @@ class LiveClientPoller:
         try:
             while True:
                 try:
-                    summary = summarizeGameData(await self.fetch())
+                    summary = summarizeGameData(await self.fetch(), self.fullPrice)
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
