@@ -5179,7 +5179,7 @@ You start every timer yourself; nothing is detected. Times are rough: enemy leve
     </message>
     <message>
         <location filename="../../view/setting_interface.py" line="98"/>
-        <source>On Summoner&apos;s Rift, shows a panel with one row per enemy. Click an ability, summoner spell or item you see used to start a timer of its usual cooldown.
+        <source>On Summoner&apos;s Rift, shows one row per enemy. Click an ability, summoner spell or item you see used to time its usual cooldown.
 You start every timer yourself; nothing is detected. Times are approximate: they use the level and items you last saw.</source>
         <translation>在召唤师峡谷中显示独立面板，每名敌人一行。看到敌人使用技能、召唤师技能或装备时点击，即可按常规冷却开始计时。
 计时需要你手动开始，不会自动检测；时间仅供参考，按最近一次看到的敌人等级和装备计算。</translation>

@@ -92,8 +92,8 @@ class SettingInterface(SeraphineInterface):
             cfg.goldOverlayLocked)
         self.cooldownLedgerCard = SwitchSettingCard(
             FluentIcon.STOP_WATCH, self.tr("Cooldown ledger"),
-            self.tr("On Summoner's Rift, shows a panel with one row per enemy. Click an ability, "
-                    "summoner spell or item you see used to start a timer of its usual cooldown.\n"
+            self.tr("On Summoner's Rift, shows one row per enemy. Click an ability, "
+                    "summoner spell or item you see used to time its usual cooldown.\n"
                     "You start every timer yourself; nothing is detected. Times are approximate: "
                     "they use the level and items you last saw."),
             cfg.enableCooldownLedger)
