@@ -16,8 +16,8 @@ each `*_interface.py` is one tab/screen, composed from `../components/` widgets 
 | `career_interface.py` | A summoner's career / match-history view |
 | `search_interface.py` | Summoner search screen |
 | `game_info_interface.py` | Live-game / BP teammate + opponent lookup |
-| `auxiliary_interface.py` | Auxiliary tools (auto-accept, profile tweaks, etc.) |
-| `setting_interface.py` | App settings (built from `../components/setting_cards.py`), incl. the overlay cards and the "Cooldown ledger" switch (`cfg.enableCooldownLedger`, off by default; its two-line description is the card's only wording about the feature), and the update card's progress subtitle / bar / "Restart to update" button |
+| `auxiliary_interface.py` | Auxiliary tools (auto-accept, profile tweaks, etc.); its Game group also holds the in-game panels' cards: the item value overlay (on/off, opacity, lock), the "Cooldown ledger" switch (`cfg.enableCooldownLedger`, off by default; its two-line description is the card's only wording about the feature) and "Cooldown ledger size" (`cfg.cooldownLedgerScale`, 80-200 %) |
+| `setting_interface.py` | App settings (built from `../components/setting_cards.py`), incl. the update card's progress subtitle / bar / "Restart to update" button |
 | `opgg_window.py` | Standalone op.gg window |
 | `opgg_tier_interface.py` | op.gg tier-list view |
 | `opgg_build_interface.py` | op.gg champion build view |

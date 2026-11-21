@@ -11,7 +11,7 @@ is the cross-cutting layer everything else imports.
 ## Key Files
 | File | Description |
 |------|-------------|
-| `config.py` | `Language` enum + app config (`cfg`); exposes `VERSION` / `BETA` consumed by `main.py`. Overlay items: `enableGoldOverlay`, `goldOverlayOpacity` (also the cooldown ledger's background), `goldOverlayLocked` (shared by the item value overlay and the cooldown ledger), `goldOverlayPos`; ledger items: `enableCooldownLedger` (off by default), `cooldownLedgerPos` |
+| `config.py` | `Language` enum + app config (`cfg`); exposes `VERSION` / `BETA` consumed by `main.py`. Overlay items: `enableGoldOverlay`, `goldOverlayOpacity` (also the cooldown ledger's background), `goldOverlayLocked` (shared by the item value overlay and the cooldown ledger), `goldOverlayPos`; ledger items: `enableCooldownLedger` (off by default), `cooldownLedgerPos`, `cooldownLedgerScale` (the panel's size in percent, 80-200, default 100) |
 | `signals.py` | `SignalBus(QObject)` — global Qt signals for decoupled cross-component messaging (e.g. `updateProgressChanged`: update download progress for the settings card and the background-download info bar, sent throttled by MainWindow and UpdateMessageBox; `restartToUpdateRequested`: the card's "Restart to update") |
 | `icons.py` | `Icon(FluentIconBase, Enum)` — app icon set |
 | `style_sheet.py` | `StyleSheet` enum — QSS theme bindings (win/loss colors, component styling) |

@@ -194,7 +194,7 @@ class LedgerPanelTest(unittest.TestCase):
     def setUp(self):
         self.saved = {item: item.value for item in
                       (cfg.enableCooldownLedger, cfg.goldOverlayLocked, cfg.cooldownLedgerPos,
-                       cfg.goldOverlayOpacity)}
+                       cfg.goldOverlayOpacity, cfg.cooldownLedgerScale)}
         cfg.enableCooldownLedger.value = True  # in memory only
         cfg.goldOverlayLocked.value = False
         self.clock = FakeClock()
@@ -249,6 +249,55 @@ class LedgerPanelTest(unittest.TestCase):
         self.assertEqual(P.columnRect('Q', 4).bottom() + P.PAD, P.HEIGHT)
         self.assertEqual(P.columnRect('TP', 0).right() + P.PAD, P.WIDTH)
         self.assertEqual((self.panel.width(), self.panel.height()), (P.WIDTH, P.HEIGHT))
+
+    # ---------------- size setting ----------------
+
+    def test_size_setting_scales_the_window_at_once(self):
+        self.assertEqual(cfg.cooldownLedgerScale.value, 100)       # the default: normal size
+        for percent, size in ((150, (540, 222)), (80, (288, 118)), (200, (720, 296)),
+                              (100, (P.WIDTH, P.HEIGHT))):
+            with self.subTest(percent=percent):
+                cfg.set(cfg.cooldownLedgerScale, percent)
+                self.assertEqual((self.panel.width(), self.panel.height()), size)
+        self.assertEqual(cfg.cooldownLedgerScale.range, (80, 200))
+
+    def test_clicks_hit_the_same_cell_at_any_size(self):
+        self.show()
+        for percent in (150, 80, 200):
+            cfg.set(cfg.cooldownLedgerScale, percent)
+            s = percent / 100
+            for column, row in (('Q', 0), ('R', 3), ('D', 2), ('F', 4)):
+                with self.subTest(percent=percent, cell=(column, row)):
+                    x, y = centre(column, row)
+                    self.press((x * s, y * s))
+                    self.release((x * s, y * s))
+                    self.assertEqual(timerState(self.panel, row, column), 'running')
+                    self.press((x * s, y * s))
+                    self.release((x * s, y * s))
+                    self.assertEqual(timerState(self.panel, row, column), 'idle')
+        # a point that is inside the scaled panel but past the unscaled width hits the last
+        # column, not nothing
+        cfg.set(cfg.cooldownLedgerScale, 200)
+        x, y = centre('TP', 0)
+        self.assertGreater(x * 2, P.WIDTH)
+        self.assertEqual(P.LedgerPanel.gridAt(self.panel.unscaled(QPointF(x * 2, y * 2))), (0, 'TP'))
+
+    def test_scaled_panel_renders_icons_at_the_scaled_density(self):
+        self.show()
+        cfg.set(cfg.cooldownLedgerScale, 150)
+        P._tinted.clear()
+        image = QImage(self.panel.width() * 2, self.panel.height() * 2, QImage.Format_ARGB32_Premultiplied)
+        image.setDevicePixelRatio(2)
+        image.fill(QColor('#3A4A3C'))
+        p = QPainter(image)
+        try:
+            p.scale(self.panel.scale(), self.panel.scale())
+            self.panel.drawContent(p)
+        finally:
+            p.end()
+        # lane icons drawn at 2 (device) x 1.5 (size setting) pixels per layout unit
+        self.assertTrue(P._tinted)
+        self.assertEqual({key[2] for key in P._tinted}, {3.0})
         # every point of the grid hits exactly the cell it is drawn in
         for row in range(5):
             for key, x, w in P.COLUMNS:

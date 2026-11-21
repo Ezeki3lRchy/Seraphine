@@ -35,6 +35,7 @@ from app.components.gold_overlay import GoldOverlay
 from app.lol import ledger_data as D
 from app.lol.ledger_model import championEntry
 from app.view import main_window as mw
+from app.view.auxiliary_interface import AuxiliaryInterface
 from app.view.setting_interface import SettingInterface
 from tests import test_ledger_panel as LP  # the module only: its tests are not collected here
 
@@ -309,7 +310,7 @@ class LedgerSettingsTest(unittest.TestCase):
             translators = [FluentTranslator(locale), seraphine]
         for t in translators:
             self.app.installTranslator(t)
-        page = SettingInterface()
+        page = AuxiliaryInterface()
         for t in translators:
             self.app.removeTranslator(t)
         page.resize(1000, 800)  # narrower than the main window's minimum width allows
@@ -330,18 +331,50 @@ class LedgerSettingsTest(unittest.TestCase):
         card = page.cooldownLedgerCard
         self.assertIs(card.configItem, cfg.enableCooldownLedger)
         self.assertEqual(card.titleLabel.text(), "Cooldown ledger")
-        group = page.functionGroup
-        order = sorted((w for w in group.findChildren(QWidget)
-                        if w.parent() is group and w.isVisibleTo(group)
-                        and hasattr(w, 'titleLabel')), key=lambda w: w.y())
-        self.assertEqual(order.index(card), order.index(page.goldOverlayLockCard) + 1)
+        # Auxiliary Functions -> Game: the item value overlay's three cards, the ledger switch
+        # and its size, after the group's own cards
+        group = page.gameGroup
+        order = [w for w in sorted((w for w in group.findChildren(QWidget)
+                                    if w.parent() is group and w.isVisibleTo(group)
+                                    and hasattr(w, 'titleLabel')), key=lambda w: w.y())]
+        self.assertEqual(order[-5:], [page.goldOverlayCard, page.goldOverlayOpacityCard,
+                                      page.goldOverlayLockCard, card, page.cooldownLedgerScaleCard])
+        self.assertIs(order[-6], page.lockConfigCard)
         self.assertGreaterEqual(card.y(), page.goldOverlayLockCard.geometry().bottom())
+        self.assertIs(page.goldOverlayCard.configItem, cfg.enableGoldOverlay)
+        self.assertIs(page.goldOverlayOpacityCard.configItem, cfg.goldOverlayOpacity)
+        self.assertIs(page.goldOverlayLockCard.configItem, cfg.goldOverlayLocked)
         self.assertFalse(card.switchButton.isChecked())  # off by default
         text = card.contentLabel.text()
         for phrase in ("Summoner's Rift", "one row per enemy", "ability, summoner spell or item",
                        "usual cooldown", "You start every timer yourself", "nothing is detected",
                        "approximate", "items you last saw"):
             self.assertIn(phrase, text)
+
+    def test_settings_page_no_longer_has_the_overlay_cards(self):
+        page = SettingInterface()
+        self.addCleanup(page.deleteLater)
+        for name in ('goldOverlayCard', 'goldOverlayOpacityCard', 'goldOverlayLockCard',
+                     'cooldownLedgerCard', 'cooldownLedgerScaleCard'):
+            self.assertFalse(hasattr(page, name), name)
+        for card in page.functionGroup.findChildren(QWidget):
+            if hasattr(card, 'configItem'):
+                self.assertNotIn(card.configItem, (cfg.enableGoldOverlay, cfg.goldOverlayOpacity,
+                                                   cfg.goldOverlayLocked, cfg.enableCooldownLedger))
+
+    def test_size_card_sets_the_panel_size(self):
+        saved = cfg.cooldownLedgerScale.value
+        self.addCleanup(setattr, cfg.cooldownLedgerScale, 'value', saved)
+        page = self.buildPage()
+        panel = self.panel()
+        card = page.cooldownLedgerScaleCard
+        self.assertIs(card.configItem, cfg.cooldownLedgerScale)
+        self.assertEqual((card.slider.minimum(), card.slider.maximum()), (80, 200))
+        self.assertEqual(card.titleLabel.text(), "Cooldown ledger size")
+        card.slider.setValue(150)
+        self.assertEqual(cfg.get(cfg.cooldownLedgerScale), 150)
+        self.assertEqual((panel.width(), panel.height()), (round(P.WIDTH * 1.5), round(P.HEIGHT * 1.5)))
+        self.assertEqual(card.valueLabel.text(), "150")
 
     def test_switch_shows_and_hides_the_panel(self):
         page = self.buildPage()
@@ -389,9 +422,19 @@ class LedgerSettingsTest(unittest.TestCase):
     def test_description_fits_in_english(self):
         self.assertDescriptionFits(self.buildPage())
 
+    def test_overlay_descriptions_fit(self):
+        for locale in (None, QLocale("zh_CN")):
+            page = self.buildPage(locale)
+            for name in ('goldOverlayCard', 'goldOverlayOpacityCard', 'goldOverlayLockCard',
+                         'cooldownLedgerScaleCard'):
+                label = getattr(page, name).contentLabel
+                with self.subTest(locale=locale and locale.name(), card=name):
+                    self.assertGreaterEqual(label.width(), label.sizeHint().width(), label.text())
+
     def test_description_fits_in_chinese(self):
         page = self.buildPage(QLocale("zh_CN"))
         self.assertEqual(page.cooldownLedgerCard.titleLabel.text(), "冷却账本")
+        self.assertTrue(re.search(r"[\u4e00-\u9fff]", page.cooldownLedgerScaleCard.titleLabel.text()))
         self.assertTrue(re.search(r"[\u4e00-\u9fff]", page.cooldownLedgerCard.contentLabel.text()))
         self.assertDescriptionFits(page)
 

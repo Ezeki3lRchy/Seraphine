@@ -11,7 +11,7 @@ from app.common.config import cfg
 from app.common.icons import Icon
 from app.common.logger import logger
 from app.common.qfluentwidgets import (SettingCardGroup, SwitchSettingCard, ExpandLayout,
-                                       SettingCard, LineEdit, PushButton,
+                                       SettingCard, LineEdit, PushButton, RangeSettingCard,
                                        setCustomStyleSheet, ComboBox, SwitchButton, ConfigItem,
                                        qconfig, IndicatorPosition, InfoBar, InfoBarPosition,
                                        SpinBox, ExpandGroupSettingCard, TransparentToolButton,
@@ -74,6 +74,35 @@ class AuxiliaryInterface(SeraphineInterface):
             self.tr("Lock config"),
             self.tr("Make your game config unchangeable"),
             self.gameGroup)
+
+        self.goldOverlayCard = SwitchSettingCard(
+            Icon.DESKTOPRIGHT, self.tr("Item value overlay"),
+            self.tr("In game, a small window over the game shows the item value difference "
+                    "(total cost of held items); borderless or windowed mode only"),
+            cfg.enableGoldOverlay)
+        self.goldOverlayOpacityCard = RangeSettingCard(
+            cfg.goldOverlayOpacity, Icon.BLUR, self.tr("Item value overlay opacity"),
+            self.tr("Opacity of the item value overlay, in percent"))
+        self.goldOverlayLockCard = SwitchSettingCard(
+            Icon.LOCK, self.tr("Lock item value overlay"),
+            self.tr("Lock the overlay's position and let clicks pass through it to the game"),
+            cfg.goldOverlayLocked)
+        self.cooldownLedgerCard = SwitchSettingCard(
+            FluentIcon.STOP_WATCH, self.tr("Cooldown ledger"),
+            self.tr("On Summoner's Rift, shows one row per enemy. Click an ability, "
+                    "summoner spell or item you see used to time its usual cooldown.\n"
+                    "You start every timer yourself; nothing is detected. Times are approximate: "
+                    "they use the level and items you last saw."),
+            cfg.enableCooldownLedger)
+        # two explicit lines (a setting card's description does not wrap): one line taller,
+        # measured with the card's stylesheet font
+        ledgerText = self.cooldownLedgerCard.contentLabel
+        ledgerText.ensurePolished()
+        self.cooldownLedgerCard.setFixedHeight(
+            self.cooldownLedgerCard.height() + ledgerText.fontMetrics().lineSpacing())
+        self.cooldownLedgerScaleCard = RangeSettingCard(
+            cfg.cooldownLedgerScale, FluentIcon.ZOOM, self.tr("Cooldown ledger size"),
+            self.tr("Size of the cooldown ledger panel, in percent of its normal size"))
 
         self.fixDpiCard = FixClientDpiCard(
             self.tr("Fix client window"),
@@ -178,6 +207,11 @@ class AuxiliaryInterface(SeraphineInterface):
         self.gameGroup.addSettingCard(self.createPracticeLobbyCard)
         self.gameGroup.addSettingCard(self.spectateCard)
         self.gameGroup.addSettingCard(self.lockConfigCard)
+        self.gameGroup.addSettingCard(self.goldOverlayCard)
+        self.gameGroup.addSettingCard(self.goldOverlayOpacityCard)
+        self.gameGroup.addSettingCard(self.goldOverlayLockCard)
+        self.gameGroup.addSettingCard(self.cooldownLedgerCard)
+        self.gameGroup.addSettingCard(self.cooldownLedgerScaleCard)
 
         # 客户端修复
         self.clientGroup.addSettingCard(self.fixDpiCard)

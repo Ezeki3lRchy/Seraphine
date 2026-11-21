@@ -9,8 +9,10 @@ cooldown cannot be estimated does nothing.
 
 The panel never takes focus and never lets clicks through. The lock (the bottom-right corner)
 is the item value overlay's lock, cfg.goldOverlayLocked: it only stops dragging here. The
-background follows the overlay's opacity setting (read only). Shown only while the "Cooldown
-ledger" setting is on and ledgerVisible(summary) holds. Fed by signalBus.liveGameDataChanged;
+background follows the overlay's opacity setting (read only). The "Cooldown ledger size" setting
+(cfg.cooldownLedgerScale, percent) scales the whole panel: the layout below is in unscaled units,
+the painter is scaled, and mouse positions are scaled back before the hit test. Shown only while
+the "Cooldown ledger" setting is on and ledgerVisible(summary) holds. Fed by signalBus.liveGameDataChanged;
 the timers live in app.lol.ledger_model.LedgerTimers.
 """
 import asyncio
@@ -302,7 +304,7 @@ class LedgerPanel(QWidget):
         # and the panel is never click-through
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
                             | Qt.WindowDoesNotAcceptFocus | Qt.NoDropShadowWindowHint)
-        self.setFixedSize(WIDTH, HEIGHT)
+        self.__applyScale()
 
         self.ticker = QTimer(self)
         self.ticker.setInterval(TICK_MS)
@@ -312,6 +314,7 @@ class LedgerPanel(QWidget):
         cfg.enableCooldownLedger.valueChanged.connect(self.__onSettingChanged)
         cfg.goldOverlayLocked.valueChanged.connect(self.__onLockChanged)
         cfg.goldOverlayOpacity.valueChanged.connect(self.__onOpacityChanged)
+        cfg.cooldownLedgerScale.valueChanged.connect(self.__onScaleChanged)
 
     def disconnectSources(self):
         """Stop following the live data and the settings and cancel pending icon loads
@@ -320,7 +323,8 @@ class LedgerPanel(QWidget):
         for signal, slot in ((signalBus.liveGameDataChanged, self.setSummary),
                              (cfg.enableCooldownLedger.valueChanged, self.__onSettingChanged),
                              (cfg.goldOverlayLocked.valueChanged, self.__onLockChanged),
-                             (cfg.goldOverlayOpacity.valueChanged, self.__onOpacityChanged)):
+                             (cfg.goldOverlayOpacity.valueChanged, self.__onOpacityChanged),
+                             (cfg.cooldownLedgerScale.valueChanged, self.__onScaleChanged)):
             try:
                 signal.disconnect(slot)
             except (RuntimeError, TypeError):
@@ -408,6 +412,28 @@ class LedgerPanel(QWidget):
                 self.hide()
         except Exception as e:
             logger.error(f"ledger panel visibility failed: {type(e).__name__}", TAG)
+
+    # ---------------- size ----------------
+
+    @staticmethod
+    def scale():
+        """The panel's size factor: the "Cooldown ledger size" setting, in percent"""
+        return cfg.get(cfg.cooldownLedgerScale) / 100
+
+    def __applyScale(self):
+        s = self.scale()
+        self.setFixedSize(round(WIDTH * s), round(HEIGHT * s))
+
+    def __onScaleChanged(self, _):
+        self.__applyScale()
+        if self.isVisible():
+            self.placeOnScreen()  # a larger panel stays inside its screen
+        self.update()
+
+    def unscaled(self, pos):
+        """A widget point in the unscaled layout units gridAt and columnRect use"""
+        s = self.scale()
+        return QPointF(pos.x() / s, pos.y() / s)
 
     def placeOnScreen(self):
         """The saved spot (cooldownLedgerPos) kept inside its screen, or the default one"""
@@ -499,7 +525,8 @@ class LedgerPanel(QWidget):
 
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
-            self._press = (e.globalPosition().toPoint(), self.pos(), self.gridAt(e.position()))
+            self._press = (e.globalPosition().toPoint(), self.pos(),
+                           self.gridAt(self.unscaled(e.position())))
             self._dragging = False
         e.accept()
 
@@ -527,7 +554,8 @@ class LedgerPanel(QWidget):
                 delta = e.globalPosition().toPoint() - start
                 near = math.hypot(delta.x(), delta.y()) < CLICK_SLOP
                 inside = QRectF(self.rect()).contains(e.position())
-                if grid is not None and inside and (near or self.gridAt(e.position()) == grid):
+                if grid is not None and inside and \
+                        (near or self.gridAt(self.unscaled(e.position())) == grid):
                     self.clickCell(*grid)
         e.accept()
 
@@ -606,6 +634,7 @@ class LedgerPanel(QWidget):
             p = QPainter(self)
             p.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing
                              | QPainter.SmoothPixmapTransform)
+            p.scale(self.scale(), self.scale())
             self.drawContent(p)
             p.end()
         except Exception as e:
@@ -655,6 +684,9 @@ class LedgerPanel(QWidget):
         p.drawRoundedRect(QRectF(0, 0, WIDTH, HEIGHT).adjusted(0.5, 0.5, -0.5, -0.5), 6, 6)
         device = p.device()  # the painted device's ratio (a widget, or an image in tests)
         dpr = device.devicePixelRatioF() if device is not None else self.devicePixelRatioF()
+        # device pixels per layout unit: icons and outlined labels are rendered at this
+        # density, so a scaled-up panel stays sharp
+        dpr *= abs(p.worldTransform().m11()) or 1.0
         for row in range(len(LANES)):
             for column, _, _ in COLUMNS:
                 view = self.cellView(row, column)
