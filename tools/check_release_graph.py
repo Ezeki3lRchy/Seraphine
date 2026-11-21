@@ -303,7 +303,7 @@ EXTRA_LINES = [
 ]
 GUARD_LINES = [
     "names=$(%s '.assets[].name' || true)" % ASSETS_REST,
-    'if [ "$EXTRA_OUTCOME" != cancelled ] && python3 tools/release_gates.py --check-first-packages $names; then',
+    'if [ "$EXTRA_OUTCOME" != cancelled ] && python3 tools/release_gates.py --check-first-packages -- $names; then',
     'exit 0',
     'fi',
     "for name in $(%s '.assets[].name' || true); do" % ASSETS_REST,
@@ -717,6 +717,7 @@ def check(releasePath, buildWindowsPath):
 #   X5 a second `gh release upload` (of out/*.delta) in the full-package upload
 #   R  the guard's read of the asset names without `|| true` (a failed read would skip the clean-up)
 #   S  the guard ignores a cancelled upload (EXTRA_OUTCOME not checked)
+#   T  the guard passes the asset names without `--` (a name starting with `-` would be read as an option)
 _WIN_DOWNLOAD = """      - if: steps.gates.outputs.publish_win == 'true'
         uses: actions/download-artifact@v4"""
 SELF_TEST_CASES = {
@@ -776,8 +777,9 @@ SELF_TEST_CASES = {
            'exactly one `gh release upload` line'),
     'R': ('''names=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name' || true)''',
           '''names=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name')''', 'first-package guard'),
-    'S': ('''          if [ "$EXTRA_OUTCOME" != cancelled ] && python3 tools/release_gates.py --check-first-packages $names; then''',
-          '''          if python3 tools/release_gates.py --check-first-packages $names; then''', 'first-package guard'),
+    'S': ('''          if [ "$EXTRA_OUTCOME" != cancelled ] && python3 tools/release_gates.py --check-first-packages -- $names; then''',
+          '''          if python3 tools/release_gates.py --check-first-packages -- $names; then''', 'first-package guard'),
+    'T': ('''--check-first-packages -- $names; then''', '''--check-first-packages $names; then''', 'first-package guard'),
 }
 
 

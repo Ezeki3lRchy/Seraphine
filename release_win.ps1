@@ -512,7 +512,7 @@ try {
         }
         # the REST API's order: what the in-app updater reads
         $assetNames = @(gh api "repos/$RepoReleases/releases/tags/v$Version" --jq '.assets[].name')
-        & $Py "tools\release_gates.py" --check-first-packages @assetNames
+        & $Py "tools\release_gates.py" --check-first-packages -- @assetNames
         if ($LASTEXITCODE -ne 0) {
             if (-not $NoManifest) { gh release delete-asset "v$Version" Seraphine.filemanifest.txt --repo $RepoReleases -y }
             Die "v${Version}: the first .7z / .dmg asset is not the full package (assets: $($assetNames -join ', ')); the manifest asset was deleted again"

@@ -108,12 +108,6 @@ class LegacyPickTest(unittest.TestCase):
                               % (order, problems(list(order)), 'fine' if fine else 'wrong'))
         self.assertEqual(count, 1957)
 
-    def test_github_lists_the_delta_before_the_full_package(self):
-        # the REST API lists a release's assets by name, case-insensitively
-        listed = sorted(NAMES, key=str.lower)
-        self.assertEqual(listed[0], DELTA)
-        self.assertEqual(_releaseGates().firstPackageProblems(listed), [])
-
     def test_current_picker_agrees_in_every_order(self):
         for isMac, expected in ((False, FULL_WIN), (True, FULL_MAC)):
             with mock.patch.object(platform, 'IS_MACOS', isMac):

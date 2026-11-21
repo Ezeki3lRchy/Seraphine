@@ -41,9 +41,9 @@ name: release
 # rule), else the manifest and delta assets are deleted again and the job fails (a
 # final always() step, so also after a failed upload or a cancel). Uploading a new
 # Seraphine.7z onto an existing release first deletes that version's delta and
-# manifest asset. No other name is ever
-# uploaded (app/common/release_names.py; `release_gates.py --check-full-names` for
-# the first upload, `--check-names` for the second).
+# manifest asset. No other name is ever uploaded (app/common/release_names.py;
+# `release_gates.py --check-full-names` for the first upload, `--check-names` for
+# the second).
 #
 # The publish job and the verify / delta jobs run on `!cancelled() && ...`, not
 # always(): a run cancelled by hand publishes nothing.
@@ -443,7 +443,7 @@ jobs:
         run: |
           # the REST API's order: what the in-app updater reads
           names=$(gh api "repos/$RELEASES_REPO/releases/tags/v$VERSION" --jq '.assets[].name' || true)
-          if [ "$EXTRA_OUTCOME" != cancelled ] && python3 tools/release_gates.py --check-first-packages $names; then
+          if [ "$EXTRA_OUTCOME" != cancelled ] && python3 tools/release_gates.py --check-first-packages -- $names; then
             exit 0
           fi
           if [ "$EXTRA_OUTCOME" = cancelled ]; then
