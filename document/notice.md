@@ -6,6 +6,13 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.8
+- An unexpected error no longer closes Seraphine: a notice with **Copy details** appears and the app keeps running. If connecting to the game client fails, it goes back to the waiting screen and tries again instead of staying on a locked loading page.
+- Champ select and game state follow the newest event, so a slow load can no longer overwrite what happened after it; champion icons stay correct after quick swaps.
+- Fixed the **Send friend request** button, which always answered "Summoner not found". Creating or deleting a rune page, rerolling and creating a practice lobby are no longer repeated when the client is slow, and the *Change client* dialog no longer freezes on a client that does not answer.
+- Updates: a download that GitHub provides no checksum for is refused (use *Manually Download* in that case); the macOS updater is more robust.
+- Play style: the (?) help icons light up on hover.
+
 ### v1.4.7
 - Complete Chinese interface: everything this build adds (Career views, match detail, OP.GG build page, item value, update prompts) is translated to Simplified Chinese.
 - Rank tiers, relative times, game length and multi-kill / placement tags follow the interface language instead of staying English.

@@ -139,6 +139,7 @@ Delete the program folder, then remove the config directory for your platform:
 - **Redesigned tooltips**: hover tips (items, runes, scores, charts) use a themed card that follows light / dark mode instead of the plain native tooltip.
 - **Faster start-up and browsing**: cached icons skip the request queue, the connector initialises in parallel, and match details are fetched once and reused.
 - **Complete Chinese interface**: everything this fork adds (Career views, match detail, OP.GG build page, item value, update prompts) is translated to Simplified Chinese, and rank tiers, relative times, game length and multi-kill / placement tags follow the interface language instead of staying English.
+- **Keeps running after an error**: an unexpected error shows a notice with *Copy details* instead of closing the app, a failed connection to the game client is retried from the waiting screen, and champ select always follows the newest event.
 
 ## FAQ 🧐
 
