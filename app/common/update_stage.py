@@ -72,12 +72,13 @@ def isNewer(info, currentVersion):
 
 def _sha256Digest(asset):
     digest = (asset or {}).get('digest') or ''
-    return digest if digest.lower().startswith('sha256:') and len(digest) > 7 else ''
+    return digest if digest.lower().startswith('sha256:') and digest[7:].strip() else ''
 
 
 def hasDigest(info):
-    """The release's platform asset carries a sha256 digest (required for the
-    silent background path)."""
+    """The release's platform asset carries a sha256 digest. Required on every
+    path (see verifyAssetDigest): without it nothing is downloaded or staged, and
+    the background path leaves the release to the dialog, which reports it."""
     return bool(_sha256Digest(selectReleaseAsset(info.get('assets', []))))
 
 
@@ -263,6 +264,9 @@ def _markerValid(marker, base):
     (a tampered path elsewhere is refused), and the staged files are in place."""
     if not marker or marker.get('platform') != sys.platform:
         return False
+    if not _sha256Digest(marker):
+        # staged without a digest (an earlier build allowed it): never applied
+        return False
     path = marker.get('path') or ''
     expected = _expectedPath(base, marker.get('platform'))
     if not path or not expected or not _samePath(path, expected):
@@ -396,10 +400,15 @@ def _probeWritable(directory):
         return False
 
 
-def _macAppPath():
-    executable = sys.executable
-    idx = executable.find('.app')
-    return executable[:idx + len('.app')] if idx != -1 else executable
+def _macAppPath(executable=None):
+    """The .app bundle that runs ``executable`` (default sys.executable): the path
+    up to the component ending in .app directly above Contents/MacOS/<executable>,
+    or None when the executable is not inside a bundle (e.g. a source run)."""
+    parts = (executable or sys.executable).split('/')
+    if len(parts) >= 4 and parts[-3] == 'Contents' and parts[-2] == 'MacOS' \
+            and parts[-1] and parts[-4].endswith('.app') and parts[-4] != '.app':
+        return '/'.join(parts[:-3])
+    return None
 
 
 def installWritable():
@@ -410,7 +419,8 @@ def installWritable():
     if not root or os.path.dirname(os.path.abspath(root)) == os.path.abspath(root):
         return False
     if platform.IS_MACOS:
-        return _probeWritable(os.path.dirname(_macAppPath()))
+        app = _macAppPath()
+        return bool(app) and _probeWritable(os.path.dirname(app))
     dirs = [root]
     internal = os.path.join(root, '_internal')
     if os.path.isdir(internal):
@@ -504,6 +514,9 @@ async def _stageRelease(info, base, onProgress, session):
     asset = selectReleaseAsset(info.get('assets', []))
     if asset is None:
         raise StageError("no install asset for this platform")
+    if not _sha256Digest(asset):
+        # refused before anything is downloaded or cleared (see verifyAssetDigest)
+        raise StageError("verification failed: the release asset has no sha256 digest")
 
     # never touch the stage an updater is (about to be) working from
     if _applying or _applyStarted or _updaterRunning(base):
@@ -613,7 +626,7 @@ async def _applyStagedUpdate(marker, base, startTimeout, allowDowngrade):
     if sys.platform == 'win32':
         launch = runUpdater(marker['path'], targetVersion=marker.get('version', ''),
                             stageDir=base)
-    elif sys.platform == 'darwin':
+    elif sys.platform == 'darwin' and _macAppPath():
         launch = runUpdaterMac(marker['path'], _macAppPath(),
                                version=marker.get('version', ''))
     else:

@@ -1,4 +1,5 @@
 """Manual "check for updates now" flow: outcome decision (util) and MainWindow's worker."""
+import base64
 import threading
 import unittest
 from types import SimpleNamespace
@@ -49,6 +50,38 @@ class CheckUpdateOutcomeTest(unittest.TestCase):
                                   return_value={"tag_name": "v9.9.9"}) as m:
             self.assertEqual(util.checkUpdateOutcome()[0], "update")
             m.assert_called_once()
+
+
+class GithubRequestTest(unittest.TestCase):
+    """Every GitHub request is bounded and uses the configured proxy (no network)."""
+
+    class Sess:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            content = base64.b64encode(b'{}').decode()
+            return SimpleNamespace(json=lambda: {'content': content, 'sha': 'abc',
+                                                 'tag_name': 'v1.0.0'})
+
+    def requests(self, proxyOn):
+        gh = util.Github()
+        gh.sess = self.Sess()
+        values = {util.cfg.enableProxy: proxyOn, util.cfg.proxyAddr: '127.0.0.1:7890'}
+        with mock.patch.object(util.cfg, 'get', side_effect=values.get):
+            gh.getReleasesInfo()
+            gh._Github__get_ver_info()
+            self.assertEqual(gh.getNotice(), {'sha': 'abc', 'content': '{}'})
+        return gh.sess.calls
+
+    def test_every_request_has_a_timeout_and_the_proxy(self):
+        for proxyOn, proxies in ((True, {'https': '127.0.0.1:7890'}), (False, None)):
+            calls = self.requests(proxyOn)
+            self.assertEqual(len(calls), 3)
+            for url, kwargs in calls:
+                self.assertEqual(kwargs.get('timeout'), 10, url)
+                self.assertEqual(kwargs.get('proxies'), proxies, url)
 
 
 class ManualCheckUpdateWorkerTest(unittest.TestCase):

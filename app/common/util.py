@@ -2,7 +2,6 @@ import hashlib
 import json
 import os
 import re
-from pathlib import Path
 
 import requests
 import base64
@@ -22,23 +21,18 @@ TAG = "Util"
 class Github:
     def __init__(self, user="Ezeki3lRchy", repositories="Seraphine"):
         self.githubApi = "https://api.github.com"
-        self.giteeApi = "https://gitee.com/api"
-
-        self.proxyApi = 'https://ghproxy.net'
 
         self.user = user
         self.repositories = repositories
         self.sess = requests.session()
 
+    @staticmethod
+    def __proxies():
+        return {'https': cfg.get(cfg.proxyAddr)} if cfg.get(cfg.enableProxy) else None
+
     def getReleasesInfo(self):
         url = f"{self.githubApi}/repos/{self.user}/{self.repositories}/releases/latest"
-
-        if cfg.get(cfg.enableProxy):
-            proxy = {'https': cfg.get(cfg.proxyAddr)}
-        else:
-            proxy = None
-
-        return self.sess.get(url, proxies=proxy, timeout=10).json()
+        return self.sess.get(url, proxies=self.__proxies(), timeout=10).json()
 
     def checkUpdate(self):
         """
@@ -77,12 +71,7 @@ class Github:
 
     def __get_ver_info(self):
         url = f'{self.githubApi}/repos/{self.user}/{self.repositories}/contents/document/ver.json'
-        if cfg.get(cfg.enableProxy):
-            proxy = {'https': cfg.get(cfg.proxyAddr)}
-        else:
-            proxy = None
-
-        res = self.sess.get(url, proxies=proxy, timeout=10).json()
+        res = self.sess.get(url, proxies=self.__proxies(), timeout=10).json()
 
         json_data = json.loads(
             str(base64.b64decode(res['content']), encoding='utf-8'))
@@ -91,13 +80,7 @@ class Github:
 
     def getNotice(self):
         url = f'{self.githubApi}/repos/{self.user}/{self.repositories}/contents/document/notice.md'
-
-        if cfg.get(cfg.enableProxy):
-            proxy = {'https': cfg.get(cfg.proxyAddr)}
-        else:
-            proxy = None
-
-        res = self.sess.get(url, proxies=proxy).json()
+        res = self.sess.get(url, proxies=self.__proxies(), timeout=10).json()
 
         content = str(base64.b64decode(res['content']), encoding='utf-8')
 
@@ -176,19 +159,22 @@ def verifyAssetDigest(path, asset):
     环节被篡改的二进制 (在解压 / 安装之前调用).
 
     @return: (ok: bool, detail: str)
-      - digest 不存在: 无法校验, 记日志后放行 (digest 缺失是 GitHub API 变化,
-        不是攻击信号; 若因此一刀切拒绝所有更新代价更大). 但 digest *不匹配* 一定
-        硬失败.
+      - A missing digest is a hard failure, exactly like a mismatch: every release
+        this project publishes has one, so an asset without it cannot be verified
+        and is never installed (the user is pointed at the manual download). The
+        consequence: if GitHub ever stops providing digests, self-update stops
+        until a release ships a new verification method. update_stage refuses such
+        an asset before downloading it; this check is the last line.
       - 注意: 这道校验防的是 "存到 GitHub 之后" 的篡改, 防不了被攻陷的发布账号
         (那需要代码签名).
     """
     digest = (asset or {}).get('digest') or ''
-    if not digest.lower().startswith('sha256:'):
-        logger.warning(
-            "release asset has no sha256 digest; skipping integrity check", TAG)
-        return True, 'no-digest'
+    expected = digest[len('sha256:'):].strip().lower() \
+        if digest.lower().startswith('sha256:') else ''
+    if not expected:
+        logger.error("release asset has no sha256 digest; refusing it", TAG)
+        return False, 'no sha256 digest'
 
-    expected = digest.split(':', 1)[1].strip().lower()
     actual = _sha256OfFile(path).lower()
     if actual != expected:
         logger.error(

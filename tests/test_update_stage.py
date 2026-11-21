@@ -223,10 +223,14 @@ class StageReleaseTest(TempBaseMixin, unittest.IsolatedAsyncioTestCase):
         self.assertEqual(marker, us.readMarker(self.base))
         self.assertIsNotNone(us.stagedFor(info, self.base))
 
-    async def test_no_digest_is_never_already_staged(self):
+    async def test_no_digest_is_never_downloaded_or_staged(self):
         info = _info(self.data, digest='')
-        await us.stageRelease(info, self.base, None, FakeSession(FakeResp(self.data)))
+        sess = FakeSession(FakeResp(self.data))
+        with self.assertRaises(us.StageError):
+            await us.stageRelease(info, self.base, None, sess)
+        self.assertEqual(sess.urls, [])
         self.assertIsNone(us.stagedFor(info, self.base))
+        self.assertFalse(os.path.exists(self.base))
 
     async def test_different_release_downloads_again(self):
         await us.stageRelease(_info(self.data), self.base, None,
@@ -795,6 +799,7 @@ class MarkerTest(TempBaseMixin, unittest.TestCase):
         self.assertTrue(us.hasDigest(_info(b'x')))
         self.assertFalse(us.hasDigest(_info(digest='')))
         self.assertFalse(us.hasDigest(_info(digest='sha256:')))
+        self.assertFalse(us.hasDigest(_info(digest='sha256:  ')))
         self.assertFalse(us.hasDigest(_info(digest='md5:abc')))
 
     def test_download_proxy_follows_the_github_setting(self):
@@ -817,6 +822,12 @@ class ApplyStagedUpdateTest(TempBaseMixin, unittest.IsolatedAsyncioTestCase):
         patcher = mock.patch.object(us, '_applyStarted', False)
         patcher.start()
         self.addCleanup(patcher.stop)
+        if sys.platform == 'darwin':
+            # the test interpreter is not inside a .app bundle
+            patcher = mock.patch.object(us, '_macAppPath',
+                                        return_value='/Applications/Seraphine.app')
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def launch(self, logText):
         log = os.path.join(self.tmp, 'updater.log')
@@ -909,6 +920,140 @@ class ApplyStagedUpdateTest(TempBaseMixin, unittest.IsolatedAsyncioTestCase):
             self.assertFalse(await us.applyStagedUpdate(marker, self.base,
                                                         startTimeout=0.3))
         launch.process.kill.assert_called_once()
+
+    async def test_mac_executable_outside_a_bundle_starts_no_updater(self):
+        # macOS run from source: never hand the interpreter's path to the updater
+        # (it would move that directory aside)
+        marker = self.stage('9.9.9', platformName='darwin')
+        fakeSys = SimpleNamespace(platform='darwin', executable='/usr/local/bin/python3')
+        from app.common import update
+        with mock.patch.object(us, 'sys', fakeSys), \
+                mock.patch.object(us, '_macAppPath', _REAL_MAC_APP_PATH), \
+                mock.patch.object(update, 'runUpdaterMac',
+                                  return_value=self.launch('updater started')) as runner:
+            self.assertFalse(await us.applyStagedUpdate(marker, self.base, startTimeout=1))
+        runner.assert_not_called()
+
+
+_REAL_MAC_APP_PATH = us._macAppPath
+
+
+class MacAppPathTest(unittest.TestCase):
+    """_macAppPath: the bundle directly above Contents/MacOS/<executable>."""
+
+    def appPath(self, executable):
+        with mock.patch.object(sys, 'executable', executable):
+            return us._macAppPath()
+
+    def test_plain_bundle(self):
+        self.assertEqual(self.appPath('/Applications/Seraphine.app/Contents/MacOS/Seraphine'),
+                         '/Applications/Seraphine.app')
+
+    def test_app_like_names_above_the_bundle_are_not_the_bundle(self):
+        for parent in ('/Users/x/.apple', '/Volumes/My.apps', '/Users/x/Down.application s',
+                       '/Users/x/Outer.app', '/Users/x/Outer.app/In side.app/x'):
+            exe = parent + '/Seraphine.app/Contents/MacOS/Seraphine'
+            self.assertEqual(self.appPath(exe), parent + '/Seraphine.app', exe)
+
+    def test_not_inside_a_bundle(self):
+        for exe in ('/usr/local/bin/python3',
+                    '/Users/x/.apple/bin/python3',
+                    '/Users/x/Seraphine.app/Contents/Resources/python3',
+                    '/Users/x/Seraphine.app/Contents/MacOS/',
+                    '/Users/x/.app/Contents/MacOS/Seraphine'):
+            self.assertIsNone(self.appPath(exe), exe)
+
+    def test_mac_install_outside_a_bundle_is_not_writable(self):
+        with mock.patch.object(us.platform, 'install_dir', return_value='/usr/local/bin'), \
+                mock.patch.object(us.platform, 'IS_MACOS', True), \
+                mock.patch.object(sys, 'executable', '/usr/local/bin/python3'), \
+                mock.patch.object(us, '_probeWritable', return_value=True) as probe:
+            self.assertFalse(us.installWritable())
+        probe.assert_not_called()
+
+
+class MissingDigestTest(TempBaseMixin, unittest.IsolatedAsyncioTestCase):
+    """A release asset without a sha256 digest is never downloaded, staged or
+    applied, on any path."""
+
+    NO_DIGEST = ('', 'sha256:', 'sha256:  ', 'md5:abc')
+
+    async def test_staging_refuses_before_downloading(self):
+        for digest in self.NO_DIGEST:
+            sess = FakeSession(FakeResp(b'payload'))
+            with self.assertRaises(us.StageError) as cm:
+                await us.stageRelease(_info(digest=digest), self.base, None, sess)
+            self.assertTrue(str(cm.exception).startswith('verification failed'), digest)
+            self.assertEqual(sess.urls, [], digest)
+            self.assertIsNone(us.readMarker(self.base))
+            self.assertFalse(os.path.exists(self.base))
+
+    async def test_an_existing_stage_is_left_alone(self):
+        marker = self.stage('9.9.9')
+        sess = FakeSession(FakeResp(b'payload'))
+        with self.assertRaises(us.StageError):
+            await us.stageRelease(_info(version='9.9.10', digest=''), self.base, None, sess)
+        self.assertEqual(sess.urls, [])
+        self.assertEqual(us.readMarker(self.base), marker)
+
+    def test_verify_refuses_an_asset_without_digest(self):
+        from app.common import util
+        path = os.path.join(self.tmp, 'asset')
+        _write(path, b'payload')
+        for asset in ({}, None, {'digest': None}) + tuple({'digest': d} for d in self.NO_DIGEST):
+            ok, detail = util.verifyAssetDigest(path, asset)
+            self.assertFalse(ok, asset)
+            self.assertIn('digest', detail)
+        ok, _ = util.verifyAssetDigest(
+            path, {'digest': 'sha256:' + hashlib.sha256(b'payload').hexdigest().upper()})
+        self.assertTrue(ok)
+
+    async def test_a_stage_without_digest_is_never_applied(self):
+        # e.g. staged by an earlier build that still accepted such a release
+        marker = self.stage('9.9.9', digest='')
+        self.assertFalse(us.markerApplicable(marker, self.base))
+        from app.common import update
+        name = 'runUpdaterMac' if sys.platform == 'darwin' else 'runUpdater'
+        with mock.patch.object(update, name) as runner, \
+                mock.patch.object(us, '_applyStarted', False):
+            self.assertFalse(await us.applyStagedUpdate(marker, self.base, startTimeout=1))
+        runner.assert_not_called()
+        self.assertIsNone(us.stagedUpdate('1.4.5', self.base))
+        self.assertFalse(os.path.exists(self.base))
+
+    async def test_dialog_reports_it_like_a_digest_mismatch(self):
+        from app.components import message_box as mb
+        sess = FakeSession(FakeResp(b'payload'))
+        texts = {}
+
+        async def stage(info, onProgress=None):
+            return await us.stageRelease(info, self.base, onProgress, sess)
+
+        async def run(info):
+            fake = SimpleNamespace(
+                info=info, infoLabel=mock.Mock(), bar=mock.Mock(),
+                myYesButton=mock.Mock(), myCancelButton=mock.Mock(),
+                manuallyButton=mock.Mock(), tr=lambda text: text,
+                _UpdateMessageBox__onStageProgress=mock.Mock(),
+                _UpdateMessageBox__onUpdateAborted=mock.Mock())
+            apply = mock.AsyncMock(return_value=True)
+            with mock.patch.object(mb, 'stageRelease', stage), \
+                    mock.patch.object(mb, 'applyStagedUpdate', apply), \
+                    mock.patch.object(mb.sys, 'exit') as exit_:
+                await mb.UpdateMessageBox._UpdateMessageBox__onYesButtonClicked(fake)
+            apply.assert_not_awaited()
+            exit_.assert_not_called()
+            fake._UpdateMessageBox__onUpdateAborted.assert_called_once()
+            return fake._UpdateMessageBox__onUpdateAborted.call_args.args[0]
+
+        texts['missing'] = await run(_info(digest=''))
+        self.assertEqual(sess.urls, [])
+        texts['mismatch'] = await run(_info(b'payload', digest='sha256:' + '0' * 64))
+        prefix = 'Update verification failed, aborting: '
+        for kind, text in texts.items():
+            self.assertTrue(text.startswith(prefix), (kind, text))
+        self.assertIn('no sha256 digest', texts['missing'])
+        self.assertFalse(os.path.exists(os.path.join(self.base, 'staged.json')))
 
 
 class MainWindowRoutingTest(unittest.IsolatedAsyncioTestCase):

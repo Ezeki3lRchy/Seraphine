@@ -2,7 +2,10 @@ import os
 import shlex
 import subprocess
 import sys
+import time
 from collections import namedtuple
+
+import psutil
 
 from app.common import platform
 
@@ -562,8 +565,88 @@ def _removeQuietly(path):
         pass
 
 
+# macOS lock directory (see macUpdaterScript): a record still incomplete after
+# LOCK_GRACE seconds is stale; LOCK_MAX_AGE (an update takes seconds to a few
+# minutes) is a backstop only for a record without an identity
+LOCK_GRACE = 5
+LOCK_MAX_AGE = 1800
+
+
+def _processIdentity(pid):
+    """What the macOS script records as its identity: ``LC_ALL=C ps -o lstart=``
+    (the process start time), whitespace-normalised; '' when ps printed nothing,
+    None when ps could not tell (failed, timed out, not available).
+
+    Called only when a lock directory exists (an updater runs or was killed), also
+    from the event-loop thread (_stageRelease, runUpdaterMac): ps answers in
+    milliseconds, and the short timeout bounds the worst case."""
+    if os.name == 'nt':
+        return None
+    try:
+        r = subprocess.run(['ps', '-o', 'lstart=', '-p', str(int(pid))],
+                           capture_output=True, timeout=2,
+                           env=dict(os.environ, LC_ALL='C'))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    return ' '.join(r.stdout.decode('ascii', 'replace').split())
+
+
+def _processAlive(pid):
+    """bash's ``kill -0``: False for a gone process AND for another user's."""
+    if os.name == 'nt':
+        # tests only (no lock directory in production); os.kill would terminate it
+        return psutil.pid_exists(pid)
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _lockDirHeld(lockPath):
+    """The macOS lock rule, the same as the script's read_record / record_held:
+    the directory holds "<pid>\\n<identity>\\n<created epoch>"; it is held iff that
+    record is complete, the pid answers ``kill -0`` (so a process of another user
+    does not hold it) and
+      - with an identity recorded: ``ps -o lstart=`` of the pid still prints it
+        (a reused PID does not hold it), however old the lock is (the script waits
+        for the app without a time limit); if ps cannot tell here (None), the
+        live pid is not disproved, so the lock counts as held, but only up to
+        LOCK_MAX_AGE: a reused PID must not block updates for good when ps
+        keeps failing,
+      - without one (no usable ps when it was written): it was created at most
+        LOCK_MAX_AGE seconds from now.
+    An incomplete record (missing, empty, garbage: the script is between mkdir
+    and its write) is held only for LOCK_GRACE seconds."""
+    try:
+        with open(os.path.join(lockPath, 'pid'), encoding='ascii', errors='replace') as f:
+            lines = f.read().split('\n')
+    except OSError:
+        lines = []
+    if len(lines) < 3 or not lines[0].isdigit() or not lines[2].isdigit() \
+            or int(lines[0]) <= 0:
+        try:
+            return time.time() - os.path.getmtime(lockPath) < LOCK_GRACE
+        except OSError:
+            return False
+    pid, ident, created = int(lines[0]), lines[1], int(lines[2])
+    if not _processAlive(pid):
+        return False
+    if not ident:
+        return abs(time.time() - created) <= LOCK_MAX_AGE
+    current = _processIdentity(pid)
+    if current is None:
+        return abs(time.time() - created) <= LOCK_MAX_AGE
+    return current == ident
+
+
 def updaterRunning(lockPath):
-    """An updater holds the lock file exclusively while it runs."""
+    """An updater holds the lock while it runs. Windows: the lock file, opened
+    exclusively. macOS: a lock directory, see _lockDirHeld."""
+    if os.path.isdir(lockPath):
+        return _lockDirHeld(lockPath)
     if not os.path.exists(lockPath):
         return False
     try:
@@ -646,11 +729,19 @@ def updaterStarted(logPath):
 
 
 def macUpdaterScript(dmgPath, appPath, pid, scriptPath, logPath, resultPath='',
-                     version=''):
+                     version='', lockPath='', noRelaunch=False, lockGrace=LOCK_GRACE,
+                     attachDelay=2, detachDelay=1):
     """The bash updater for macOS. Never removes the installed bundle before the
     new copy is verified next to it; on any failure the old app is put back and
     reopened. Every step is logged to ``logPath``; the outcome goes to
-    ``resultPath`` (same format as the Windows updater's result.json)."""
+    ``resultPath`` (same format as the Windows updater's result.json).
+
+    ``lockPath``: a directory taken with mkdir (atomic) before anything else and
+    holding the script's record; a second instance exits 7 touching nothing, a
+    stale lock (see _lockDirHeld) is taken over. ``noRelaunch``: never open an
+    app afterwards (tests), like the Windows -NoRelaunch. ``lockGrace``,
+    ``attachDelay``, ``detachDelay``: seconds waited for an incomplete lock record
+    and between hdiutil attach / detach attempts (tests pass small values)."""
     q = shlex.quote
     return f'''#!/bin/bash
 set -u
@@ -662,6 +753,88 @@ PID={int(pid)}
 SCRIPT={q(scriptPath)}
 RESULT={q(resultPath)}
 VERSION={q(str(version))}
+LOCK={q(lockPath)}
+NO_RELAUNCH={1 if noRelaunch else 0}
+LOCK_GRACE={int(lockGrace)}
+LOCK_MAX_AGE={LOCK_MAX_AGE}
+MNT=""
+MOUNTED=0
+
+# 0. single instance: nothing (not even the log) is touched before this.
+# $LOCK/pid holds "<pid>\\n<identity>\\n<created epoch>"; identity = the start time
+# from `LC_ALL=C ps -o lstart=`. The rule (the same as _lockDirHeld in update.py):
+# held iff the record is complete, the pid answers kill -0 (another user's process
+# does not) and, with an identity recorded, ps still prints it for that pid (a
+# reused PID does not hold it) however old the lock is; without an identity it
+# must be at most LOCK_MAX_AGE s old. An incomplete record is waited for
+# LOCK_GRACE s, then stale. (Python also counts as held a recorded identity it
+# cannot check because its own ps call failed.)
+proc_id() {{ LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | tr -s '[:blank:]' ' ' | sed 's/^ //; s/ $//'; }}
+
+read_record() {{
+    holder=""; ident=""; created=""
+    record=$(cat "$LOCK/pid" 2>/dev/null) || record=""
+    {{ IFS= read -r holder; IFS= read -r ident; IFS= read -r created; }} <<< "$record"
+    case "$holder" in ''|*[!0-9]*) return 1;; esac
+    case "$created" in ''|*[!0-9]*) return 1;; esac
+    [ "$holder" -gt 0 ]
+}}
+
+record_held() {{
+    kill -0 "$holder" 2>/dev/null || return 1
+    if [ -n "$ident" ]; then
+        [ "$(proc_id "$holder")" = "$ident" ]
+        return
+    fi
+    age=$(( $(date +%s) - created ))
+    [ "$age" -lt 0 ] && age=$(( -age ))
+    [ "$age" -le "$LOCK_MAX_AGE" ]
+}}
+
+take_lock() {{
+    mkdir "$LOCK" 2>/dev/null && return 0
+    waited=0
+    until read_record; do
+        [ "$waited" -ge "$LOCK_GRACE" ] && break
+        sleep 1  # its owner may be between mkdir and writing its record
+        waited=$(( waited + 1 ))
+    done
+    if read_record && record_held; then
+        return 1
+    fi
+    # stale: move it aside atomically, then make sure it is still the lock judged
+    # stale (not one another updater just took)
+    seen=$record
+    stale="$LOCK.stale.$$"
+    mv "$LOCK" "$stale" 2>/dev/null || return 1
+    if [ "$(cat "$stale/pid" 2>/dev/null)" != "$seen" ]; then
+        [ -e "$LOCK" ] || mv "$stale" "$LOCK" 2>/dev/null
+        return 1
+    fi
+    rm -rf "$stale"
+    mkdir "$LOCK" 2>/dev/null
+}}
+if [ -n "$LOCK" ]; then
+    take_lock || exit 7
+    # noclobber: never overwrite the record of another updater that took this
+    # directory meanwhile; without our own record we do not own the lock
+    if ! (set -C; printf '%s\\n%s\\n%s\\n' "$$" "$(proc_id $$)" "$(date +%s)" > "$LOCK/pid") 2>/dev/null; then
+        exit 7
+    fi
+fi
+
+# every exit from here on: detach only a dmg this run mounted, remove its empty
+# mount dir, and release the lock only while the record is still this run's
+release() {{
+    if [ -n "$MNT" ]; then
+        detach_dmg
+    fi
+    if [ -n "$LOCK" ] && [ "$(sed -n 1p "$LOCK/pid" 2>/dev/null)" = "$$" ]; then
+        rm -rf "$LOCK"
+    fi
+}}
+trap release EXIT
+trap 'exit 1' HUP INT TERM
 
 log() {{ printf '[%s] %s\\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }}
 
@@ -671,6 +844,14 @@ write_result() {{
             || log "could not write the result file"
     fi
     log "result: $1 (exit $2)"
+}}
+
+reopen() {{
+    if [ "$NO_RELAUNCH" = 1 ]; then
+        log "relaunch disabled: $1"
+        return 0
+    fi
+    open "$1"
 }}
 
 : > "$LOG"
@@ -686,7 +867,6 @@ PARENT=$(dirname "$APP")
 NAME=$(basename "$APP")
 NEW="$PARENT/.$NAME.new.$$"
 BACKUP="$PARENT/.$NAME.old.$$"
-MNT=""
 
 # copies left by an interrupted earlier run (only .new.*, never .old.*)
 for stale in "$PARENT/.$NAME.new."*; do
@@ -697,8 +877,27 @@ for stale in "$PARENT/.$NAME.new."*; do
 done
 
 detach_dmg() {{
-    if [ -n "$MNT" ]; then
-        hdiutil detach "$MNT" -quiet >/dev/null 2>&1 || hdiutil detach "$MNT" -force -quiet >/dev/null 2>&1
+    # hdiutil detach only for the mount this run made (MOUNTED is set after a
+    # successful attach): a plain directory is never detached, let alone forced
+    if [ "$MOUNTED" = 1 ]; then
+        # "Resource busy" is often transient: retry before forcing
+        for try in 1 2 3; do
+            if hdiutil detach "$MNT" -quiet >/dev/null 2>&1; then
+                MOUNTED=0
+                break
+            fi
+            if [ "$try" = 3 ]; then
+                if hdiutil detach "$MNT" -force -quiet >/dev/null 2>&1; then
+                    MOUNTED=0
+                else
+                    log "could not detach $MNT"
+                fi
+            else
+                sleep {float(detachDelay):g}
+            fi
+        done
+    fi
+    if [ -n "$MNT" ] && [ "$MOUNTED" = 0 ]; then
         rmdir "$MNT" 2>/dev/null
         MNT=""
     fi
@@ -712,13 +911,24 @@ fail() {{
     detach_dmg
     write_result "${{2:-failed:1}}" 1
     log "reopening the previous app"
-    open "$APP"
+    reopen "$APP"
     exit 1
 }}
 
 MNT=$(mktemp -d /tmp/seraphine-update.XXXXXX) || {{ MNT=""; fail "mktemp failed"; }}
 
-if ! hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MNT" >>"$LOG" 2>&1; then
+# attach can fail transiently ("Resource busy"): a few attempts
+attached=0
+for try in 1 2 3; do
+    if hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MNT" >>"$LOG" 2>&1; then
+        attached=1
+        MOUNTED=1
+        break
+    fi
+    log "hdiutil attach failed (attempt $try)"
+    [ "$try" = 3 ] || sleep {float(attachDelay):g}
+done
+if [ "$attached" != 1 ]; then
     fail "hdiutil attach failed"
 fi
 if [ ! -d "$MNT/Seraphine.app" ]; then
@@ -753,7 +963,7 @@ if ! mv "$NEW" "$APP"; then
     log "RESTORE FAILED: the new copy is at: $NEW"
     write_result restore-failed 2
     log "trying to open the previous app from $BACKUP"
-    open "$BACKUP" || log "could not open $BACKUP"
+    reopen "$BACKUP" || log "could not open $BACKUP"
     exit 2
 fi
 
@@ -763,19 +973,25 @@ rm -f "$DMG"
 write_result ok 0
 log "update finished"
 
-open "$APP"
+reopen "$APP"
 rm -f "$SCRIPT"
 '''
 
 
-def runUpdaterMac(dmg_path, app_path, version=''):
+def runUpdaterMac(dmg_path, app_path, version='', noRelaunch=False):
     # 仅 macOS: 写一个分离的 bash 脚本, 等待本进程退出后用 dmg 内的 .app 替换安装,
     # 重新启动并自删. 通过 start_new_session=True 让脚本在 Seraphine 退出后存活.
-    # @return: UpdaterLaunch, or None on other platforms
+    # @return: UpdaterLaunch, or None on other platforms / while an updater runs
+    # (its lock directory lives next to the dmg, in the stage dir)
     if sys.platform != 'darwin':
         return None
 
     from app.common.config import LOCAL_PATH
+
+    lock_path = os.path.join(os.path.dirname(dmg_path), LOCK_NAME)
+    if updaterRunning(lock_path):
+        # never disturb a running updater's log, result or script
+        return None
 
     script_path = os.path.join(LOCAL_PATH, "updater.sh")
     log_path = os.path.join(LOCAL_PATH, "updater.log")
@@ -785,7 +1001,8 @@ def runUpdaterMac(dmg_path, app_path, version=''):
 
     with open(script_path, 'w', encoding='utf-8') as f:
         f.write(macUpdaterScript(dmg_path, app_path, os.getpid(), script_path,
-                                 log_path, result_path, version))
+                                 log_path, result_path, version, lock_path,
+                                 noRelaunch))
 
     os.chmod(script_path, 0o755)
 
