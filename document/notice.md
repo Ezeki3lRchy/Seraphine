@@ -6,6 +6,12 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.12
+- Cooldown ledger: Smite (including Unleashed and Primal Smite) and abilities with charges, such as Vel'Koz W, Vi E and Caitlyn W, can now be clicked; their timer shows when one charge comes back.
+- Cooldown ledger: Rakan E, Kalista E and Tahm Kench R can now be clicked too.
+- New **Cooldown ledger size** setting (80 % to 200 %) makes the whole panel larger or smaller.
+- The item value overlay and cooldown ledger settings moved to *Auxiliary Functions → Game*, and they can now be changed while the League client is not running.
+
 ### v1.4.11
 - New **Cooldown ledger** (off by default; turn it on in *Settings → Cooldown ledger*): on Summoner's Rift, a small panel shows one row per enemy with their abilities, summoner spells and items with an active, and clicking a cell when you see it used starts a timer of its usual cooldown.
 - You start every cooldown timer yourself and nothing is detected, so the times are approximate: they use the enemy's level and items as last seen.
