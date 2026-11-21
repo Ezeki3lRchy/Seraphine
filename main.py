@@ -60,7 +60,7 @@ def _selftest():
             'app/resource/i18n/Seraphine.zh_CN.qm',
             'app/resource/i18n/gamemodes.json',
             'app/resource/images/logo.png',
-            'app/resource/images/avatar.jpg',
+            'app/resource/images/game.png',
             'app/resource/icons/Alert_black.svg',
             'app/resource/qss',
             # the cooldown ledger's database and lane icons
