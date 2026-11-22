@@ -524,6 +524,40 @@ class CareerGameRow(ColorAnimationFrame):
         itemIds = game.get('itemIds') or [0] * len(game['itemIcons'])
         self.items = [(QPixmap(icon) if itemId else QPixmap(), itemId)
                       for icon, itemId in zip(game['itemIcons'], itemIds)]
+        secs = game.get('durationSecs') or 0
+        cs = game.get('cs', 0)
+        self.csValue = f"{cs}" + (f" ({cs / (secs / 60):.1f})" if secs >= 60 else "")
+        self.goldValue = f"{game.get('gold', 0):,}"
+        self.resultText = {'remake': self.tr("Remake"), 'win': self.tr("Victory"),
+                           'lose': self.tr("Defeat")}[type]
+        self.agoText = timeAgo(game['timeStamp'])
+        self.durationText = durationText(secs)
+
+        # 命中区域, 绘制时按当前宽度算出
+        self.itemRects = []
+        self.playerRects = []
+        self.statsRect = QRect()
+        self.scoreRect = QRect()
+        self.laningRect = QRect()
+        self.infoRect = QRect()
+
+        self._cache = None
+        self._cacheKey = None
+
+        self.refreshDetail()
+        self.laning = None
+        self.laningTip = ""
+        self.refreshLaning()
+
+        self.clicked.connect(
+            lambda: signalBus.careerGameBarClicked.emit(str(self.gameId)))
+
+    def refreshDetail(self):
+        """
+        徽章 / 评分 / 参团率 / 右侧 10 名玩家来自完整对局 (tools.attachCareerDetails, 战绩行显示后
+        逐局补上); 补上后调用一次重新取值
+        """
+        game = self.game
         self.tags = gameTags(game)
 
         teams = {}
@@ -535,14 +569,6 @@ class CareerGameRow(ColorAnimationFrame):
 
         kp = game.get('kp')
         self.kpValue = f"{round(kp * 100)}%" if kp is not None else ""
-        secs = game.get('durationSecs') or 0
-        cs = game.get('cs', 0)
-        self.csValue = f"{cs}" + (f" ({cs / (secs / 60):.1f})" if secs >= 60 else "")
-        self.goldValue = f"{game.get('gold', 0):,}"
-        self.resultText = {'remake': self.tr("Remake"), 'win': self.tr("Victory"),
-                           'lose': self.tr("Defeat")}[type]
-        self.agoText = timeAgo(game['timeStamp'])
-        self.durationText = durationText(secs)
 
         # OP Score (0 ~ 10, app/lol/tools.py opScore); 重开 / 评分没取到时为 None, 不画
         self.opScore = None if game.get('remake') else game.get('opScore')
@@ -562,23 +588,8 @@ class CareerGameRow(ColorAnimationFrame):
              self.tr("Vision: %1").replace("%1", str(game.get('visionScore', 0)))]
             + scoreTips)
 
-        # 命中区域, 绘制时按当前宽度算出
-        self.itemRects = []
-        self.playerRects = []
-        self.statsRect = QRect()
-        self.scoreRect = QRect()
-        self.laningRect = QRect()
-        self.infoRect = QRect()
-
-        self._cache = None
         self._cacheKey = None
-
-        self.laning = None
-        self.laningTip = ""
-        self.refreshLaning()
-
-        self.clicked.connect(
-            lambda: signalBus.careerGameBarClicked.emit(str(self.gameId)))
+        self.update()
 
     def refreshLaning(self):
         """game['laning'] (app/lol/laning.py, 战绩行显示后异步补上) 到了就多画一行 "对线 30 : 70" """

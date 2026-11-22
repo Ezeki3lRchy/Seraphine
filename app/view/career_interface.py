@@ -32,7 +32,7 @@ from app.common.signals import signalBus
 from app.common.config import cfg
 from app.common.logger import logger
 from app.lol.connector import connector
-from app.lol.tools import (parseGames, parseSummonerData,
+from app.lol.tools import (parseGames, parseSummonerData, attachCareerDetails,
                            getRecentTeammates, parseDetailRankInfo)
 from ..components.seraphine_interface import SeraphineInterface
 
@@ -115,6 +115,7 @@ class CareerInterface(SeraphineInterface):
         self.championIconIds = set()  # icons loaded or in flight for this summoner
         self.laningTask = None
         self.teammatesTask = None
+        self.detailsTask = None  # second stage: full game per row, then the tasks above
         # Bumped by every updateInterface call; only the newest load may paint
         self._loadSeq = 0
         self.scrollContent = QWidget()
@@ -670,20 +671,18 @@ class CareerInterface(SeraphineInterface):
 
         self.setLoadingPageEnabled(False)
 
-        # 换人 / 刷新: 上一位召唤师的后台任务 (近期队友 / 对线得分 / 赛季样本) 不再需要
-        for task in (self.teammatesTask, self.laningTask, self.seasonTask,
+        # 换人 / 刷新: 上一位召唤师的后台任务 (完整对局 / 近期队友 / 对线得分 / 赛季样本) 不再需要
+        for task in (self.detailsTask, self.teammatesTask, self.laningTask, self.seasonTask,
                      self.playStyleIconTask, *self.championIconTasks):
             if task:
                 task.cancel()
-        self.teammatesTask = self.laningTask = self.seasonTask = self.playStyleIconTask = None
+        self.detailsTask = self.teammatesTask = self.laningTask = self.seasonTask = None
+        self.playStyleIconTask = None
+        # the previous summoner's second stage can finish while this one loads and write its
+        # teammates here; this summoner's arrive with its own second stage
+        self.recentTeammatesInfo = None
         self.championIconTasks = []
         self.championIconIds = set()
-
-        if self.games:
-            self.teammatesTask = asyncio.create_task(
-                self.__updateRecentTeammates(puuid, info.get('gameDetails')))
-            self.laningTask = asyncio.create_task(
-                self.__updateLaningScores(puuid, self.games.get('games') or []))
 
         recent = season_stats.aggregate((self.games or {}).get('games'))
         self.performancePanel.setRecent(recent)
@@ -695,8 +694,49 @@ class CareerInterface(SeraphineInterface):
         else:
             self.playStyleView.setLoading(self.games['games'])
             self.championsView.setLoading()
+
+        if self.games:
+            self.detailsTask = asyncio.create_task(
+                self.__updateGameDetails(puuid, rankInfo, self.games.get('games') or []))
+
+    async def __updateGameDetails(self, puuid, rankInfo, games):
+        """
+        第二阶段: 战绩行显示后逐局拉完整对局, 补上徽章 / 评分 / 参团率与右侧 10 名玩家, 补完一局
+        就刷新那一行; 全部补完后再起近期队友 / 对线得分 / 赛季样本 (它们要用这些结果)
+        """
+        def onGame(game):
+            if puuid == self.puuid:
+                row = self.__gameRow(game['gameId'])
+                if row:
+                    row.refreshDetail()
+
+        # at most connector.maxRefCnt rows waiting: a summoner opened next does not queue
+        # behind twenty of this one's requests
+        try:
+            details = await attachCareerDetails(games, puuid, onGame, limit=connector.maxRefCnt)
+        except Exception as e:
+            # the stages below still run (they fetch what they miss), so no loading state stays
+            logger.warning(f"career game details failed: {type(e).__name__}", TAG)
+            details = None
+        if puuid != self.puuid:
+            return
+
+        self.summaryCard.updateGames(self.summaryCard.games)  # kill participation
+        recent = season_stats.aggregate(games)
+        self.performancePanel.setRecent(recent)
+
+        self.teammatesTask = asyncio.create_task(self.__updateRecentTeammates(puuid, details))
+        self.laningTask = asyncio.create_task(self.__updateLaningScores(puuid, games))
+        if recent:
             self.seasonTask = asyncio.create_task(
-                self.__updateSeasonPerformance(puuid, rankInfo, self.games['games']))
+                self.__updateSeasonPerformance(puuid, rankInfo, games))
+
+    def __gameRow(self, gameId):
+        for i in range(self.gameInfoLayout.count()):
+            row = self.gameInfoLayout.itemAt(i).widget()
+            if isinstance(row, CareerGameRow) and row.gameId == gameId:
+                return row
+        return None
 
     async def __updateSeasonPerformance(self, puuid, rankInfo, recentGames):
         """赛季样本: 战绩翻页 (至多 season_stats.SEASON_CAP 局); 取不到用排位胜负兜底胜率"""
@@ -772,16 +812,17 @@ class CareerInterface(SeraphineInterface):
             champion_stats.opponentIds(self.championsView.profiles, championId))
 
     def __onLolClientEnded(self):
-        """the client closed: the season sample and icon tasks can only fail from here on"""
-        if self.seasonTask and not self.seasonTask.done():
+        """the client closed: the full games, season sample and icon tasks can only fail from here on"""
+        if any(task and not task.done() for task in (self.detailsTask, self.seasonTask)):
             # stop the loading states instead of leaving them spinning
             self.performancePanel.setSeason(None)
             self.playStyleView.setEmpty()
             self.championsView.setEmpty()
-        for task in (self.seasonTask, self.playStyleIconTask, *self.championIconTasks):
+        for task in (self.detailsTask, self.seasonTask, self.playStyleIconTask,
+                     *self.championIconTasks):
             if task:
                 task.cancel()
-        self.seasonTask = self.playStyleIconTask = None
+        self.detailsTask = self.seasonTask = self.playStyleIconTask = None
         self.championIconTasks = []
         self.championIconIds = set()
 
@@ -790,10 +831,9 @@ class CareerInterface(SeraphineInterface):
         def onGame(game):
             if puuid != self.puuid:
                 return
-            for i in range(self.gameInfoLayout.count()):
-                row = self.gameInfoLayout.itemAt(i).widget()
-                if isinstance(row, CareerGameRow) and row.gameId == game['gameId']:
-                    row.refreshLaning()
+            row = self.__gameRow(game['gameId'])
+            if row:
+                row.refreshLaning()
 
         try:
             await attachLaningScores(games, puuid, onGame)
