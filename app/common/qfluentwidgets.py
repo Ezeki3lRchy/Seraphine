@@ -13,4 +13,6 @@ from qfluentwidgets.window.fluent_window import FluentWindowBase
 from qfluentwidgets.window.stacked_widget import StackedWidget
 from qfluentwidgets.components.widgets.frameless_window import FramelessWindow
 from qframelesswindow import SvgTitleBarButton
+# the indeterminate spinners, with their animation paused while hidden (see spinners.py)
+from app.common.spinners import IndeterminateProgressBar, IndeterminateProgressRing  # noqa: E402
 sys.stdout = sys.__stdout__

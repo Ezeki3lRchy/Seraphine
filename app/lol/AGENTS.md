@@ -12,7 +12,7 @@ any player's match history (CN servers via the Tencent SGP gateway).
 | File | Description |
 |------|-------------|
 | `connector.py` | **Core.** LCU connection (local `127.0.0.1:{port}` with auth token) + SGP gateway access for match history. `PastRequest` caching of past calls. `getGameDetailByGameIdQuietly` keeps the last `GAME_DETAIL_CACHE_SIZE` full games per connection (`gameDetails`, cleared by `__reset`); callers must not modify them |
-| `listener.py` | `LolProcessExistenceListener` (QThread) — watches for the LoL client process starting/stopping |
+| `listener.py` | `LolProcessExistenceListener` (QThread) — watches for the LoL client process starting/stopping, one poll every 1.5 s. While the connected client (`runningPid`) is still the same running process (`clientProcess`: psutil handle of a process named like the client with a readable start time, `is_running()`), a poll does nothing and runs no tasklist / process scan. On macOS the scan is `ProcessNames`: a name is read once per pid, again while the process is under `YOUNG` (5 s) old, and all names once the last full read is `REFRESH` (60 s) old (so the first scan after a connected session reads them all); tests patch `ProcessNames.scan` and `clientProcess` |
 | `champions.py` | `ChampionAlias` — champion id/name/alias lookup |
 | `aram.py` | `AramBuff` — ARAM per-champion balance buffs/nerfs |
 | `opgg.py` | `Opgg` — client for op.gg data (tier lists / builds) |
