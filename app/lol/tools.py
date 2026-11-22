@@ -137,7 +137,6 @@ async def parseSummonerData(summoner, rankTask, gameTask):
     level = summoner['summonerLevel']
     xpSinceLastLevel = summoner['xpSinceLastLevel']
     xpUntilNextLevel = summoner['xpUntilNextLevel']
-    details = None
 
     try:
         gamesInfo = await gameTask
@@ -171,13 +170,8 @@ async def parseSummonerData(summoner, rankTask, gameTask):
                     games["losses"] += 1
             games["games"].append(info)
 
-        # OP.GG 风格战绩行: MVP / SVP / 名次 / 参团率与每局 10 名玩家都来自完整对局
-        details = await attachGameScores(games['games'], summoner['puuid'])
-        participants = await asyncio.gather(
-            *[gameParticipantsFromLcuDetail(detail) for detail in details])
-        for game, players in zip(games['games'], participants):
-            game['participants'] = players
-
+        # MVP / SVP / 名次 / 参团率与每局 10 名玩家来自完整对局 (每局一个请求), 由生涯页在
+        # 战绩行显示后补 (attachCareerDetails), 不让页面等这些请求
         champions = getRecentChampions(games['games'])
 
     try:
@@ -195,7 +189,6 @@ async def parseSummonerData(summoner, rankTask, gameTask):
         'puuid': summoner['puuid'],
         'rankInfo': rankInfo,
         'games': games,
-        'gameDetails': details,  # 与 games['games'] 对齐, 近期队友复用
         'champions': champions,
         'isPublic': summoner['privacy'] == "PUBLIC",
         'tagLine': summoner.get("tagLine"),
@@ -608,37 +601,84 @@ async def gameParticipantsFromLcuDetail(detail):
     return players
 
 
-async def attachGameScores(gamesInfo, puuid):
+async def _quietly(coro, what):
+    """await coro; a failure becomes None (the app's own exceptions subclass BaseException)"""
+    try:
+        return await coro
+    except (asyncio.CancelledError, KeyboardInterrupt, SystemExit, GeneratorExit):
+        raise
+    except BaseException as e:
+        logger.warning(f"{what} failed: {type(e).__name__}", TAG)
+        return None
+
+
+async def attachGameScores(gamesInfo, puuid, onDetail=None, limit=None):
     """
-    对局信息页用: 为 parseGameData 得到的每局补上 MVP / SVP 徽章, 评分排名与参团率
+    为 parseGameData 得到的每局补上 MVP / SVP 徽章, 评分排名与参团率
     (LCU 战绩列表只有自己的数据, 需逐局拉完整对局). 拉取失败的局不显示徽章.
 
+    @param onDetail: 可选的 async onDetail(game, detail), 每局算完 (detail 失败为 None) 就调一次,
+        界面可以逐行刷新; 它的异常只记日志
+    @param limit: 同时在等完整对局的局数上限 (按 gamesInfo 顺序), None 为全部一起. LCU 请求排在
+        connector.semaphore 后面: 一次全排进去, 换人时新的请求要等旧的排完
     @return: 与 gamesInfo 对齐的完整对局列表 (失败处为 None), 供调用方复用
     """
     # 排位局的模型评分要 Riot 对局服务器的 SUMMARY (LCU 详情缺字段), 与完整对局同时拉
-    # (结果进 opscore 的缓存); 其他局不发请求
-    summaries = asyncio.gather(
-        *[opscoreModel.getSummary(game['gameId']) for game in gamesInfo
-          if game.get('queueId') in opscoreModel.MODEL_QUEUES],
-        return_exceptions=True)
-    details = await asyncio.gather(
-        *[connector.getGameDetailByGameIdQuietly(game['gameId'])
-          for game in gamesInfo],
-        return_exceptions=True)
-    details = [d if isinstance(d, dict) else None for d in details]
-    await summaries
+    # (结果进 opscore 的缓存, 不走 LCU 的信号量); 其他局不发请求
+    summaries = {
+        game['gameId']: asyncio.ensure_future(
+            _quietly(opscoreModel.getSummary(game['gameId']), "game summary"))
+        for game in gamesInfo if game.get('queueId') in opscoreModel.MODEL_QUEUES}
+    gate = asyncio.Semaphore(limit) if limit else None
 
-    modelScores = await asyncio.gather(
-        *[opscoreModel.scoresForLcuDetail(detail) for detail in details],
-        return_exceptions=True)
+    async def fetch(gameId):
+        return await _quietly(connector.getGameDetailByGameIdQuietly(gameId), "game detail")
 
-    for game, detail, model in zip(gamesInfo, details, modelScores):
+    async def one(game):
+        if gate is None:
+            detail = await fetch(game['gameId'])
+        else:
+            async with gate:
+                detail = await fetch(game['gameId'])
+        detail = detail if isinstance(detail, dict) else None
+
+        summary = summaries.get(game['gameId'])
+        if summary is not None:
+            await asyncio.wait([summary])  # then scoresForLcuDetail reads opscore's cache
+        model = await _quietly(opscoreModel.scoresForLcuDetail(detail), "model score")
+
         score = getGameScoreFromLcuDetail(
             detail, puuid, model if isinstance(model, dict) else None)
         if score:
             game.update(score)
 
-    return details
+        if onDetail is not None:
+            await _quietly(onDetail(game, detail), "attachGameScores onDetail")
+        return detail
+
+    try:
+        return list(await asyncio.gather(*[one(game) for game in gamesInfo]))
+    finally:
+        # cancelled (another summoner opened): its summaries are not needed any more
+        for summary in summaries.values():
+            summary.cancel()
+
+
+async def attachCareerDetails(games, puuid, onGame=None, limit=None):
+    """
+    生涯页第二阶段: 战绩行先按 LCU 战绩列表显示, 再逐局拉完整对局补上 MVP / SVP / 评分 /
+    参团率 (attachGameScores) 与右侧的 10 名玩家 game['participants'] (取不到为 []);
+    每补完一局调一次 onGame(game).
+
+    @return: 与 games 对齐的完整对局 (失败处为 None), 近期队友复用
+    """
+    async def withPlayers(game, detail):
+        players = await _quietly(gameParticipantsFromLcuDetail(detail), "game players")
+        game['participants'] = players or []
+        if onGame is not None:
+            onGame(game)
+
+    return await attachGameScores(games, puuid, withPlayers, limit)
 
 
 async def gatherProgressively(coros, onPartial=None, build=None):

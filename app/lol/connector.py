@@ -9,7 +9,7 @@ import threading
 import time
 import traceback
 from asyncio import CancelledError
-from collections import deque
+from collections import OrderedDict, deque
 
 import aiohttp
 import requests
@@ -89,6 +89,9 @@ def needLcu():
 
 
 REDACTED = '<redacted>'
+# getGameDetailByGameIdQuietly's cache: a Career page of up to 100 games plus the game info
+# page's ten players
+GAME_DETAIL_CACHE_SIZE = 200
 # LCU events whose payload is a credential: never logged
 SECRET_URIS = ('/entitlements/v1/token',)
 
@@ -418,6 +421,9 @@ class LolClientConnector(QObject):
         self.semaphore = None
         self.lcuSess = None
         self.sgpSess = None
+        # getGameDetailByGameIdQuietly: finished games never change, so a detail is fetched
+        # once per connection (gameId -> detail, oldest dropped first)
+        self.gameDetails = OrderedDict()
         self.port = None
         self.token = None
         self.sgpToken = None
@@ -982,7 +988,15 @@ class LolClientConnector(QObject):
         与 getGameDetailByGameId 相同, 但只给可有可无的展示 (MVP / SVP 徽章) 用:
         不走 @retry (失败不重试, 也不弹 lcuApiExceptionRaised), 任何失败返回 None.
         对局信息页一次会为每名玩家的每局各请求一次.
+        A game already fetched on this connection comes from self.gameDetails (no request);
+        callers must not modify the returned dict
         '''
+        key = str(gameId)
+        cached = self.gameDetails.get(key)
+        if cached is not None:
+            self.gameDetails.move_to_end(key)
+            return cached
+
         try:
             async with self.semaphore:
                 res = await self.__get(f"/lol-match-history/v1/games/{gameId}")
@@ -996,7 +1010,12 @@ class LolClientConnector(QObject):
                 f"getGameDetailByGameIdQuietly({gameId}) failed: {errorSummary(e)}", TAG)
             return None
 
-        return data if isinstance(data, dict) and data.get('participants') else None
+        if not (isinstance(data, dict) and data.get('participants')):
+            return None
+        self.gameDetails[key] = data
+        while len(self.gameDetails) > GAME_DETAIL_CACHE_SIZE:
+            self.gameDetails.popitem(last=False)
+        return data
 
     async def getSummonerGamesByPuuidQuietly(self, puuid, begIndex=0, endIndex=19):
         '''
