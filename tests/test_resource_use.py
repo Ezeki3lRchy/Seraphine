@@ -5,8 +5,9 @@ is young, and all of them once the last full read is REFRESH seconds old; psutil
 are replaced, so no real process is read.
 The listener skips its poll (tasklist / process scan) while the connected client is still the
 same running process, and polls as before as soon as it is not. run() is called on this thread
-with msleep replaced, as in test_listener_survives. The spinners (app/common/spinners.py) run
-their animation only while visible and report the state the caller asked for. Offscreen only.
+with msleep replaced, as in test_listener_survives. The spinners (app/common/spinners.py) animate
+only while visible and report the state the caller asked for; the bar moves as the original at
+its own frame rate. Offscreen only.
 """
 import os
 import unittest
@@ -265,12 +266,14 @@ class ConnectedClientTest(unittest.TestCase):
 
 # ---------------- spinners ----------------
 
-def state(spinner):
-    return spinner.aniGroup.state()
+RUNNING, STOPPED = QAbstractAnimation.Running, QAbstractAnimation.Stopped
 
 
-RUNNING, PAUSED, STOPPED = (QAbstractAnimation.Running, QAbstractAnimation.Paused,
-                            QAbstractAnimation.Stopped)
+def animating(spinner):
+    """the ring: its Qt animation group runs; the bar: its frame timer runs"""
+    if isinstance(spinner, spinners.IndeterminateProgressBar):
+        return spinner._frames is not None and spinner._frames.isActive()
+    return spinner.aniGroup.state() == RUNNING
 
 
 class SpinnerTest(unittest.TestCase):
@@ -291,48 +294,61 @@ class SpinnerTest(unittest.TestCase):
         self.assertIs(fluent.IndeterminateProgressRing, spinners.IndeterminateProgressRing)
         self.assertIs(fluent.IndeterminateProgressBar, spinners.IndeterminateProgressBar)
 
-    def test_runs_only_while_visible(self):
+    def test_animates_only_while_visible(self):
         for cls in (spinners.IndeterminateProgressRing, spinners.IndeterminateProgressBar):
             with self.subTest(cls=cls.__name__):
                 window, spinner = self.window(cls)
-                self.assertEqual(state(spinner), PAUSED)  # started on construction, hidden
+                self.assertFalse(animating(spinner))  # started on construction, hidden
                 window.show()
-                self.assertEqual(state(spinner), RUNNING)
+                self.assertTrue(animating(spinner))
                 window.hide()
-                self.assertEqual(state(spinner), PAUSED)
+                self.assertFalse(animating(spinner))
                 window.show()
-                self.assertEqual(state(spinner), RUNNING)
+                self.assertTrue(animating(spinner))
                 spinner.setVisible(False)  # the spinner itself hidden
-                self.assertEqual(state(spinner), PAUSED)
+                self.assertFalse(animating(spinner))
                 spinner.setVisible(True)
-                self.assertEqual(state(spinner), RUNNING)
+                self.assertTrue(animating(spinner))
 
     def test_stop_and_start_while_hidden(self):
-        window, spinner = self.window(spinners.IndeterminateProgressRing)
-        spinner.stop()
-        window.show()
-        self.assertEqual(state(spinner), STOPPED)  # a stopped spinner stays stopped
-        window.hide()
-        spinner.start()
-        self.assertEqual(state(spinner), PAUSED)
-        window.show()
-        self.assertEqual(state(spinner), RUNNING)
+        for cls in (spinners.IndeterminateProgressRing, spinners.IndeterminateProgressBar):
+            with self.subTest(cls=cls.__name__):
+                window, spinner = self.window(cls)
+                spinner.stop()
+                window.show()
+                self.assertFalse(animating(spinner))  # a stopped spinner stays stopped
+                window.hide()
+                spinner.start()
+                self.assertFalse(animating(spinner))
+                window.show()
+                self.assertTrue(animating(spinner))
+
+    def test_started_while_minimized(self):
+        for cls in (spinners.IndeterminateProgressRing, spinners.IndeterminateProgressBar):
+            with self.subTest(cls=cls.__name__):
+                window, spinner = self.window(cls, start=False)
+                window.show()
+                with mock.patch.object(QWidget, 'isMinimized', return_value=True):
+                    spinner.start()
+                self.assertFalse(animating(spinner))
 
     def test_not_started(self):
-        window, spinner = self.window(spinners.IndeterminateProgressBar, start=False)
+        window, bar = self.window(spinners.IndeterminateProgressBar, start=False)
         window.show()
         window.hide()
         window.show()
-        self.assertEqual(state(spinner), STOPPED)
-        self.assertFalse(spinner.isStarted())
+        self.assertFalse(animating(bar))
+        self.assertFalse(bar.isStarted())
 
     def test_bar_reports_the_state_asked_for(self):
         window, bar = self.window(spinners.IndeterminateProgressBar)
-        self.assertTrue(bar.isStarted())  # paused only because hidden
+        self.assertTrue(bar.isStarted())  # not animating only because hidden
         self.assertFalse(bar.isPaused())
         window.show()
         bar.setPaused(True)
         self.assertTrue(bar.isPaused())
+        self.assertFalse(bar.isStarted())
+        self.assertFalse(animating(bar))
         window.hide()
         window.show()
         self.assertTrue(bar.isPaused())  # not resumed by the show
@@ -340,29 +356,65 @@ class SpinnerTest(unittest.TestCase):
         bar.setPaused(False)
         self.assertTrue(bar.isStarted())
         self.assertFalse(bar.isPaused())
-        self.assertEqual(state(bar), PAUSED)  # still hidden
+        self.assertFalse(animating(bar))  # still hidden
         window.show()
-        self.assertEqual(state(bar), RUNNING)
+        self.assertTrue(animating(bar))
         bar.error()
+        self.assertTrue(bar.isError())
         window.hide()
         window.show()
-        self.assertEqual(state(bar), STOPPED)
+        self.assertFalse(animating(bar))
         self.assertFalse(bar.isStarted())
+        bar.setError(False)
+        self.assertTrue(bar.isStarted())
+        self.assertTrue(animating(bar))
 
-    def test_started_while_minimized(self):
-        window, spinner = self.window(spinners.IndeterminateProgressRing, start=False)
+    def test_bar_moves_as_the_original(self):
+        from qfluentwidgets import IndeterminateProgressBar as Original
+        window, bar = self.window(spinners.IndeterminateProgressBar, start=False)
+        original = Original(window, start=False)
+        group = original.aniGroup
+        group.start()
+        group.pause()
+        loop = group.duration()
+        for t in range(0, loop, 5):  # forward in time, within the first loop
+            group.setCurrentTime(t)
+            short, long = bar.barPositions(t)
+            self.assertAlmostEqual(short, original.shortPos, places=9, msg=t)
+            self.assertAlmostEqual(long, original.longPos, places=9, msg=t)
+        # later loops: the short bar starts again, the long bar waits at its end value
+        self.assertEqual(bar.barPositions(loop), (0, original.longBarAni.endValue()))
+        self.assertEqual(bar.barPositions(5 * loop + 100), bar.barPositions(loop + 100))
+
+    def test_bar_frames(self):
+        window, bar = self.window(spinners.IndeterminateProgressBar)
         window.show()
-        with mock.patch.object(QWidget, 'isMinimized', return_value=True):
-            spinner.start()
-        self.assertEqual(state(spinner), PAUSED)
+        self.assertEqual(bar._frames.interval(), round(1000 / bar.FRAME_RATE))
+        now = [100.0]
+        with mock.patch.object(spinners.time, 'monotonic', lambda: now[0]):
+            bar.stop()
+            bar.start()  # the timer starts from now
+            now[0] += 0.4
+            bar._onFrame()
+            self.assertEqual(bar._time, 400)
+            self.assertEqual((bar.shortPos, bar.longPos), bar.barPositions(400))
+            # hidden for a while: the animation time does not run on
+            window.hide()
+            now[0] += 60
+            window.show()
+            now[0] += 0.1
+            bar._onFrame()
+            self.assertEqual(bar._time, 500)
+        self.assertEqual(bar.aniGroup.state(), STOPPED)  # Qt's animation never runs
 
     def test_nothing_animates_while_every_spinner_is_hidden(self):
-        windows = [self.window(cls)[0] for cls in (spinners.IndeterminateProgressRing,
-                                                   spinners.IndeterminateProgressBar) * 3]
-        for window in windows:
+        pairs = [self.window(cls) for cls in (spinners.IndeterminateProgressRing,
+                                               spinners.IndeterminateProgressBar) * 3]
+        for window, _ in pairs:
             window.show()
             window.hide()
-        running = [a for w in windows for a in w.findChildren(QAbstractAnimation)
+        self.assertEqual([s for _, s in pairs if animating(s)], [])
+        running = [a for w, _ in pairs for a in w.findChildren(QAbstractAnimation)
                    if a.state() == RUNNING]
         self.assertEqual(running, [])
 
