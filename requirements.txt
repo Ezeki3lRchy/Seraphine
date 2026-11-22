@@ -1,7 +1,7 @@
 pyperclip==1.8.2
-PySide6==6.9.3
-PySide6-Fluent-Widgets==1.11.2
-PySideSix-Frameless-Window==0.8.1
+PySide6==6.12.0
+PySide6-Fluent-Widgets==1.11.3
+PySideSix-Frameless-Window==0.8.2
 Requests==2.32.3
 aiohttp==3.10.10
 psutil==5.9.8
