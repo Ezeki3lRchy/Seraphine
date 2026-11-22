@@ -6,6 +6,11 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.13
+- The Career page appears much sooner: the match list shows right away, and each game's MVP / SVP badge, score, kill participation and the ten players fill in a moment later.
+- Refreshing the Career page, or opening a player again, no longer downloads the full games already loaded.
+- Seraphine uses much less CPU while it waits for the League client, while the client is open and while its window is hidden in the tray.
+
 ### v1.4.12
 - Cooldown ledger: Smite (including Unleashed and Primal Smite) and abilities with charges, such as Vel'Koz W, Vi E and Caitlyn W, can now be clicked; their timer shows when one charge comes back.
 - Cooldown ledger: Rakan E, Kalista E and Tahm Kench R can now be clicked too.
