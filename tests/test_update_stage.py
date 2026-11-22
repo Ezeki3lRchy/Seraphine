@@ -1345,11 +1345,11 @@ class ClientAbsentSignalTest(unittest.TestCase):
         self.addCleanup(signalBus.lolClientAbsent.disconnect, slot)
         lst = ls.LolProcessExistenceListener(None)
         stop = mock.patch.object(lst, 'msleep', side_effect=self.Stop)
+        macNames = {99: ls.MAC_GAME_NAME} if gameRunning else {}
         with stop, mock.patch.object(ls, 'getLolClientPids', return_value=[]), \
-                mock.patch.object(ls, 'getLolClientPidsSlowly', return_value=[]), \
+                mock.patch.object(ls.ProcessNames, 'scan', return_value=macNames), \
                 mock.patch.object(ls, 'getTasklistPath', return_value='tasklist'), \
                 mock.patch.object(ls, 'isLolGameProcessExist', return_value=gameRunning), \
-                mock.patch.object(ls, 'isLolGameProcessExistMac', return_value=gameRunning), \
                 mock.patch.object(ls.platform, 'IS_WINDOWS', not mac):
             with self.assertRaises(self.Stop):
                 lst.run()

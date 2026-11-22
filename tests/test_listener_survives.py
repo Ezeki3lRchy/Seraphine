@@ -1,7 +1,8 @@
 """LolProcessExistenceListener: one failed poll must not end the thread (client start /
 end / change would never be detected again), and a persistent failure must not flood the
 log. run() is called directly on this thread (the QThread is never started); msleep is
-replaced to count iterations and stop the loop. No process is inspected.
+replaced to count iterations and stop the loop. No process is inspected (the
+process scans and the connected-client check are replaced too).
 """
 import os
 import unittest
@@ -36,13 +37,18 @@ class ListenerSurvivesTest(unittest.TestCase):
             calls.append(1)
             return pids(len(calls) - 1)
 
+        def macNames():
+            return {pid: 'LeagueClientUx' for pid in getPids()}
+
         patches = [mock.patch.object(listener_module, 'signalBus'),
                    mock.patch.object(listener_module.platform, 'IS_WINDOWS', not mac),
                    mock.patch.object(listener_module, 'getTasklistPath', return_value='tasklist'),
                    mock.patch.object(listener_module, 'getLolClientPids', getPids),
-                   mock.patch.object(listener_module, 'getLolClientPidsSlowly', getPids),
+                   mock.patch.object(listener_module.ProcessNames, 'scan',
+                                     lambda self: macNames()),
                    mock.patch.object(listener_module, 'isLolGameProcessExist', return_value=False),
-                   mock.patch.object(listener_module, 'isLolGameProcessExistMac', return_value=False)]
+                   # no pid here is a real process: every poll scans, as with no client
+                   mock.patch.object(listener_module, 'clientProcess', return_value=None)]
         if clock is not None:
             patches.append(mock.patch.object(listener_module.time, 'monotonic', clock))
         started = [p.start() for p in patches]
