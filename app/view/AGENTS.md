@@ -17,7 +17,7 @@ each `*_interface.py` is one tab/screen, composed from `../components/` widgets 
 | `search_interface.py` | Summoner search screen |
 | `game_info_interface.py` | Live-game / BP teammate + opponent lookup |
 | `auxiliary_interface.py` | Auxiliary tools (auto-accept, profile tweaks, etc.); its Game group also holds the in-game panels' cards: the item value overlay (on/off, opacity, lock), the "Cooldown ledger" switch (`cfg.enableCooldownLedger`, off by default; its two-line description is the card's only wording about the feature) and "Cooldown ledger size" (`cfg.cooldownLedgerScale`, 80-200 %). While no client is connected MainWindow calls `setClientConnected(False)`, which disables every card except these five (the panels read the game's Live Client Data API, and the lock card is the only way to unlock a click-through overlay); never `setEnabled(False)` the whole page |
-| `setting_interface.py` | App settings (built from `../components/setting_cards.py`), incl. the update card's progress subtitle / bar / "Restart to update" button |
+| `setting_interface.py` | App settings (built from `../components/setting_cards.py`), incl. the update card's progress subtitle / bar / "Restart to update" button, and the "Launch at startup" switch (General group; no config item: it shows `../common/autostart.py`'s `isEnabled()` when built and on every show, calls `setEnabled` on a toggle and goes back with an error bar when that fails; disabled with "Not available" when the app does not run from a packaged build) |
 | `opgg_window.py` | Standalone op.gg window |
 | `opgg_tier_interface.py` | op.gg tier-list view |
 | `opgg_build_interface.py` | op.gg champion build view |

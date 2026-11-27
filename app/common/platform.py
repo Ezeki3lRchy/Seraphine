@@ -156,6 +156,61 @@ def is_packaged_windows_build():
     return bool(root) and os.path.isfile(os.path.join(root, 'Seraphine.exe'))
 
 
+def hkcu_get_value(sub_key, name):
+    """Windows: ``(value, type)`` of a value under HKEY_CURRENT_USER, or None when the
+    key or the value does not exist. Other errors (OSError) reach the caller.
+    Non-Windows: None.
+    """
+    if not IS_WINDOWS:
+        return None
+
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, sub_key) as k:
+            return winreg.QueryValueEx(k, name)
+    except FileNotFoundError:
+        return None
+
+
+def hkcu_set_string(sub_key, name, value):
+    """Windows: write a REG_SZ value under HKEY_CURRENT_USER (the key is created when
+    missing). Raises OSError on failure, also on a non-Windows host.
+    """
+    if not IS_WINDOWS:
+        raise OSError("the registry is only available on Windows")
+
+    import winreg
+
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, sub_key, 0,
+                            winreg.KEY_SET_VALUE) as k:
+        winreg.SetValueEx(k, name, 0, winreg.REG_SZ, value)
+
+
+def hkcu_delete_value(sub_key, name):
+    """Windows: delete a value under HKEY_CURRENT_USER; a missing key or value is not
+    an error. Raises OSError on any other failure. Non-Windows: no-op.
+    """
+    if not IS_WINDOWS:
+        return
+
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, sub_key, 0,
+                            winreg.KEY_SET_VALUE) as k:
+            winreg.DeleteValue(k, name)
+    except FileNotFoundError:
+        pass
+
+
+def mac_launch_agents_dir():
+    """macOS: the per-user LaunchAgents directory (launchd reads it at login)."""
+    import os
+
+    return os.path.expanduser('~/Library/LaunchAgents')
+
+
 def get_lol_path_by_registry():
     """Windows: read the Tencent (CN) LoL install path from the registry.
     Non-Windows: return "" (no registry; caller treats empty as "not found").

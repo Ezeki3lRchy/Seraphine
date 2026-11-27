@@ -5007,6 +5007,26 @@ MVP：胜方评分最高；SVP：败方评分最高</translation>
 <context>
     <name>SettingInterface</name>
     <message>
+        <location filename="../../view/setting_interface.py" line="116"/>
+        <source>Launch at startup</source>
+        <translation>开机自动启动</translation>
+    </message>
+    <message>
+        <location filename="../../view/setting_interface.py" line="117"/>
+        <source>Start Seraphine when you sign in to this computer</source>
+        <translation>登录系统后自动启动 Seraphine</translation>
+    </message>
+    <message>
+        <location filename="../../view/setting_interface.py" line="304"/>
+        <source>Not available: Seraphine is not running from an installed copy</source>
+        <translation>不可用：当前不是从已安装的程序运行</translation>
+    </message>
+    <message>
+        <location filename="../../view/setting_interface.py" line="405"/>
+        <source>Could not change the startup setting</source>
+        <translation>无法修改开机启动设置</translation>
+    </message>
+    <message>
         <location filename="../../view/setting_interface.py" line="35"/>
         <source>Settings</source>
         <translation>设置</translation>

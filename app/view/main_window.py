@@ -32,6 +32,7 @@ from app.common.util import (github, getLolClientPid, getTasklistPath,
                              getLolClientPidSlowly, getLoLPathByRegistry,
                              getLoLPathByScan, checkUpdateOutcome)
 from app.common import platform
+from app.common import autostart
 from app.components.avatar_widget import NavigationAvatarWidget
 from app.components.temp_system_tray_menu import TmpSystemTrayMenu
 from app.common.icons import Icon
@@ -183,6 +184,9 @@ class MainWindow(FluentWindow):
         self.errorPolicy.finishStartup()
 
         QTimer.singleShot(0, self.__offerStagedUpdate)
+
+        # "Launch at startup": an entry left behind by a moved install follows it
+        autostart.repair()
 
         self.__silentStart()
 

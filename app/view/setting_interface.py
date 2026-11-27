@@ -14,6 +14,7 @@ from app.common.icons import Icon
 from app.common.config import (cfg, YEAR, AUTHOR, VERSION, FEEDBACK_URL, GITHUB_URL, isWin11,
                                BETA)
 from app.common.signals import signalBus
+from app.common import autostart
 from app.common.update_progress import progressText
 from app.common.style_sheet import StyleSheet
 from app.components.seraphine_interface import SeraphineInterface
@@ -109,6 +110,13 @@ class SettingInterface(SeraphineInterface):
                 "Show Seraphine window minimized when it starts"),
             cfg.enableSilent
         )
+
+        # no config item: the system's startup entry is the state (app.common.autostart)
+        self.autostartCard = SwitchSettingCard(
+            Icon.DESKTOPRIGHT, self.tr("Launch at startup"),
+            self.tr("Start Seraphine when you sign in to this computer"),
+            parent=self.generalGroup)
+        self._autostartSyncing = False
 
         self.logGroup = SettingCardGroup(self.tr("Log"), self.scrollWidget)
 
@@ -289,6 +297,13 @@ class SettingInterface(SeraphineInterface):
 
         self.micaCard.switchButton.setEnabled(isWin11())
 
+        if not autostart.isAvailable():
+            # running from source (or a copy that cannot register itself)
+            self.autostartCard.switchButton.setEnabled(False)
+            self.autostartCard.setContent(
+                self.tr("Not available: Seraphine is not running from an installed copy"))
+        self.__syncAutostartCard()
+
         # initialize style sheet
         self.scrollWidget.setObjectName('scrollWidget')
         self.settingLabel.setObjectName('settingLabel')
@@ -316,6 +331,7 @@ class SettingInterface(SeraphineInterface):
         self.generalGroup.addSettingCard(self.deleteResourceCard)
         self.generalGroup.addSettingCard(self.enableCloseToTray)
         self.generalGroup.addSettingCard(self.silentCard)
+        self.generalGroup.addSettingCard(self.autostartCard)
 
         self.logGroup.addSettingCard(self.logLevelCard)
         self.logGroup.addSettingCard(self.viewLogCard)
@@ -360,6 +376,7 @@ class SettingInterface(SeraphineInterface):
         self.feedbackCard.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl(FEEDBACK_URL)))
         self.deleteResourceCard.clicked.connect(self.__showFlyout)
+        self.autostartCard.checkedChanged.connect(self.__onAutostartChanged)
         self.manualCheckUpdateCard.clicked.connect(
             self.__onManualCheckUpdateClicked)
         signalBus.checkUpdateFinished.connect(self.__onCheckUpdateFinished)
@@ -368,6 +385,30 @@ class SettingInterface(SeraphineInterface):
             lambda: QDesktopServices.openUrl(
                 QUrl.fromLocalFile(os.path.join(os.getcwd(), 'log')))
         )
+
+    def __syncAutostartCard(self):
+        # show what the system really has registered (it can change outside the app,
+        # e.g. in Task Manager's Startup page)
+        self._autostartSyncing = True
+        try:
+            self.autostartCard.setChecked(autostart.isEnabled())
+        finally:
+            self._autostartSyncing = False
+
+    def __onAutostartChanged(self, checked):
+        if self._autostartSyncing:
+            return
+        if autostart.setEnabled(checked):
+            return
+        self.__syncAutostartCard()
+        InfoBar.error(self.tr("Launch at startup"),
+                      self.tr("Could not change the startup setting"),
+                      duration=5000,
+                      parent=self)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self.__syncAutostartCard()
 
     def __onManualCheckUpdateClicked(self):
         if self._updateState == 'ready':
