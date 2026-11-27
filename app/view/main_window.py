@@ -61,6 +61,7 @@ from app.lol.aram import AramBuff
 from app.lol.champions import ChampionAlias
 from app.lol.opgg import opgg
 from app.lol.live_client import liveClientPoller
+from app.lol.avg_rank import snapshotGame
 from app.components.gold_overlay import GoldOverlay
 from app.components.ledger_panel import LedgerPanel
 from app.lol.ledger_data import LedgerDatabase, LedgerDataError
@@ -1943,6 +1944,9 @@ class MainWindow(FluentWindow):
         session = await connector.getGameflowSession()
         if not current():
             return
+
+        # 记下开局时双方的段位 (生涯页的对局平均段位用); 自己吞掉所有失败
+        self._rankSnapshotTask = asyncio.ensure_future(snapshotGame(session))
 
         currentSummonerId = self.currentSummoner['summonerId']
 

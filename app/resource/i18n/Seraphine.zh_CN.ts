@@ -776,14 +776,24 @@ You start every timer yourself; nothing is detected. Times are approximate: they
         <translation>对局平均段位：%1</translation>
     </message>
     <message>
-        <location filename="../../components/career_widgets.py" line="620"/>
-        <source>Average of the players&apos; current ranks (%1 of %2 players ranked); unranked players are left out.</source>
-        <translation>本局玩家当前段位的平均值（%2 名玩家中 %1 名有段位）；未定级的玩家不计入。</translation>
+        <location filename="../../components/career_widgets.py" line="624"/>
+        <source>Average rank of the players at the time of the game, from OP.GG.</source>
+        <translation>打这局时玩家的平均段位，数据来自 OP.GG。</translation>
     </message>
     <message>
-        <location filename="../../components/career_widgets.py" line="623"/>
-        <source>Flex games use flex ranks, all other queues solo/duo ranks. The ranks at the time of the game are not available.</source>
-        <translation>灵活排位用灵活组排段位，其他模式用单双排段位。无法获取对局当时的段位。</translation>
+        <location filename="../../components/career_widgets.py" line="628"/>
+        <source>Average of the ranks Seraphine recorded when the game started (%1 of %2 players ranked).</source>
+        <translation>Seraphine 在对局开始时记录的段位的平均值（%2 名玩家中 %1 名有段位）。</translation>
+    </message>
+    <message>
+        <location filename="../../components/career_widgets.py" line="633"/>
+        <source>Estimate from the players&apos; current ranks (%1 of %2 players ranked): no rank from the time of the game is available for this game.</source>
+        <translation>按玩家当前段位估算（%2 名玩家中 %1 名有段位）：没有这局当时的段位数据。</translation>
+    </message>
+    <message>
+        <location filename="../../components/career_widgets.py" line="638"/>
+        <source>Flex games use flex ranks, all other queues solo/duo ranks; unranked players are left out.</source>
+        <translation>灵活排位用灵活组排段位，其他模式用单双排段位；未定级的玩家不计入。</translation>
     </message>
 </context>
 <context>

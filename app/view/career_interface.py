@@ -699,12 +699,13 @@ class CareerInterface(SeraphineInterface):
 
         if self.games:
             self.detailsTask = asyncio.create_task(
-                self.__updateGameDetails(puuid, rankInfo, self.games.get('games') or []))
+                self.__updateGameDetails(puuid, rankInfo, self.games.get('games') or [],
+                                         (info.get('name'), info.get('tagLine'))))
 
-    async def __updateGameDetails(self, puuid, rankInfo, games):
+    async def __updateGameDetails(self, puuid, rankInfo, games, riotId=None):
         """
         第二阶段: 战绩行显示后逐局拉完整对局, 补上徽章 / 评分 / 参团率与右侧 10 名玩家, 补完一局
-        就刷新那一行; 全部补完后再起近期队友 / 对线得分 / 赛季样本 (它们要用这些结果)
+        就刷新那一行; 全部补完后再起近期队友 / 对线得分 / 平均段位 / 赛季样本 (它们要用这些结果)
         """
         def onGame(game):
             if puuid == self.puuid:
@@ -729,7 +730,8 @@ class CareerInterface(SeraphineInterface):
 
         self.teammatesTask = asyncio.create_task(self.__updateRecentTeammates(puuid, details))
         self.laningTask = asyncio.create_task(self.__updateLaningScores(puuid, games))
-        self.avgRankTask = asyncio.create_task(self.__updateAverageRanks(puuid, games))
+        self.avgRankTask = asyncio.create_task(
+            self.__updateAverageRanks(puuid, games, riotId))
         if recent:
             self.seasonTask = asyncio.create_task(
                 self.__updateSeasonPerformance(puuid, rankInfo, games))
@@ -843,8 +845,8 @@ class CareerInterface(SeraphineInterface):
         except Exception as e:
             logger.warning(f"laning scores failed: {type(e).__name__}", TAG)
 
-    async def __updateAverageRanks(self, puuid, games):
-        """战绩行显示后逐局查玩家段位算对局平均段位, 算完一局就刷新当前显示的那一行"""
+    async def __updateAverageRanks(self, puuid, games, riotId=None):
+        """战绩行显示后逐局补上对局平均段位 (OP.GG / 开局时的记录 / 当前段位估算), 补上一局就刷新那一行"""
         def onGame(game):
             if puuid != self.puuid:
                 return
@@ -854,7 +856,7 @@ class CareerInterface(SeraphineInterface):
                     row.refreshAvgRank()
 
         try:
-            await attachAverageRanks(games, onGame)
+            await attachAverageRanks(games, onGame, riotId)
         except Exception as e:
             logger.warning(f"average ranks failed: {type(e).__name__}", TAG)
 

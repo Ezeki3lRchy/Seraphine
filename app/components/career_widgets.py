@@ -619,7 +619,10 @@ class CareerGameRow(ColorAnimationFrame):
         self.update()
 
     def refreshAvgRank(self):
-        """game['avgRank'] (app/lol/avg_rank.py, 战绩行显示后异步补上) 到了就多画一行 "[徽章] 黄金 IV" """
+        """
+        game['avgRank'] (app/lol/avg_rank.py, 战绩行显示后异步补上) 到了就多画一行 "[徽章] 黄金 IV";
+        来源 (OP.GG / 开局时的记录 / 当前段位估算) 写在悬停提示里
+        """
         avgRank = self.game.get('avgRank')
         if avgRank == self.avgRank:
             return
@@ -628,13 +631,26 @@ class CareerGameRow(ColorAnimationFrame):
         self.avgRankText = tierText(avgRank['tier'], avgRank['division']) if avgRank else ""
         if self.avgRankText:
             self.avgRankPixmap = rankMiniPixmap(avgRank['tier'], self.RANK_ICON)
-            self.avgRankTip = "\n".join((
-                self.tr("Average rank: %1").replace("%1", self.avgRankText),
-                self.tr("Average of the players' current ranks (%1 of %2 players ranked); "
-                        "unranked players are left out.")
-                .replace("%1", str(avgRank['players'])).replace("%2", str(avgRank['total'])),
-                self.tr("Flex games use flex ranks, all other queues solo/duo ranks. "
-                        "The ranks at the time of the game are not available.")))
+            source = avgRank.get('source')
+            if source == 'opgg':
+                lines = [self.tr("Average rank of the players at the time of the game, "
+                                 "from OP.GG.")]
+            else:
+                if source == 'snapshot':
+                    line = self.tr("Average of the ranks Seraphine recorded when the game "
+                                   "started (%1 of %2 players ranked).")
+                else:
+                    # 当前段位的估算: 不是打这局时的段位, 文字前标 "≈"
+                    self.avgRankText = "≈ " + self.avgRankText
+                    line = self.tr("Estimate from the players' current ranks (%1 of %2 players "
+                                   "ranked): no rank from the time of the game is available "
+                                   "for this game.")
+                lines = [line.replace("%1", str(avgRank.get('players', '?')))
+                         .replace("%2", str(avgRank.get('total', '?'))),
+                         self.tr("Flex games use flex ranks, all other queues solo/duo ranks; "
+                                 "unranked players are left out.")]
+            self.avgRankTip = "\n".join(
+                [self.tr("Average rank: %1").replace("%1", self.avgRankText)] + lines)
         self._cacheKey = None
         self.update()
 
