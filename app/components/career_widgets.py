@@ -16,7 +16,7 @@ from app.components.animation_frame import ColorAnimationFrame
 from app.components.design_tokens import (palette, numberFont, textFont, resultColor, tint,
                                           opScoreColor, deathsColor, kdaColor)
 from app.components.match_widgets import (rankEmblemPath, gameTags, itemTooltipHtml, TAG_COLORS,
-                                          tierText)
+                                          tierText, rankMiniPixmap)
 from app.components.paint import drawCard, drawText, drawRuns, drawRoundedPixmap, drawChampion
 from app.components.scoreboard import durationText
 from app.lol.activity import activityByHour, activityByWeekday, winRate
@@ -503,6 +503,9 @@ class CareerGameRow(ColorAnimationFrame):
     ITEM = 26
     STATS_W = 130
     CHIP_W = 108
+    RANK_ICON = 16
+    # 数据列的行数 (3 行 + 对线得分 + 平均段位) -> (行距, 第一行到行中线的距离)
+    STATS_LAYOUT = {3: (21, 30), 4: (18, 37), 5: (17, 44)}
 
     def __init__(self, game: dict, currentPuuid=None, parent=None):
         type = resultType(game)
@@ -539,6 +542,7 @@ class CareerGameRow(ColorAnimationFrame):
         self.statsRect = QRect()
         self.scoreRect = QRect()
         self.laningRect = QRect()
+        self.avgRankRect = QRect()
         self.infoRect = QRect()
 
         self._cache = None
@@ -548,6 +552,12 @@ class CareerGameRow(ColorAnimationFrame):
         self.laning = None
         self.laningTip = ""
         self.refreshLaning()
+
+        self.avgRank = None
+        self.avgRankText = ""
+        self.avgRankTip = ""
+        self.avgRankPixmap = QPixmap()
+        self.refreshAvgRank()
 
         self.clicked.connect(
             lambda: signalBus.careerGameBarClicked.emit(str(self.gameId)))
@@ -608,6 +618,26 @@ class CareerGameRow(ColorAnimationFrame):
         self._cacheKey = None
         self.update()
 
+    def refreshAvgRank(self):
+        """game['avgRank'] (app/lol/avg_rank.py, 战绩行显示后异步补上) 到了就多画一行 "[徽章] 黄金 IV" """
+        avgRank = self.game.get('avgRank')
+        if avgRank == self.avgRank:
+            return
+
+        self.avgRank = avgRank
+        self.avgRankText = tierText(avgRank['tier'], avgRank['division']) if avgRank else ""
+        if self.avgRankText:
+            self.avgRankPixmap = rankMiniPixmap(avgRank['tier'], self.RANK_ICON)
+            self.avgRankTip = "\n".join((
+                self.tr("Average rank: %1").replace("%1", self.avgRankText),
+                self.tr("Average of the players' current ranks (%1 of %2 players ranked); "
+                        "unranked players are left out.")
+                .replace("%1", str(avgRank['players'])).replace("%2", str(avgRank['total'])),
+                self.tr("Flex games use flex ranks, all other queues solo/duo ranks. "
+                        "The ranks at the time of the game are not available.")))
+        self._cacheKey = None
+        self.update()
+
     # ---------------- 命中测试 ----------------
 
     def __playerAt(self, pos):
@@ -634,6 +664,9 @@ class CareerGameRow(ColorAnimationFrame):
                     return True
             if self.laning and self.laningRect.contains(pos):
                 RichToolTip.showText(e.globalPos(), self.laningTip, self, self.laningRect)
+                return True
+            if self.avgRankText and self.avgRankRect.contains(pos):
+                RichToolTip.showText(e.globalPos(), self.avgRankTip, self, self.avgRankRect)
                 return True
             if self.statsRect.contains(pos):
                 RichToolTip.showText(e.globalPos(), self.statsTip, self, self.statsRect)
@@ -791,10 +824,10 @@ class CareerGameRow(ColorAnimationFrame):
             right = playersX - 18
 
         # 参团率 / 补刀 / 金币: 灰色标签 + 墨色数字
-        # 有对线得分时多一行 (对线 30 : 70), 行距收紧
+        # 有对线得分 (对线 30 : 70) / 平均段位 ([徽章] 黄金 IV) 时各多一行, 行距收紧
         statsX = min(statsX, right - self.STATS_W)
-        pitch = 18 if self.laning else 21
-        statsTop = h / 2 - (37 if self.laning else 30)
+        pitch, above = self.STATS_LAYOUT[3 + bool(self.laning) + bool(self.avgRankText)]
+        statsTop = h / 2 - above
         for i, (label, value, size) in enumerate(((self.tr("KP"), self.kpValue, 16),
                                                   (self.tr("CS"), self.csValue, 14),
                                                   (self.tr("Gold"), self.goldValue, 14))):
@@ -818,6 +851,15 @@ class CareerGameRow(ColorAnimationFrame):
                                                  (str(self.laning['theirs']), numberFont(14, 400),
                                                   ink)))
             self.laningRect = QRect(int(statsX), int(y), self.STATS_W, 20)
+        self.avgRankRect = QRect()
+        if self.avgRankText:
+            y = statsTop + (4 if self.laning else 3) * pitch
+            icon = self.RANK_ICON
+            p.drawPixmap(QRectF(statsX, y + (20 - icon) / 2, icon, icon).toRect(),
+                         self.avgRankPixmap)
+            drawText(p, QRectF(statsX + icon + 6, y, self.STATS_W - icon - 6, 20),
+                     self.avgRankText, textFont(12), ink)
+            self.avgRankRect = QRect(int(statsX), int(y), self.STATS_W, 20)
 
         # 物品 (空格画发丝线框) + 标签
         self.itemRects = []

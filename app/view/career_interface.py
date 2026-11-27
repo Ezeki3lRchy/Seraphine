@@ -24,6 +24,7 @@ from app.components.tier_graph_widget import TierGraphCard
 from app.components.save_star_button import SaveStarButton
 from app.lol import rank_history, saved_players
 from app.lol.laning import attachLaningScores
+from app.lol.avg_rank import attachAverageRanks
 from app.components.color_label import ColorLabel
 from app.components.animation_frame import ColorAnimationFrame
 from app.common.style_sheet import StyleSheet
@@ -114,6 +115,7 @@ class CareerInterface(SeraphineInterface):
         self.championIconTasks = []
         self.championIconIds = set()  # icons loaded or in flight for this summoner
         self.laningTask = None
+        self.avgRankTask = None
         self.teammatesTask = None
         self.detailsTask = None  # second stage: full game per row, then the tasks above
         # Bumped by every updateInterface call; only the newest load may paint
@@ -672,12 +674,12 @@ class CareerInterface(SeraphineInterface):
         self.setLoadingPageEnabled(False)
 
         # 换人 / 刷新: 上一位召唤师的后台任务 (完整对局 / 近期队友 / 对线得分 / 赛季样本) 不再需要
-        for task in (self.detailsTask, self.teammatesTask, self.laningTask, self.seasonTask,
-                     self.playStyleIconTask, *self.championIconTasks):
+        for task in (self.detailsTask, self.teammatesTask, self.laningTask, self.avgRankTask,
+                     self.seasonTask, self.playStyleIconTask, *self.championIconTasks):
             if task:
                 task.cancel()
         self.detailsTask = self.teammatesTask = self.laningTask = self.seasonTask = None
-        self.playStyleIconTask = None
+        self.avgRankTask = self.playStyleIconTask = None
         # the previous summoner's second stage can finish while this one loads and write its
         # teammates here; this summoner's arrive with its own second stage
         self.recentTeammatesInfo = None
@@ -727,6 +729,7 @@ class CareerInterface(SeraphineInterface):
 
         self.teammatesTask = asyncio.create_task(self.__updateRecentTeammates(puuid, details))
         self.laningTask = asyncio.create_task(self.__updateLaningScores(puuid, games))
+        self.avgRankTask = asyncio.create_task(self.__updateAverageRanks(puuid, games))
         if recent:
             self.seasonTask = asyncio.create_task(
                 self.__updateSeasonPerformance(puuid, rankInfo, games))
@@ -839,6 +842,21 @@ class CareerInterface(SeraphineInterface):
             await attachLaningScores(games, puuid, onGame)
         except Exception as e:
             logger.warning(f"laning scores failed: {type(e).__name__}", TAG)
+
+    async def __updateAverageRanks(self, puuid, games):
+        """战绩行显示后逐局查玩家段位算对局平均段位, 算完一局就刷新当前显示的那一行"""
+        def onGame(game):
+            if puuid != self.puuid:
+                return
+            for i in range(self.gameInfoLayout.count()):
+                row = self.gameInfoLayout.itemAt(i).widget()
+                if isinstance(row, CareerGameRow) and row.gameId == game['gameId']:
+                    row.refreshAvgRank()
+
+        try:
+            await attachAverageRanks(games, onGame)
+        except Exception as e:
+            logger.warning(f"average ranks failed: {type(e).__name__}", TAG)
 
     def __updateGameInfo(self):
         while self.gameInfoLayout.count():

@@ -770,6 +770,21 @@ You start every timer yourself; nothing is detected. Times are approximate: they
         <source>Laning</source>
         <translation>对线</translation>
     </message>
+    <message>
+        <location filename="../../components/career_widgets.py" line="619"/>
+        <source>Average rank: %1</source>
+        <translation>对局平均段位：%1</translation>
+    </message>
+    <message>
+        <location filename="../../components/career_widgets.py" line="620"/>
+        <source>Average of the players&apos; current ranks (%1 of %2 players ranked); unranked players are left out.</source>
+        <translation>本局玩家当前段位的平均值（%2 名玩家中 %1 名有段位）；未定级的玩家不计入。</translation>
+    </message>
+    <message>
+        <location filename="../../components/career_widgets.py" line="623"/>
+        <source>Flex games use flex ranks, all other queues solo/duo ranks. The ranks at the time of the game are not available.</source>
+        <translation>灵活排位用灵活组排段位，其他模式用单双排段位。无法获取对局当时的段位。</translation>
+    </message>
 </context>
 <context>
     <name>CareerInterface</name>
