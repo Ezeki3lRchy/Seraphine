@@ -6,6 +6,9 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.14
+- Career match list: each game now shows its average rank (emblem, tier and division) under the stats, as OP.GG does. It is the rank at the time of the game, from OP.GG; where OP.GG has none, Seraphine uses the ranks it recorded when the game started, or an estimate from the players' current ranks, marked with "≈".
+
 ### v1.4.13
 - The Career page appears much sooner: the match list shows right away, and each game's MVP / SVP badge, score, kill participation and the ten players fill in a moment later.
 - Refreshing the Career page, or opening a player again, no longer downloads the full games already loaded.
