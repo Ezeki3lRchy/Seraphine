@@ -1395,6 +1395,12 @@ class LolClientConnector(QObject):
         return res
 
     @retry()
+    async def showClientUx(self):
+        """Show the client's window and bring it to the front (also from minimized)"""
+        res = await self.__post("/riotclient/ux-show")
+        return res
+
+    @retry()
     async def getGameflowSession(self):
         # FIXME
         # 若刚进行完一场对局, 随后开启一盘自定义, 玩家在红色方且蓝色方没人时,

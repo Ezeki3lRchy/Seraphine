@@ -126,6 +126,11 @@
 <context>
     <name>AutoAcceptMatchingCard</name>
     <message>
+        <location filename="../../view/auxiliary_interface.py" line="1012"/>
+        <source>Minimize the client again when a found match brings it to the front (it shows for a moment):</source>
+        <translation>排到对局时客户端弹到前台后，自动把它收回去（会闪一下）：</translation>
+    </message>
+    <message>
         <location filename="../../view/auxiliary_interface.py" line="974"/>
         <source>Delay seconds after match made:</source>
         <translation>在对局找到后接受对局前延迟的秒数：</translation>

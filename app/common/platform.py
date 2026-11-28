@@ -64,6 +64,45 @@ def find_lol_client_window_rect():
     return win32gui.GetWindowRect(hwnd)
 
 
+def lol_client_is_foreground():
+    """Windows: True / False, whether the LoL client's window is the foreground window.
+    None when that is unknown: no client window, an error, or a non-Windows host.
+    Never raises.
+    """
+    if not IS_WINDOWS:
+        return None
+
+    try:
+        import win32gui
+        hwnd = win32gui.FindWindow("RCLIENT", "League of Legends")
+        if not hwnd:
+            return None
+        return win32gui.GetForegroundWindow() == hwnd
+    except Exception:
+        return None
+
+
+def minimize_lol_client():
+    """Windows: minimize the LoL client's window the way its "-" button does
+    (WM_SYSCOMMAND / SC_MINIMIZE, posted), so Windows activates the window that was in
+    front before. Returns whether the message was posted. Non-Windows: False.
+    Never raises.
+    """
+    if not IS_WINDOWS:
+        return False
+
+    try:
+        import win32con
+        import win32gui
+        hwnd = win32gui.FindWindow("RCLIENT", "League of Legends")
+        if not hwnd:
+            return False
+        win32gui.PostMessage(hwnd, win32con.WM_SYSCOMMAND, win32con.SC_MINIMIZE, 0)
+        return True
+    except Exception:
+        return False
+
+
 def set_window_no_activate(win_id):
     """Windows: add WS_EX_NOACTIVATE to a top-level window so clicking it never takes
     focus from the foreground (game) window. Qt.WindowDoesNotAcceptFocus already asks Qt

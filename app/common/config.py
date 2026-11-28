@@ -98,6 +98,11 @@ class Config(QConfig):
     autoAcceptMatchingDelay = RangeConfigItem(
         "Functions", "AutoAcceptMatchingDelay", 0, RangeValidator(0, 11))
 
+    # Windows, with auto accept on: minimize the client again when it comes to the front
+    # for a ready check (app/common/client_focus.py)
+    hideClientOnReadyCheck = ConfigItem(
+        "Functions", "HideClientOnReadyCheck", False, BoolValidator())
+
     enableAutoSelectTimeoutCompleted = ConfigItem("Functions",
                                                   "EnableAutoSelectTimeoutCompleted", False,
                                                   BoolValidator())

@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QWidget, QLabel, QVBoxLayout, QHBoxLayout, QGridL
                              QFrame, QSpacerItem, QSizePolicy)
 from qasync import asyncSlot
 
+from app.common import platform
 from app.common.config import cfg
 from app.common.icons import Icon
 from app.common.logger import logger
@@ -137,7 +138,8 @@ class AuxiliaryInterface(SeraphineInterface):
             self.tr(
                 "Accept match making automatically after the number of seconds you set"),
             cfg.enableAutoAcceptMatching, cfg.autoAcceptMatchingDelay,
-            self.bpGroup)
+            self.bpGroup,
+            hideConfigItem=cfg.hideClientOnReadyCheck if platform.IS_WINDOWS else None)
         self.autoAcceptSwapingCard = AutoAcceptSwapingCard(
             self.tr("Auto accept swaping"),
             self.tr(
@@ -963,10 +965,17 @@ class SpectateCard(ExpandGroupSettingCard):
 
 class AutoAcceptMatchingCard(ExpandGroupSettingCard):
     def __init__(self, title, content, enableConfigItem: ConfigItem = None,
-                 delayConfigItem: ConfigItem = None, parent=None):
+                 delayConfigItem: ConfigItem = None, parent=None,
+                 hideConfigItem: ConfigItem = None):
         super().__init__(Icon.CIRCLEMARK, title, content, parent)
 
         self.statusLabel = QLabel(self)
+
+        # Optional row (Windows): minimize the client again when a found match brings it
+        # to the front (app/common/client_focus.py). None = no row
+        self.hideConfigItem = hideConfigItem
+        self.hideWidget = None
+        self.hideSwitch = None
 
         self.inputWidget = QWidget(self.view)
         self.inputLayout = QHBoxLayout(self.inputWidget)
@@ -1003,9 +1012,29 @@ class AutoAcceptMatchingCard(ExpandGroupSettingCard):
         self.viewLayout.setSpacing(0)
         self.viewLayout.setContentsMargins(0, 0, 0, 0)
         self.addGroupWidget(self.inputWidget)
+
+        if self.hideConfigItem is not None:
+            self.hideWidget = QWidget(self.view)
+            hideLayout = QHBoxLayout(self.hideWidget)
+            hideLayout.setSpacing(19)
+            hideLayout.setContentsMargins(48, 18, 44, 18)
+            self.hideLabel = QLabel(self.tr(
+                "Minimize the client again when a found match brings it to the front "
+                "(it shows for a moment):"))
+            self.hideSwitch = SwitchButton(indicatorPos=IndicatorPosition.RIGHT)
+            hideLayout.addWidget(self.hideLabel, alignment=Qt.AlignLeft)
+            hideLayout.addWidget(self.hideSwitch, alignment=Qt.AlignRight)
+            hideLayout.setSizeConstraint(QHBoxLayout.SetMinimumSize)
+            self.addGroupWidget(self.hideWidget)
+
         self.addGroupWidget(self.switchButtonWidget)
 
     def __initWidget(self):
+        if self.hideSwitch is not None:
+            self.hideSwitch.setChecked(cfg.get(self.hideConfigItem))
+            self.hideSwitch.checkedChanged.connect(
+                lambda checked: qconfig.set(self.hideConfigItem, checked))
+
         self.lineEdit.setRange(0, 11)
         self.lineEdit.setValue(cfg.get(self.delayConfigItem))
         self.lineEdit.setSingleStep(1)

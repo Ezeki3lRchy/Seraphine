@@ -63,6 +63,7 @@ from app.lol.champions import ChampionAlias
 from app.lol.opgg import opgg
 from app.lol.live_client import liveClientPoller
 from app.lol.avg_rank import snapshotGame
+from app.common.client_focus import ClientFocusKeeper
 from app.components.gold_overlay import GoldOverlay
 from app.components.ledger_panel import LedgerPanel
 from app.lol.ledger_data import LedgerDatabase, LedgerDataError
@@ -365,6 +366,10 @@ class MainWindow(FluentWindow):
             self.__onCurrentSummonerProfileChanged)
         signalBus.gameStatusChanged.connect(
             self.__onGameStatusChanged)
+        # Auto accept: minimizes the client again when a ready check brings it to the
+        # front. Its own slot, so it acts at once and not after the handler's awaits
+        self.clientFocus = ClientFocusKeeper(self.__showClientAgain, self)
+        signalBus.gameStatusChanged.connect(self.clientFocus.onPhase)
         signalBus.champSelectChanged.connect(
             self.__onChampSelectChanged)
 
@@ -1271,6 +1276,7 @@ class MainWindow(FluentWindow):
             self.searchInterface.gameLoadingTask = None
 
         liveClientPoller.stop()
+        self.clientFocus.onPhase('None')  # stops its sampling
         await connector.close()
         await self.__cancelLedgerRefresh()  # before its OP.GG session closes
         await opgg.close()
@@ -1621,15 +1627,25 @@ class MainWindow(FluentWindow):
         async def accept():
             timeDelay = cfg.get(cfg.autoAcceptMatchingDelay)
             await asyncio.sleep(timeDelay)
-            status = await connector.getReadyCheckStatus()
+            try:
+                status = await connector.getReadyCheckStatus()
 
-            if status.get("errorCode"):
-                return
+                if status.get("errorCode"):
+                    return
 
-            if not status['playerResponse'] == 'Declined':
-                await connector.acceptMatchMaking()
+                if not status['playerResponse'] == 'Declined':
+                    await connector.acceptMatchMaking()
+            except BaseException as e:
+                # not accepted: a client hidden for this ready check must come back,
+                # so the match can be accepted by hand
+                if not isinstance(e, asyncio.CancelledError):
+                    self.clientFocus.acceptFailed()
+                raise
 
         asyncio.create_task(accept())
+
+    def __showClientAgain(self):
+        asyncio.create_task(connector.showClientUx())
 
     async def __onReconnect(self):
         if not cfg.get(cfg.enableAutoReconnect):
