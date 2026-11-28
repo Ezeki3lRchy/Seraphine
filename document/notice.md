@@ -6,6 +6,9 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.16
+- Settings: the moving bar on the "Check for updates now" card is smooth while an update is verified and unpacked (60 frames a second instead of about 21).
+
 ### v1.4.15
 - Settings: new "Launch at startup" switch (General group, off by default). When on, Seraphine starts when you log in to the computer. It works in the packaged app only.
 - Cooldown ledger: Hexflash has its own cell, so it can be timed while the Flash timer is running. The cell appears for enemies who carry Flash and use the Inspiration rune tree; the game does not show whether they took the rune itself, so some of them will not have it.
