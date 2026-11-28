@@ -260,7 +260,21 @@ def _rosterEntry(player, index, positionCounts):
         'items': [_num(i.get('itemID')) for i in items],
         'spells': [spellKey(spells.get('summonerSpellOne')),
                    spellKey(spells.get('summonerSpellTwo'))],
+        'runeTrees': _runeTrees(player),
     }
+
+
+def _runeTrees(player):
+    """[primary, secondary] rune tree ids of a player (all the payload gives for other players
+    besides the keystone), 0 for one that is missing"""
+    runes = player.get('runes')
+    runes = runes if isinstance(runes, dict) else {}
+    trees = []
+    for name in ('primaryRuneTree', 'secondaryRuneTree'):
+        tree = runes.get(name)
+        treeId = tree.get('id') if isinstance(tree, dict) else None
+        trees.append(treeId if isinstance(treeId, int) and not isinstance(treeId, bool) else 0)
+    return trees
 
 
 def _enemyRoster(team, enemy):

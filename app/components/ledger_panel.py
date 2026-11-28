@@ -1,11 +1,12 @@
 """
 Cooldown ledger: a small always-on-top panel with one row per enemy on Summoner's Rift, in
 the fixed order top, jungle, mid, bottom, support. Each row: lane icon, Q W E R, Flash (always
-the left spell cell), the other summoner spell, up to three item actives and, on the top row
-only, Teleport when the top laner does not carry it. A click starts a timer of that ability's
-usual cooldown and a second click cancels it; nothing is detected. Q W E R count down in
-seconds, the other cells show the game time they come back over the dimmed icon. A cell whose
-cooldown cannot be estimated does nothing.
+the left spell cell), the other summoner spell, Hexflash for an enemy who may have it (Flash
+carried and the Inspiration rune tree: the rune itself is not visible), up to three item actives
+and, on the top row only, Teleport when the top laner does not carry it. A click starts a timer
+of that ability's usual cooldown and a second click cancels it; nothing is detected. Q W E R
+count down in seconds, as Hexflash does over its dimmed icon; the other cells show the game time
+they come back over the dimmed icon. A cell whose cooldown cannot be estimated does nothing.
 
 The panel never takes focus and never lets clicks through. The lock (the bottom-right corner)
 is the item value overlay's lock, cfg.goldOverlayLocked: it only stops dragging here. The
@@ -31,8 +32,8 @@ from app.components.design_tokens import numberFont, textFont
 from app.components.gold_overlay import overlayAllowed, overlayPosition
 from app.components.opgg_build_widgets import svgPixmap
 from app.components.paint import drawRoundedPixmap, drawText
-from app.lol.ledger_model import TELEPORT, LedgerTimers, cellText, championEntry, cooldown, \
-    ledgerVisible, spellForCell
+from app.lol.ledger_model import HEXFLASH_CELL, HEXFLASH_RUNE, TELEPORT, LedgerTimers, cellText, \
+    championEntry, cooldown, ledgerVisible, spellForCell
 
 TAG = "LedgerPanel"
 
@@ -48,7 +49,10 @@ ROW_H = 28
 ICON = 22             # spell / item icon inside a slot
 LANE_ICON = 22
 ITEM_SLOTS = 3
-SLOT_COLUMNS = ('D', 'F') + tuple(f'item{i}' for i in range(ITEM_SLOTS)) + ('TP',)
+# the columns after the two spells hold a row's Hexflash cell (when offered) and then its item
+# cells, so a row without Hexflash has no gap; named item<i> by position
+EXTRA_SLOTS = ITEM_SLOTS + 1
+SLOT_COLUMNS = ('D', 'F') + tuple(f'item{i}' for i in range(EXTRA_SLOTS)) + ('TP',)
 LOCK_ROW, LOCK_COLUMN = len(LANES) - 1, 'TP'  # the TP column is used on the top row only
 CLICK_SLOP = 5        # press -> release within this many px is a click, not a drag
 TICK_MS = 500
@@ -83,6 +87,7 @@ SPELL_LABELS = {
     'SummonerMana': 'Cr',
 }
 ITEM_LABEL = 'It'
+HEXFLASH_LABEL = 'Hx'
 
 # dark panel regardless of the app theme: it sits over the game (as the item value overlay)
 COLORS = {
@@ -270,13 +275,15 @@ class LedgerPanel(QWidget):
     # gate for a new set of enemies while the setting is on (LedgerDatabase.refresh's input)
     enemiesSeen = Signal(list)
 
-    def __init__(self, db=None, spellIcon=None, itemIcon=None, clock=None, spellKnown=None):
+    def __init__(self, db=None, spellIcon=None, itemIcon=None, clock=None, spellKnown=None,
+                 runeIcon=None):
         """
         db: the ledger database (LedgerDatabase, or its merged dict), read on every use, so a
         refresh that replaces its data shows without a call here.
         spellIcon / itemIcon: async loaders id -> image path (connector.getSummonerSpellIcon /
         getItemIcon). spellKnown(id) -> bool: when given, spell icons are requested only for
-        ids it accepts (the connector's spell list), so an unknown id never reaches the client
+        ids it accepts (the connector's spell list), so an unknown id never reaches the client.
+        runeIcon: async loader rune id -> image path (connector.getRuneIcon), for Hexflash
         """
         super().__init__(None)
         self.db = db
@@ -286,7 +293,8 @@ class LedgerPanel(QWidget):
         self.wanted = False
         self.hiddenReason = "no game"  # why the panel is hidden; None while it shows
         self._spellIcon, self._itemIcon, self._spellKnown = spellIcon, itemIcon, spellKnown
-        self.icons = {}            # ('spell' | 'item', id) -> QPixmap
+        self._loaders = {'spell': spellIcon, 'item': itemIcon, 'rune': runeIcon}
+        self.icons = {}            # ('spell' | 'item' | 'rune', id) -> QPixmap
         self._requested = set()    # icons loaded, loading, failed or skipped (not retried)
         self._tasks = set()
         self._closed = False
@@ -476,11 +484,13 @@ class LedgerPanel(QWidget):
             return None
         cells = self.timers.cells(entry)
         if column.startswith('item'):
-            # item slots in the model's order; a hole (an entry that is no item cell id)
-            # keeps its slot empty
+            # Hexflash (when offered) and the item slots, in the model's order; a hole (an
+            # entry that is no cell id) keeps its slot empty
             slots = [c for c in cells if c not in ABILITY_CELLS + ('D', 'F', 'TP')]
             i = int(column[4:])
             cell = slots[i] if i < len(slots) else None
+            if cell == HEXFLASH_CELL:
+                return cell
             return cell if isItemCell(cell) and itemId(cell) is not None else None
         return column if column in cells else None
 
@@ -580,11 +590,13 @@ class LedgerPanel(QWidget):
             for cell in self.timers.cells(entry):
                 if isItemCell(cell) and itemId(cell) is not None:
                     keys.add(('item', itemId(cell)))
+                elif cell == HEXFLASH_CELL:
+                    keys.add(('rune', HEXFLASH_RUNE))
         return keys
 
     def __loadIcons(self):
         for key in self.__iconKeys() - self._requested:
-            loader = self._spellIcon if key[0] == 'spell' else self._itemIcon
+            loader = self._loaders.get(key[0])
             if loader is None:
                 continue
             if key[0] == 'spell' and self._spellKnown is not None:
@@ -608,7 +620,7 @@ class LedgerPanel(QWidget):
         e.g. a KeyError for a spell id the connector's spell list dropped)"""
         self._requested.add(key)
         kind, iconId = key
-        loader = self._spellIcon if kind == 'spell' else self._itemIcon
+        loader = self._loaders.get(kind)
         try:
             path = await loader(iconId)
         except Exception as e:
@@ -665,6 +677,8 @@ class LedgerPanel(QWidget):
         spells = section(self.db, 'summonerSpells')
         if isItemCell(cell):
             icon, label = self.__icon('item', itemId(cell)), ITEM_LABEL
+        elif cell == HEXFLASH_CELL:
+            icon, label = self.__icon('rune', HEXFLASH_RUNE), HEXFLASH_LABEL
         else:
             key = TELEPORT if cell == 'TP' else spellForCell(entry, cell)
             if not key:

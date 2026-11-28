@@ -671,6 +671,10 @@
    "cooldown": 300,
    "id": 4
   },
+  "SummonerFlashPerksHextechFlashtraptionV2": {
+   "cooldown": 20,
+   "id": 4
+  },
   "SummonerHaste": {
    "cooldown": 240,
    "id": 6

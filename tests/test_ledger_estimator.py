@@ -106,6 +106,17 @@ class CooldownCellTest(unittest.TestCase):
         self.assertEqual(cooldown(DB, 'Ahri', 'TP', 9, []), 300)
         self.assertAlmostEqual(cooldown(DB, 'Ahri', 'Q', 9, [CRIMSON]), 7 / 1.2)   # ability haste too
 
+    def test_hexflash(self):
+        # its own cooldown from the client data, whatever the two spells; summoner spell haste counts
+        self.assertEqual(cooldown(DB, 'Ahri', 'HF', 9, [], spells=['SummonerDot', 'SummonerFlash']), 20)
+        self.assertAlmostEqual(cooldown(DB, 'Ahri', 'HF', 9, [BOOTS, CRIMSON]), 20 / 1.3)
+        self.assertAlmostEqual(cooldown(DB, 'Ahri', 'HF', 9, [CLEAVER]), 20)    # ability haste does not
+        self.assertIsNone(cooldown({'summonerSpells': {}}, 'Ahri', 'HF', 9, []))  # an older database
+        # a Flash slot reporting Hexflash is still the Flash cell
+        for key in ('SummonerFlashPerksHextechFlashtraptionV2', 'SummonerFlashPerksHextechFlashtraption'):
+            self.assertEqual(cooldown(DB, 'Ahri', 'D', 9, [], spells=['SummonerDot', key]), 300, key)
+            self.assertEqual(cooldown(DB, 'Ahri', 'F', 9, [], spells=['SummonerDot', key]), 180, key)
+
     def test_inestimable_cells(self):
         self.assertIsNone(cooldown(DB, 'Lee Sin', 'F', 9, [], spells=['SummonerFlash', 'SummonerSmite']))
         self.assertIsNone(cooldown(DB, 'Lee Sin', 'F', 9, [],

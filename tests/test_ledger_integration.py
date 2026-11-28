@@ -75,6 +75,10 @@ class FakeConnector:
         self.requested.append(('item', itemId))
         raise KeyError(itemId)
 
+    async def getRuneIcon(self, runeId):
+        self.requested.append(('rune', runeId))
+        raise KeyError(runeId)
+
 
 class NeverOpgg:
     """OP.GG client whose build fetch never resolves (a hung connection)"""
@@ -162,6 +166,7 @@ class LedgerWiringTest(unittest.IsolatedAsyncioTestCase):
         # the connector's loaders and spell list
         self.assertEqual(panel._spellIcon, self.connector.getSummonerSpellIcon)
         self.assertEqual(panel._itemIcon, self.connector.getItemIcon)
+        self.assertEqual(panel._loaders['rune'], self.connector.getRuneIcon)   # Hexflash's icon
         self.assertTrue(panel._spellKnown(4))
         self.assertFalse(panel._spellKnown(2201))
         self.connector.manager = None  # before the client connects: not known, no exception
