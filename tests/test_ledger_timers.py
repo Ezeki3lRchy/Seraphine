@@ -2,7 +2,8 @@
 spell columns and ledgerVisible."""
 import unittest
 
-from app.lol.ledger_model import (LANES, LedgerTimers, cellText, ledgerVisible, spellForCell)
+from app.lol.ledger_model import (LANES, LedgerTimers, cellText, ledgerVisible, offersHexflash,
+                                  spellForCell)
 
 # synthetic item table for the timer model: items with an active cooldown get a cell, 3158
 # (summoner spell haste only) and ids absent from the table get none
@@ -23,9 +24,16 @@ class FakeClock:
         return self.t
 
 
-def entry(position, items=(), spells=('SummonerFlash', 'SummonerDot'), key=None):
-    return {'key': key or position, 'championName': 'Ahri', 'position': position, 'level': 6,
-            'items': list(items), 'spells': list(spells)}
+INSPIRATION, SORCERY, DOMINATION = 8300, 8200, 8100
+HEXFLASH_SPELL = 'SummonerFlashPerksHextechFlashtraptionV2'
+
+
+def entry(position, items=(), spells=('SummonerFlash', 'SummonerDot'), key=None, runeTrees=None):
+    e = {'key': key or position, 'championName': 'Ahri', 'position': position, 'level': 6,
+         'items': list(items), 'spells': list(spells)}
+    if runeTrees is not None:
+        e['runeTrees'] = list(runeTrees)
+    return e
 
 
 def roster(**overrides):
@@ -78,6 +86,22 @@ class TimerTest(unittest.TestCase):
         self.clock.t += 0.4
         self.assertEqual(cellText('R', self.t.state('MIDDLE', 'R')), '120')     # 119.6 rounds up
         self.assertEqual(cellText('Q', self.t.state('MIDDLE', 'Q')), '')        # idle
+
+    def test_hexflash_runs_beside_flash_and_counts_seconds(self):
+        mid = entry('MIDDLE', runeTrees=(SORCERY, INSPIRATION))
+        self.t.sync(720, roster(MIDDLE=mid))
+        self.t.toggle('MIDDLE', 'D', 300)      # Flash seen
+        self.t.toggle('MIDDLE', 'HF', 20)      # then Hexflash, while Flash is down
+        self.assertEqual(cellText('D', self.t.state('MIDDLE', 'D')), '17:00')
+        self.assertEqual(cellText('HF', self.t.state('MIDDLE', 'HF')), '20')    # seconds, like Q W E R
+        self.clock.t += 5
+        self.assertEqual(cellText('HF', self.t.state('MIDDLE', 'HF')), '15')
+        self.t.sync(741, roster(MIDDLE=mid))
+        self.assertEqual(self.t.state('MIDDLE', 'HF')[0], 'idle')               # back after 20 s
+        self.assertEqual(self.t.state('MIDDLE', 'D')[0], 'running')             # Flash untouched
+        self.t.toggle('MIDDLE', 'HF', 20)
+        self.t.toggle('MIDDLE', 'HF', 20)                                       # second click cancels
+        self.assertEqual(self.t.state('MIDDLE', 'HF')[0], 'idle')
 
     def test_pause_caps_extrapolation(self):
         self.t.sync(600, roster())
@@ -143,6 +167,46 @@ class CellsTest(unittest.TestCase):
         self.assertEqual(self.cellsOf(mid), ['Q', 'W', 'E', 'R', 'D', 'F'])
         tpTop = entry('TOP', spells=('SummonerFlash', 'S12_SummonerTeleportUpgrade'))
         self.assertEqual(self.cellsOf(tpTop), ['Q', 'W', 'E', 'R', 'D', 'F'])
+
+    def test_hexflash_offered_with_flash_and_the_inspiration_tree(self):
+        for trees in ((INSPIRATION, SORCERY), (SORCERY, INSPIRATION)):
+            self.assertTrue(offersHexflash(entry('MIDDLE', runeTrees=trees)), trees)
+        for e in (entry('MIDDLE'),                                              # trees unknown
+                  entry('MIDDLE', runeTrees=(0, 0)),
+                  entry('MIDDLE', runeTrees=(SORCERY, DOMINATION)),
+                  # Inspiration without Flash: the rune cannot be taken
+                  entry('MIDDLE', spells=('SummonerDot', 'SummonerHaste'), runeTrees=(INSPIRATION, SORCERY)),
+                  None, {}):
+            self.assertFalse(offersHexflash(e), e)
+        # a spell slot reporting Hexflash is proof, whatever the trees say
+        self.assertTrue(offersHexflash(entry('MIDDLE', spells=(HEXFLASH_SPELL, 'SummonerDot'))))
+
+    def test_hexflash_cell_sits_after_the_spells_before_the_items(self):
+        mid = entry('MIDDLE', items=[3157], runeTrees=(SORCERY, INSPIRATION))
+        top = entry('TOP', runeTrees=(INSPIRATION, SORCERY))
+        plain = entry('BOTTOM', items=[3157], runeTrees=(SORCERY, DOMINATION))
+        self.t.sync(100, roster(MIDDLE=mid, TOP=top, BOTTOM=plain))
+        self.assertEqual(self.cellsOf(mid), ['Q', 'W', 'E', 'R', 'D', 'F', 'HF', 'item:3157'])
+        self.assertEqual(self.cellsOf(top), ['Q', 'W', 'E', 'R', 'D', 'F', 'HF', 'TP'])
+        self.assertEqual(self.cellsOf(plain), ['Q', 'W', 'E', 'R', 'D', 'F', 'item:3157'])  # unchanged
+        self.assertEqual(self.cellsOf(entry('JUNGLE')), ['Q', 'W', 'E', 'R', 'D', 'F'])     # no rune data
+
+    def test_flash_slot_reporting_hexflash_keeps_the_flash_cell(self):
+        # (unverified in a real game: whether the live data swaps the spell while Flash is down)
+        swapped = entry('MIDDLE', spells=('SummonerDot', HEXFLASH_SPELL))
+        self.assertEqual(spellForCell(swapped, 'D'), 'SummonerFlash')
+        self.assertEqual(spellForCell(swapped, 'F'), 'SummonerDot')
+        self.t.sync(100, roster(MIDDLE=entry('MIDDLE', spells=('SummonerDot', 'SummonerFlash'))))
+        self.t.toggle('MIDDLE', 'D', 300)
+        self.t.sync(103, roster(MIDDLE=swapped))
+        self.assertEqual(self.t.state('MIDDLE', 'D')[0], 'running')
+        self.assertEqual(self.cellsOf(swapped), ['Q', 'W', 'E', 'R', 'D', 'F', 'HF'])
+        # once offered the cell stays for the game, so the item cells never move back
+        back = entry('MIDDLE', spells=('SummonerDot', 'SummonerFlash'))
+        self.t.sync(400, roster(MIDDLE=back))
+        self.assertEqual(self.cellsOf(back), ['Q', 'W', 'E', 'R', 'D', 'F', 'HF'])
+        self.t.sync(0, roster(MIDDLE=back))                                     # a new game
+        self.assertEqual(self.cellsOf(back), ['Q', 'W', 'E', 'R', 'D', 'F'])
 
     def test_item_appears_and_disappears(self):
         e = entry('MIDDLE', items=[1056, 3020])          # nothing with an active

@@ -13,6 +13,7 @@ from unittest import mock
 from app.common import platform
 from app.lol import ledger_data
 from app.lol.ledger_data import LedgerDatabase, LedgerDataError
+from app.lol.ledger_model import HEXFLASH
 
 FIXTURE = os.path.join(os.path.dirname(__file__), 'fixtures', 'ledger', 'baseline_rows_16_23.json')
 
@@ -192,6 +193,8 @@ class LoadTest(LedgerDataBase):
         for key in ('SummonerSmite', 'S5_SummonerSmitePlayerGanker', 'SummonerSmiteAvatarOffensive',
                     'SummonerSmiteAvatarUtility', 'SummonerSmiteAvatarDefensive'):
             self.assertEqual(db.data['summonerSpells'][key]['cooldown'], 90, key)
+        # Hexflash, under the key the model's 'HF' cell reads
+        self.assertEqual(db.data['summonerSpells'][HEXFLASH]['cooldown'], 20)
 
 
 class RefreshTest(LedgerDataBase):
@@ -409,7 +412,9 @@ class BuildToolTest(unittest.TestCase):
                   'Shared/Spells/S5_SummonerSmitePlayerGanker': spell(15.0, ammo=2, recharge=90.0),
                   'Shared/Spells/SummonerSmiteAvatarOffensive': spell(15.0, ammo=2, recharge=90.0),
                   'Shared/Spells/SummonerSmiteAvatarUtility': spell(15.0, ammo=2, recharge=90.0),
-                  'Shared/Spells/SummonerSmiteAvatarDefensive': spell(15.0, ammo=2, recharge=90.0)}
+                  'Shared/Spells/SummonerSmiteAvatarDefensive': spell(15.0, ammo=2, recharge=90.0),
+                  # the rune's spell as the client lists it: its own cooldown, a 2 s channel
+                  'Shared/Spells/SummonerFlashPerksHextechFlashtraptionV2': spell(20.0)}
         stats = {'spellMismatch': []}
         self.assertEqual(self.tool.buildSummonerSpells(summoner, shared, stats), {
             'SummonerFlash': {'id': 4, 'cooldown': 300},
@@ -422,6 +427,8 @@ class BuildToolTest(unittest.TestCase):
             'SummonerSmiteAvatarOffensive': {'id': 11, 'cooldown': 90},
             'SummonerSmiteAvatarUtility': {'id': 11, 'cooldown': 90},
             'SummonerSmiteAvatarDefensive': {'id': 11, 'cooldown': 90},
+            # Hexflash: the client's cooldown under Flash's id
+            'SummonerFlashPerksHextechFlashtraptionV2': {'id': 4, 'cooldown': 20},
         })
         # a spell with charges is not compared with Data Dragon's lockout (15)
         self.assertEqual(stats['spellMismatch'], ['SummonerTeleport: client 360, Data Dragon [300]'])

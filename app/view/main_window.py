@@ -203,6 +203,7 @@ class MainWindow(FluentWindow):
                         f"{len(db.data['champions'])} champions", TAG)
             panel = LedgerPanel(db, spellIcon=connector.getSummonerSpellIcon,
                                 itemIcon=connector.getItemIcon,
+                                runeIcon=connector.getRuneIcon,
                                 spellKnown=lambda i: i in connector.manager.spells)
             panel.enemiesSeen.connect(self.__onLedgerEnemiesSeen)
         except Exception as e:

@@ -87,6 +87,7 @@ class RosterTest(unittest.TestCase):
         self.assertEqual([e['position'] for e in out], [e['key'] for e in out])
         self.assertEqual(out[0]['spells'], ['SummonerFlash', 'S12_SummonerTeleportUpgrade'])
         self.assertEqual(out[1]['spells'], ['', ''])
+        self.assertEqual(out[0]['runeTrees'], [0, 0])   # the fixture's runes is {}
         self.assertEqual(out[0]['level'], enemies[0]['level'])
         # slot order, whatever the payload order
         expected = [i['itemID'] for i in sorted(enemies[0]['items'], key=lambda i: i['slot'])]
@@ -162,6 +163,20 @@ class RosterTest(unittest.TestCase):
         b['activePlayer']['currentGold'] = 12345.6
         b['gameData']['gameTime'] += 30
         self.assertEqual(roster(a), roster(b))
+
+    def test_rune_trees(self):
+        # the payload's shape for other players: keystone + the two trees
+        data = load()
+        enemies = [p for p in data['allPlayers'] if p['team'] == 'CHAOS']
+        enemies[0]['runes'] = {'keystone': {'id': 8214, 'displayName': 'Summon Aery'},
+                               'primaryRuneTree': {'id': 8200, 'displayName': 'Sorcery'},
+                               'secondaryRuneTree': {'id': 8300, 'displayName': 'Inspiration'}}
+        enemies[1]['runes'] = {'primaryRuneTree': {'id': 8300}}
+        enemies[2]['runes'] = {'primaryRuneTree': {'id': '8300'}, 'secondaryRuneTree': 'x'}
+        enemies[3]['runes'] = None
+        out = roster(data)
+        self.assertEqual([e['runeTrees'] for e in out[:4]], [[8200, 8300], [8300, 0], [0, 0], [0, 0]])
+        self.assertNotEqual(out, roster(load()))
 
     def test_roster_changes_with_items_spells_level(self):
         base = roster(load())

@@ -87,6 +87,7 @@ DB = {
         'S5_SummonerSmitePlayerGanker': {'id': 2201, 'cooldown': None},
         'SummonerHeal': {'id': 7, 'cooldown': 240},
         'SummonerExhaust': {'id': 3, 'cooldown': 240},
+        'SummonerFlashPerksHextechFlashtraptionV2': {'id': 4, 'cooldown': 20},
     },
     'items': {
         '3157': {'active': 120, 'haste': 15, 'ultHaste': 0, 'spellHaste': 0},  # Zhonya's
@@ -111,9 +112,12 @@ ENEMIES = [  # (position, champion, spells, items)
 RAW_NAMES = {"Wukong": "MonkeyKing"}  # displayed name -> the payload's English raw name
 
 
-def player(team, position, champ, spells, items, name, level=7):
+INSPIRATION = {"primaryRuneTree": {"id": 8200}, "secondaryRuneTree": {"id": 8300}}
+
+
+def player(team, position, champ, spells, items, name, level=7, runes=None):
     raw = RAW_NAMES.get(champ, champ.replace(" ", ""))
-    return {"team": team, "position": position, "riotId": name, "summonerName": name,
+    return {"team": team, "runes": runes or {}, "position": position, "riotId": name, "summonerName": name,
             "championName": champ, "level": level,
             "rawChampionName": f"game_character_displayname_{raw}",
             "summonerSpells": {"summonerSpellOne": {"rawDisplayName": SPELL_RAW.format(spells[0])},
@@ -232,18 +236,18 @@ class LedgerPanelTest(unittest.TestCase):
     def test_grid_has_no_gaps_and_the_agreed_cell_sizes(self):
         keys = [k for k, _, _ in P.COLUMNS]
         self.assertEqual(keys, ['lane', 'Q', 'W', 'E', 'R', 'D', 'F', 'item0', 'item1',
-                                'item2', 'TP'])
+                                'item2', 'item3', 'TP'])
         for (_, x, w), (_, nx, _) in zip(P.COLUMNS, P.COLUMNS[1:]):
             self.assertEqual(x + w, nx)  # no spacing between cells
         for key in 'QWER':
             r = P.columnRect(key, 0)
             self.assertEqual((r.width(), r.height()), (36, 28))
-        for key in ('D', 'F', 'item0', 'item1', 'item2', 'TP'):
+        for key in ('D', 'F', 'item0', 'item1', 'item2', 'item3', 'TP'):
             r = P.columnRect(key, 0)
             self.assertEqual((r.width(), r.height()), (30, 28))
         # the client's rule: Q W E R larger than the rarely clicked spell / item cells
         self.assertGreater(P.ABILITY_W, P.SLOT_W)
-        self.assertEqual((P.WIDTH, P.HEIGHT), (360, 148))
+        self.assertEqual((P.WIDTH, P.HEIGHT), (390, 148))  # 3 item slots + 1 for Hexflash
         self.assertLessEqual(P.LANE_ICON, P.ROW_H)
         self.assertLessEqual(P.LANE_ICON, P.LANE_W)
         self.assertEqual(P.columnRect('Q', 4).bottom() + P.PAD, P.HEIGHT)
@@ -262,7 +266,7 @@ class LedgerPanelTest(unittest.TestCase):
 
     def test_size_setting_scales_the_window_at_once(self):
         self.assertEqual(cfg.cooldownLedgerScale.value, 100)       # the default: normal size
-        for percent, size in ((150, (540, 222)), (80, (288, 119)), (200, (720, 296)),
+        for percent, size in ((150, (585, 222)), (80, (312, 119)), (200, (780, 296)),
                               (100, (P.WIDTH, P.HEIGHT))):
             with self.subTest(percent=percent):
                 cfg.set(cfg.cooldownLedgerScale, percent)
@@ -326,7 +330,7 @@ class LedgerPanelTest(unittest.TestCase):
         self.panel.clickCell(0, 'Q')
         cfg.set(cfg.cooldownLedgerScale, 150)
         image = self.panel.grab().toImage()
-        self.assertEqual((image.width(), image.height()), (540, 222))
+        self.assertEqual((image.width(), image.height()), (585, 222))
         q = P.columnRect('Q', 0)
         inside = image.pixelColor(int((q.right() - 4) * 1.5), int((q.bottom() - 4) * 1.5))
         self.assertGreater(inside.blue(), inside.red() + 40, inside.name())
@@ -521,6 +525,81 @@ class LedgerPanelTest(unittest.TestCase):
         # the countdown follows the clock between polls
         self.clock.t += 2
         self.assertEqual(self.panel.cellView(0, 'Q')['text'], '118')
+
+    def hexflashSummary(self, **kw):
+        """Ahri (mid, Zhonya's) and Garen (top) with the Inspiration tree; the others without"""
+        data = payload(**kw)
+        for p in data['allPlayers']:
+            if p['team'] == L.CHAOS and p['championName'] in ('Ahri', 'Garen'):
+                p['runes'] = INSPIRATION
+        return L.summarizeGameData(data)
+
+    def test_hexflash_cell_for_inspiration_users_beside_flash(self):
+        self.show(self.hexflashSummary(gameTime=600.0))
+        # the first slot after the spells; the items follow, rows without it are as before
+        self.assertEqual(self.panel.cellIdAt(2, 'item0'), 'HF')
+        self.assertEqual(self.panel.cellIdAt(2, 'item1'), 'item:3157')
+        self.assertEqual(self.panel.cellIdAt(0, 'item0'), 'HF')
+        for row in (1, 3, 4):
+            self.assertIsNone(self.panel.cellIdAt(row, 'item0'))
+        view = self.panel.cellView(2, 'item0')
+        self.assertEqual((view['kind'], view['text'], view['active'], view['running']),
+                         ('slot', P.HEXFLASH_LABEL, True, False))
+
+        self.click('D', 2)        # Flash seen: 300 s
+        self.click('item0', 2)    # Hexflash while Flash is down: 20 s, in seconds
+        self.assertEqual(self.panel.cellView(2, 'D')['text'], '15:00')
+        self.assertEqual(timerState(self.panel, 2, 'HF'), 'running')
+        self.assertEqual(self.panel.cellView(2, 'item0')['text'], '20')
+        self.assertTrue(self.panel.ticker.isActive())
+        self.clock.t += 3
+        self.assertEqual(self.panel.cellView(2, 'item0')['text'], '17')
+        self.panel.setSummary(self.hexflashSummary(gameTime=621.0))
+        self.assertEqual(self.panel.cellView(2, 'item0')['text'], P.HEXFLASH_LABEL)   # back
+        self.assertEqual(self.panel.cellView(2, 'D')['text'], '15:00')                # Flash still down
+        self.click('item0', 2)
+        self.click('item0', 2)    # a second click cancels
+        self.assertEqual(timerState(self.panel, 2, 'HF'), 'idle')
+        # the item cell next to it is its own timer
+        self.click('item1', 2)
+        self.assertEqual(timerState(self.panel, 2, 'item:3157'), 'running')
+        self.assertEqual(timerState(self.panel, 2, 'HF'), 'idle')
+
+    def test_hexflash_text_fits_and_paints(self):
+        self.show(self.hexflashSummary())
+        self.click('item0', 2)
+        self.assertLessEqual(P.textWidth(P.returnFont(), '20'), P.SLOT_W - 2)
+        self.assertLessEqual(P.textWidth(P.slotLabelFont(), P.HEXFLASH_LABEL), P.SLOT_W - 2)
+        image = QImage(P.WIDTH, P.HEIGHT, QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+        painter = QPainter(image)
+        self.panel.drawContent(painter)
+        painter.end()
+        cell = P.columnRect('item0', 2)
+        edge = image.pixelColor(int(cell.left() + 3), int(cell.bottom() - 3))
+        self.assertGreater(edge.red(), edge.blue())   # the gold of a running slot cell
+
+    def test_hexflash_icon_is_the_rune_icon(self):
+        path = os.path.join("app", "resource", "images", "item-0.png")
+        asked = []
+
+        async def rune(runeId):
+            asked.append(runeId)
+            return path
+
+        panel = P.LedgerPanel(copy.deepcopy(DB), clock=self.clock, runeIcon=rune)
+        try:
+            panel.setSummary(self.hexflashSummary())
+            asyncio.run(panel.loadIcon(('rune', M.HEXFLASH_RUNE)))
+            self.assertEqual(asked, [M.HEXFLASH_RUNE])
+            view = panel.cellView(2, 'item0')
+            self.assertIsNotNone(view['icon'])
+            self.assertEqual(view['text'], '')          # the icon replaces the two letters
+            panel.clickCell(2, 'item0')
+            self.assertEqual(panel.cellView(2, 'item0')['text'], '20')
+        finally:
+            panel.disconnectSources()
+            panel.deleteLater()
 
     def test_ticker_runs_only_while_a_timer_runs(self):
         self.show()

@@ -59,7 +59,10 @@ UNLEASHED = {'S12_SummonerTeleportUpgrade': 'SummonerTeleport',
              # Primal Smite, one per jungle pet
              'SummonerSmiteAvatarOffensive': 'SummonerSmite',
              'SummonerSmiteAvatarUtility': 'SummonerSmite',
-             'SummonerSmiteAvatarDefensive': 'SummonerSmite'}
+             'SummonerSmiteAvatarDefensive': 'SummonerSmite',
+             # Hexflash (the Hextech Flashtraption rune): stands in for Flash while Flash is on
+             # cooldown; the ledger times it in a cell of its own
+             'SummonerFlashPerksHextechFlashtraptionV2': 'SummonerFlash'}
 # Ability cooldowns whose longest rank is below this are toggles, recast lockouts or spammable
 # spells: nothing to time
 MIN_COOLDOWN = 2.0

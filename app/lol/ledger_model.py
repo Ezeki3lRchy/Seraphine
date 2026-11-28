@@ -6,6 +6,11 @@ length is the ability's base cooldown at an estimated rank divided by (1 + haste
 items only (ultimate haste for R, summoner spell haste for the spells). No runes, stacks or
 refunds. Level and items are the last values the live API reported.
 
+Hexflash (the Hextech Flashtraption rune: a short blink in Flash's place while Flash is on
+cooldown) has a cell of its own, 'HF', next to the spells, so it can run beside the Flash timer.
+The live API gives other players' keystone and rune trees only, so the cell is offered to every
+enemy who carries Flash and has the Inspiration tree, whether or not they took the rune.
+
 `db` is the merged database of `app/lol/ledger_data.py` (the shape of
 `app/resource/ledger/ledger_baseline.json`) or the LedgerDatabase holding it.
 """
@@ -19,6 +24,12 @@ SPELL_CELLS = ('D', 'F')
 FLASH = 'SummonerFlash'
 TELEPORT = 'SummonerTeleport'
 TP_CELL = 'TP'
+HEXFLASH_CELL = 'HF'
+HEXFLASH = 'SummonerFlashPerksHextechFlashtraptionV2'   # the client's spell, cooldown in the database
+# what the Flash slot may report while Hexflash stands in for it: still the Flash cell
+HEXFLASH_KEYS = (HEXFLASH, 'SummonerFlashPerksHextechFlashtraption')
+HEXFLASH_RUNE = 8306        # Hextech Flashtraption (its icon)
+INSPIRATION = 8300          # the rune tree it belongs to
 ITEM_PREFIX = 'item:'
 MAX_ITEM_CELLS = 3
 MAX_LEVEL = 18
@@ -101,8 +112,8 @@ def _norm(name):
 
 def spellForCell(entry, cellId):
     """Spell key in a spell column: 'D' is Flash whenever the enemy carries it (else spell one),
-    'F' the other spell. '' or None when there is none"""
-    spells = list((entry or {}).get('spells') or [])[:2]
+    'F' the other spell. '' or None when there is none. A slot reporting Hexflash is Flash"""
+    spells = [FLASH if s in HEXFLASH_KEYS else s for s in list((entry or {}).get('spells') or [])[:2]]
     spells += [''] * (2 - len(spells))
     if FLASH in spells:
         other = spells[1] if spells[0] == FLASH else spells[0]
@@ -110,6 +121,15 @@ def spellForCell(entry, cellId):
     else:
         pair = tuple(spells)
     return {'D': pair[0], 'F': pair[1]}.get(cellId) or None
+
+
+def offersHexflash(entry):
+    """True when the enemy may have Hexflash: Flash carried and Inspiration as the primary or
+    secondary rune tree (the roster entry's `runeTrees`), or a spell slot reporting Hexflash"""
+    spells = (entry or {}).get('spells') or []
+    if any(s in HEXFLASH_KEYS for s in spells):
+        return True
+    return FLASH in spells and INSPIRATION in ((entry or {}).get('runeTrees') or [])
 
 
 def carriesTeleport(entry):
@@ -131,7 +151,8 @@ def cooldown(db, champion, cell, level, items, spells=None):
     cell then does nothing).
 
     cell: 'Q' 'W' 'E' 'R'; 'D' / 'F' (resolved through `spells`, the roster entry's two spell
-    keys); a summoner spell key (e.g. 'SummonerFlash'); 'TP'; or 'item:<id>'.
+    keys); a summoner spell key (e.g. 'SummonerFlash'); 'TP'; 'HF' (Hexflash, with summoner spell
+    haste like the spells); or 'item:<id>'.
     `items` are the held item ids (each one's haste counts)
     """
     data = _data(db)
@@ -158,6 +179,8 @@ def cooldown(db, champion, cell, level, items, spells=None):
         cell = spellForCell({'spells': spells}, cell)
     elif cell == TP_CELL:
         cell = TELEPORT
+    elif cell == HEXFLASH_CELL:
+        cell = HEXFLASH
     base = _positive(((data.get('summonerSpells') or {}).get(cell) or {}).get('cooldown')) if cell else None
     if base is None:
         return None
@@ -177,13 +200,14 @@ def ledgerVisible(summary):
 
 
 def isCountdownCell(cellId):
-    """Q W E R show seconds left; spells, items and TP show the game time they return"""
-    return cellId in ABILITIES
+    """Q W E R and Hexflash (20 s) show seconds left; spells, items and TP show the game time
+    they return"""
+    return cellId in ABILITIES or cellId == HEXFLASH_CELL
 
 
 def cellText(cellId, state):
-    """Text of a running cell from `LedgerTimers.state`: seconds left ('120') for Q W E R, the
-    return game time ('14:10') otherwise; '' when idle"""
+    """Text of a running cell from `LedgerTimers.state`: seconds left ('120') for Q W E R and
+    Hexflash, the return game time ('14:10') otherwise; '' when idle"""
     status, secondsLeft, returnGameTime = state
     if status != 'running':
         return ''
@@ -207,7 +231,7 @@ class LedgerTimers:
         self._clock = clock
         self._db = db
         self._timers = {}
-        self._rows = {}          # rowKey -> {'items': held ids, 'itemCells': [ids]}
+        self._rows = {}          # rowKey -> {'items': held ids, 'itemCells': [ids], 'hexflash': bool}
         self._gameTime = None
         self._anchor = None
 
@@ -237,6 +261,8 @@ class LedgerTimers:
         for entry in entries:
             row = self._rows.setdefault(entry['key'], {'items': [], 'itemCells': []})
             row['items'] = list(entry.get('items') or [])
+            # once offered, the cell stays for the game: the item cells never move back
+            row['hexflash'] = bool(row.get('hexflash')) or offersHexflash(entry)
             self._updateItemCells(entry['key'], row)
 
     def _hasActive(self, itemId):
@@ -262,7 +288,8 @@ class LedgerTimers:
         row['itemCells'] = slots
 
     def cells(self, entry):
-        """Cell ids of a row: Q W E R D F, then up to three item cells ('item:<id>', or None for an
+        """Cell ids of a row: Q W E R D F, then 'HF' when Hexflash is offered (offersHexflash; kept
+        for the game once it was), then up to three item cells ('item:<id>', or None for an
         empty slot between item cells: a removed item's slot is kept until a new item fills it, so
         cells never move; a cell stays while its timer runs after the item left), then TP on the
         top row when the enemy carries no Teleport"""
@@ -275,7 +302,8 @@ class LedgerTimers:
         self._updateItemCells(key, row)
         if key in self._rows:
             self._rows[key]['itemCells'] = row['itemCells']
-        cells = [*ABILITIES, *SPELL_CELLS,
+        hexflash = offersHexflash(entry) or bool((self._rows.get(key) or {}).get('hexflash'))
+        cells = [*ABILITIES, *SPELL_CELLS, *([HEXFLASH_CELL] if hexflash else []),
                  *(None if i is None else ITEM_PREFIX + str(i) for i in row['itemCells'])]
         if (entry or {}).get('position') == 'TOP' and not carriesTeleport(entry):
             cells.append(TP_CELL)
