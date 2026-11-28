@@ -6,6 +6,9 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.17
+- Auto accept (Windows): new switch on the *Auto accept* card, off by default. When a match is found and the League client comes to the front, Seraphine minimizes it again, so the window you were using keeps the focus. The client still shows for a moment. It comes back when champion select starts, or if the match could not be accepted automatically.
+
 ### v1.4.16
 - Settings: the moving bar on the "Check for updates now" card is smooth while an update is verified and unpacked (60 frames a second instead of about 21).
 
