@@ -6,6 +6,10 @@ Custom build with extra features. The source is public; source and compiled rele
 
 <!--NEW-->
 
+### v1.4.15
+- Settings: new "Launch at startup" switch (General group, off by default). When on, Seraphine starts when you log in to the computer. It works in the packaged app only.
+- Cooldown ledger: Hexflash has its own cell, so it can be timed while the Flash timer is running. The cell appears for enemies who carry Flash and use the Inspiration rune tree; the game does not show whether they took the rune itself, so some of them will not have it.
+
 ### v1.4.14
 - Career match list: each game now shows its average rank (emblem, tier and division) under the stats, as OP.GG does. It is the rank at the time of the game, from OP.GG; where OP.GG has none, Seraphine uses the ranks it recorded when the game started, or an estimate from the players' current ranks, marked with "≈".
 
