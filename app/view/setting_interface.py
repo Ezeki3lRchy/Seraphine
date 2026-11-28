@@ -5,7 +5,7 @@ from app.common.qfluentwidgets import (SettingCardGroup, SwitchSettingCard, Comb
                                        PushSettingCard, ExpandLayout, InfoBar,
                                        setTheme, PrimaryPushSettingCard, HyperlinkCard,
                                        TeachingTip, TeachingTipTailPosition, TeachingTipView, PushButton,
-                                       ProgressBar, IndeterminateProgressBar)
+                                       ProgressBar, SmoothIndeterminateProgressBar)
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QSizePolicy
@@ -256,7 +256,7 @@ class SettingInterface(SeraphineInterface):
         barLayout.setSpacing(0)
         self.updateProgressBar = ProgressBar(self.updateBarBox)
         self.updateProgressBar.setRange(0, 1000)
-        self.updateBusyBar = IndeterminateProgressBar(self.updateBarBox, start=False)
+        self.updateBusyBar = SmoothIndeterminateProgressBar(self.updateBarBox, start=False)
         self.updateBusyBar.setVisible(False)
         barLayout.addWidget(self.updateProgressBar)
         barLayout.addWidget(self.updateBusyBar)

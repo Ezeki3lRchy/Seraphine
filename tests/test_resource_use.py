@@ -391,7 +391,7 @@ class SpinnerTest(unittest.TestCase):
         window.show()
         self.assertEqual(bar._frames.interval(), round(1000 / bar.FRAME_RATE))
         now = [100.0]
-        with mock.patch.object(spinners.time, 'monotonic', lambda: now[0]):
+        with mock.patch.object(spinners.time, 'perf_counter', lambda: now[0]):
             bar.stop()
             bar.start()  # the timer starts from now
             now[0] += 0.4

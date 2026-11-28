@@ -17,13 +17,19 @@ timer, which runs only while the bar is started and shown, sets both bar positio
 those animations (durations, start and end values, easing, the long bar's pause) have at the
 current animation time, so the bar's shape and timing are those of the original.
 
+On Windows a coarse Qt timer of 33 ms fires on the 15.6 ms system tick, every 47 ms (about 21
+frames a second, measured with the app idle), which is visibly uneven on a bar the user watches.
+SmoothIndeterminateProgressBar is the same bar on a precise 60 frames a second timer, for a bar
+that is shown for a short time only (the update card while verifying / unpacking); a precise
+timer raises the system timer resolution while it runs, so the long-lived bars keep the coarse one.
+
 Neither changes the public state: start() / stop() and the bar's isStarted() / isPaused() report
 what the caller asked for, whatever the visibility. app.common.qfluentwidgets exports these
 classes under the original names, so every user of that module gets them.
 """
 import time
 
-from PySide6.QtCore import QAbstractAnimation, QTimer
+from PySide6.QtCore import QAbstractAnimation, Qt, QTimer
 
 from qfluentwidgets import IndeterminateProgressBar as _FluentBar
 from qfluentwidgets import IndeterminateProgressRing as _FluentRing
@@ -80,15 +86,21 @@ class IndeterminateProgressBar(_FluentBar):
     positions it has then (barPositions), FRAME_RATE times a second"""
 
     FRAME_RATE = 30
+    PRECISE_FRAMES = False  # True: a Qt.PreciseTimer (frames really FRAME_RATE apart)
 
     _state = 'stopped'
     _time = 0
-    _lastFrame = None   # time.monotonic() of the last frame, while the frame timer runs
+    # time.perf_counter() of the last frame, while the frame timer runs (not time.monotonic():
+    # on Windows before Python 3.13 it advances in 15.6 ms steps, uneven at 60 frames a second)
+    _lastFrame = None
+    _carry = 0.0        # the part of a millisecond _time has not counted yet
     _frames = None      # the frame timer, made on first use (the base __init__ calls start())
 
     def _frameTimer(self):
         if self._frames is None:
             self._frames = QTimer(self)
+            if self.PRECISE_FRAMES:
+                self._frames.setTimerType(Qt.PreciseTimer)
             self._frames.setInterval(round(1000 / self.FRAME_RATE))
             self._frames.timeout.connect(self._onFrame)
         return self._frames
@@ -99,15 +111,17 @@ class IndeterminateProgressBar(_FluentBar):
         wanted = (self._state == 'running' and self.isVisible()
                   and not self.window().isMinimized())
         if wanted and not timer.isActive():
-            self._lastFrame = time.monotonic()
+            self._lastFrame = time.perf_counter()
             timer.start()
         elif not wanted and timer.isActive():
             timer.stop()
 
     def _onFrame(self):
-        now = time.monotonic()
-        self._time += round((now - self._lastFrame) * 1000)
+        now = time.perf_counter()
+        elapsed = round((now - self._lastFrame) * 1000 + self._carry, 6)
         self._lastFrame = now
+        self._time += int(elapsed)
+        self._carry = elapsed - int(elapsed)
         self.shortPos, self.longPos = self.barPositions(self._time)
 
     def barPositions(self, t):
@@ -135,6 +149,7 @@ class IndeterminateProgressBar(_FluentBar):
         self.shortPos = 0
         self.longPos = 0
         self._time = 0
+        self._carry = 0.0
         self._state = 'running'
         self._syncFrames()
         self.update()
@@ -172,3 +187,11 @@ class IndeterminateProgressBar(_FluentBar):
         self._state = 'stopped'
         self._syncFrames()
         super().error()
+
+
+class SmoothIndeterminateProgressBar(IndeterminateProgressBar):
+    """The bar at the original's 60 frames a second, on a precise timer: for a bar the user
+    watches for a short time (see the module docstring). Same shape and timing"""
+
+    FRAME_RATE = 60
+    PRECISE_FRAMES = True
